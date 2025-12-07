@@ -1794,23 +1794,27 @@ function App() {
                   }
                 : { left: 0, top: 0, width: '100%', height: '100%' };
 
+              const style: React.CSSProperties = isFocused
+                ? {
+                    ...layoutStyle,
+                    outline: '2px solid hsl(var(--primary))',
+                    outlineOffset: -4,
+                    boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.12)',
+                  }
+                : { ...layoutStyle };
+
+              if (!isVisible) {
+                style.display = 'none';
+              }
+
               return (
                 <div
                   key={session.id}
                   className={cn(
-                    "absolute bg-background transition-opacity border border-border/60",
-                    isVisible ? "z-10" : "opacity-0 pointer-events-none"
+                    "absolute bg-background border border-border/60",
+                    isVisible && "z-10"
                   )}
-                  style={
-                    isFocused
-                      ? {
-                          ...layoutStyle,
-                          outline: '2px solid hsl(var(--primary))',
-                          outlineOffset: -4,
-                          boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.12)',
-                        }
-                      : layoutStyle
-                  }
+                  style={style}
                   onClick={() => setFocusedSessionId(session.id)}
                 >
                   <Terminal
