@@ -1,0 +1,9 @@
+export const STORAGE_KEY_HOSTS = 'nebula_hosts_v1';
+export const STORAGE_KEY_KEYS = 'nebula_keys_v1';
+export const STORAGE_KEY_GROUPS = 'nebula_groups_v1';
+export const STORAGE_KEY_SNIPPETS = 'nebula_snippets_v1';
+export const STORAGE_KEY_SNIPPET_PACKAGES = 'nebula_snippet_packages_v1';
+export const STORAGE_KEY_THEME = 'nebula_theme_v1';
+export const STORAGE_KEY_COLOR = 'nebula_color_v1';
+export const STORAGE_KEY_SYNC = 'nebula_sync_v1';
+export const STORAGE_KEY_TERM_THEME = 'nebula_term_theme_v1';
