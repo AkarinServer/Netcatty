@@ -312,6 +312,8 @@ function App() {
   const [keys, setKeys] = useState<SSHKey[]>([]);
   const [snippets, setSnippets] = useState<Snippet[]>([]);
   const [customGroups, setCustomGroups] = useState<string[]>([]);
+  const [workspaceRenameTarget, setWorkspaceRenameTarget] = useState<Workspace | null>(null);
+  const [workspaceRenameValue, setWorkspaceRenameValue] = useState('');
   
   // Navigation & Sessions
   const [sessions, setSessions] = useState<TerminalSession[]>([]);
@@ -371,7 +373,13 @@ function App() {
     root.classList.remove('light', 'dark');
     root.classList.add(theme);
     root.style.setProperty('--primary', primaryColor);
+    root.style.setProperty('--accent', primaryColor);
     root.style.setProperty('--ring', primaryColor);
+    const lightness = parseFloat(primaryColor.split(/\s+/)[2]?.replace('%', '') || '');
+    const accentForeground = theme === 'dark'
+      ? '220 40% 96%'
+      : (!Number.isNaN(lightness) && lightness < 55 ? '0 0% 98%' : '222 47% 12%');
+    root.style.setProperty('--accent-foreground', accentForeground);
     localStorage.setItem(STORAGE_KEY_THEME, theme);
     localStorage.setItem(STORAGE_KEY_COLOR, primaryColor);
   }, [theme, primaryColor]);
@@ -636,9 +644,16 @@ function App() {
   const renameWorkspace = (workspaceId: string) => {
     const target = workspaces.find(w => w.id === workspaceId);
     if (!target) return;
-    const name = window.prompt('Rename workspace', target.title);
-    if (!name || !name.trim()) return;
-    setWorkspaces(prev => prev.map(w => w.id === workspaceId ? { ...w, title: name.trim() } : w));
+    setWorkspaceRenameTarget(target);
+    setWorkspaceRenameValue(target.title);
+  };
+
+  const submitWorkspaceRename = () => {
+    const name = workspaceRenameValue.trim();
+    if (!name || !workspaceRenameTarget) return;
+    setWorkspaces(prev => prev.map(w => w.id === workspaceRenameTarget.id ? { ...w, title: name } : w));
+    setWorkspaceRenameTarget(null);
+    setWorkspaceRenameValue('');
   };
 
   type WorkspaceRect = { x: number; y: number; w: number; h: number };
@@ -1936,6 +1951,35 @@ function App() {
           </div>
         </div>
       )}
+
+      <Dialog open={!!workspaceRenameTarget} onOpenChange={(open) => {
+        if (!open) {
+          setWorkspaceRenameTarget(null);
+          setWorkspaceRenameValue('');
+        }
+      }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Rename workspace</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2 py-2">
+            <Label htmlFor="workspace-name">Name</Label>
+            <Input
+              id="workspace-name"
+              value={workspaceRenameValue}
+              onChange={(e) => setWorkspaceRenameValue(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') submitWorkspaceRename(); }}
+              autoFocus
+              placeholder="Workspace name"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => { setWorkspaceRenameTarget(null); setWorkspaceRenameValue(''); }}>Cancel</Button>
+            <Button onClick={submitWorkspaceRename} disabled={!workspaceRenameValue.trim()}>Save</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Host Panel */}
       {isFormOpen && (
         <HostDetailsPanel
