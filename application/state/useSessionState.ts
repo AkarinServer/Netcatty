@@ -229,9 +229,17 @@ export const useSessionState = () => {
     if (draggedId === targetId) return;
     
     setTabOrder(prevTabOrder => {
-      // We need to reconstruct orderedTabs logic here to get the current order
-      // This ensures we have the latest state without depending on orderedTabs memo
-      const currentOrder = [...prevTabOrder];
+      // Get all current tab IDs (orphan sessions + workspaces)
+      const allTabIds = [
+        ...orphanSessions.map(s => s.id),
+        ...workspaces.map(w => w.id),
+      ];
+      
+      // Build current effective order: existing order + new tabs at end
+      const orderedIds = prevTabOrder.filter(id => allTabIds.includes(id));
+      const newIds = allTabIds.filter(id => !orderedIds.includes(id));
+      const currentOrder = [...orderedIds, ...newIds];
+      
       const draggedIndex = currentOrder.indexOf(draggedId);
       const targetIndex = currentOrder.indexOf(targetId);
       
@@ -255,7 +263,7 @@ export const useSessionState = () => {
       
       return currentOrder;
     });
-  }, []);
+  }, [orphanSessions, workspaces]);
 
   return {
     sessions,
