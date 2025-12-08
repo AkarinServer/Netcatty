@@ -158,7 +158,7 @@ export const QuickSwitcher: React.FC<QuickSwitcherProps> = ({
 
   return (
     <div className="fixed inset-x-0 top-12 z-50 flex justify-center pt-2" style={{ pointerEvents: 'none' }}>
-      <div 
+      <div
         ref={containerRef}
         className="w-full max-w-2xl mx-4 bg-background border border-border rounded-xl shadow-2xl overflow-hidden max-h-[520px] flex flex-col"
         style={{ pointerEvents: 'auto' }}
