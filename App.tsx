@@ -95,10 +95,10 @@ function App() {
     const term = quickSearch.trim().toLowerCase();
     const filtered = term
       ? hosts.filter(h =>
-          h.label.toLowerCase().includes(term) ||
-          h.hostname.toLowerCase().includes(term) ||
-          (h.group || '').toLowerCase().includes(term)
-        )
+        h.label.toLowerCase().includes(term) ||
+        h.hostname.toLowerCase().includes(term) ||
+        (h.group || '').toLowerCase().includes(term)
+      )
       : hosts;
     return filtered.slice(0, 8);
   }, [hosts, quickSearch]);
@@ -257,8 +257,8 @@ function App() {
           onCancel={() => { setIsFormOpen(false); setEditingHost(null); }}
         />
       )}
-      
-      <SettingsDialog 
+
+      <SettingsDialog
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
         onImport={importDataFromString}

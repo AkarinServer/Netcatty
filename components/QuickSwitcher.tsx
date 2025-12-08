@@ -53,13 +53,13 @@ export const QuickSwitcher: React.FC<QuickSwitcherProps> = ({
   // Handle clicks outside the container
   useEffect(() => {
     if (!isOpen) return;
-    
+
     const handleClickOutside = (e: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         onClose();
       }
     };
-    
+
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isOpen, onClose]);
@@ -74,7 +74,7 @@ export const QuickSwitcher: React.FC<QuickSwitcherProps> = ({
   // Build categorized items for navigation
   const buildFlatItems = () => {
     const items: Array<{ type: 'host' | 'tab' | 'workspace' | 'action'; id: string; data?: any }> = [];
-    
+
     if (showCategorized) {
       // Hosts
       results.forEach(host => items.push({ type: 'host', id: host.id, data: host }));
@@ -90,7 +90,7 @@ export const QuickSwitcher: React.FC<QuickSwitcherProps> = ({
       // Recent connections only
       results.forEach(host => items.push({ type: 'host', id: host.id, data: host }));
     }
-    
+
     return items;
   };
 
@@ -137,13 +137,12 @@ export const QuickSwitcher: React.FC<QuickSwitcherProps> = ({
   const renderHostItem = (host: Host) => {
     const idx = getItemIndex('host', host.id);
     const isSelected = idx === selectedIndex;
-    
+
     return (
       <div
         key={host.id}
-        className={`flex items-center justify-between px-4 py-2.5 cursor-pointer transition-colors ${
-          isSelected ? 'bg-primary/15' : 'hover:bg-muted/50'
-        }`}
+        className={`flex items-center justify-between px-4 py-2.5 cursor-pointer transition-colors ${isSelected ? 'bg-primary/15' : 'hover:bg-muted/50'
+          }`}
         onClick={() => { onSelect(host); }}
         onMouseEnter={() => setSelectedIndex(idx)}
       >
@@ -160,7 +159,7 @@ export const QuickSwitcher: React.FC<QuickSwitcherProps> = ({
 
   return (
     <div className="fixed inset-x-0 top-12 z-50 flex justify-center pt-2" style={{ pointerEvents: 'none' }}>
-      <div 
+      <div
         ref={containerRef}
         className="w-full max-w-2xl mx-4 bg-background border border-border rounded-xl shadow-2xl overflow-hidden"
         style={{ pointerEvents: 'auto' }}
@@ -190,9 +189,9 @@ export const QuickSwitcher: React.FC<QuickSwitcherProps> = ({
               <div className="px-4 py-2 flex items-center justify-between">
                 <span className="text-xs font-medium text-muted-foreground">Recent connections</span>
                 <div className="flex items-center gap-2">
-                  <Button 
-                    size="sm" 
-                    variant="outline" 
+                  <Button
+                    size="sm"
+                    variant="outline"
                     className="h-6 px-2 text-[11px]"
                     onClick={() => onCreateWorkspace?.()}
                   >
@@ -237,20 +236,19 @@ export const QuickSwitcher: React.FC<QuickSwitcherProps> = ({
                 <div className="px-4 py-1.5">
                   <span className="text-xs font-medium text-muted-foreground">Tabs</span>
                 </div>
-                
+
                 {/* Built-in tabs */}
                 {['vault', 'sftp'].map(tabId => {
                   const idx = getItemIndex('tab', tabId);
                   const isSelected = idx === selectedIndex;
                   const icon = tabId === 'vault' ? <Shield size={16} /> : <Folder size={16} />;
                   const label = tabId === 'vault' ? 'Vaults' : 'SFTP';
-                  
+
                   return (
                     <div
                       key={tabId}
-                      className={`flex items-center gap-3 px-4 py-2.5 cursor-pointer transition-colors ${
-                        isSelected ? 'bg-primary/15' : 'hover:bg-muted/50'
-                      }`}
+                      className={`flex items-center gap-3 px-4 py-2.5 cursor-pointer transition-colors ${isSelected ? 'bg-primary/15' : 'hover:bg-muted/50'
+                        }`}
                       onClick={() => { onSelectTab(tabId); onClose(); }}
                       onMouseEnter={() => setSelectedIndex(idx)}
                     >
@@ -266,13 +264,12 @@ export const QuickSwitcher: React.FC<QuickSwitcherProps> = ({
                 {workspaces.map(workspace => {
                   const idx = getItemIndex('workspace', workspace.id);
                   const isSelected = idx === selectedIndex;
-                  
+
                   return (
                     <div
                       key={workspace.id}
-                      className={`flex items-center gap-3 px-4 py-2.5 cursor-pointer transition-colors ${
-                        isSelected ? 'bg-primary/15' : 'hover:bg-muted/50'
-                      }`}
+                      className={`flex items-center gap-3 px-4 py-2.5 cursor-pointer transition-colors ${isSelected ? 'bg-primary/15' : 'hover:bg-muted/50'
+                        }`}
                       onClick={() => { onSelectTab(workspace.id); onClose(); }}
                       onMouseEnter={() => setSelectedIndex(idx)}
                     >
@@ -288,13 +285,12 @@ export const QuickSwitcher: React.FC<QuickSwitcherProps> = ({
                 {orphanSessions.map(session => {
                   const idx = getItemIndex('tab', session.id);
                   const isSelected = idx === selectedIndex;
-                  
+
                   return (
                     <div
                       key={session.id}
-                      className={`flex items-center gap-3 px-4 py-2.5 cursor-pointer transition-colors ${
-                        isSelected ? 'bg-primary/15' : 'hover:bg-muted/50'
-                      }`}
+                      className={`flex items-center gap-3 px-4 py-2.5 cursor-pointer transition-colors ${isSelected ? 'bg-primary/15' : 'hover:bg-muted/50'
+                        }`}
                       onClick={() => { onSelectTab(session.id); onClose(); }}
                       onMouseEnter={() => setSelectedIndex(idx)}
                     >
@@ -312,13 +308,12 @@ export const QuickSwitcher: React.FC<QuickSwitcherProps> = ({
                 <div className="px-4 py-1.5">
                   <span className="text-xs font-medium text-muted-foreground">Quick connect</span>
                 </div>
-                
+
                 {/* Local Terminal */}
                 {onCreateLocalTerminal && (
                   <div
-                    className={`flex items-center gap-3 px-4 py-2.5 cursor-pointer transition-colors ${
-                      getItemIndex('action', 'local-terminal') === selectedIndex ? 'bg-primary/15' : 'hover:bg-muted/50'
-                    }`}
+                    className={`flex items-center gap-3 px-4 py-2.5 cursor-pointer transition-colors ${getItemIndex('action', 'local-terminal') === selectedIndex ? 'bg-primary/15' : 'hover:bg-muted/50'
+                      }`}
                     onClick={() => { onCreateLocalTerminal(); onClose(); }}
                     onMouseEnter={() => setSelectedIndex(getItemIndex('action', 'local-terminal'))}
                   >
@@ -331,9 +326,8 @@ export const QuickSwitcher: React.FC<QuickSwitcherProps> = ({
 
                 {/* Serial */}
                 <div
-                  className={`flex items-center gap-3 px-4 py-2.5 cursor-pointer transition-colors opacity-50 ${
-                    getItemIndex('action', 'serial') === selectedIndex ? 'bg-primary/15' : 'hover:bg-muted/50'
-                  }`}
+                  className={`flex items-center gap-3 px-4 py-2.5 cursor-pointer transition-colors opacity-50 ${getItemIndex('action', 'serial') === selectedIndex ? 'bg-primary/15' : 'hover:bg-muted/50'
+                    }`}
                   onMouseEnter={() => setSelectedIndex(getItemIndex('action', 'serial'))}
                 >
                   <div className="h-6 w-6 rounded flex items-center justify-center text-muted-foreground">
