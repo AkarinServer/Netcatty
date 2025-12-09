@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, memo } from 'react';
 import { Monitor, TerminalSquare, Shield, Folder, LayoutGrid, Terminal, Search } from 'lucide-react';
 import { Host, TerminalSession, Workspace } from '../types';
 import { Button } from './ui/button';
@@ -20,7 +20,7 @@ interface QuickSwitcherProps {
   onCreateWorkspace?: () => void;
 }
 
-export const QuickSwitcher: React.FC<QuickSwitcherProps> = ({
+const QuickSwitcherInner: React.FC<QuickSwitcherProps> = ({
   isOpen,
   query,
   results,
@@ -332,3 +332,6 @@ export const QuickSwitcher: React.FC<QuickSwitcherProps> = ({
     </div>
   );
 };
+
+export const QuickSwitcher = memo(QuickSwitcherInner);
+QuickSwitcher.displayName = 'QuickSwitcher';

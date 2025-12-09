@@ -84,7 +84,6 @@ const VaultViewInner: React.FC<VaultViewProps> = ({
 }) => {
   // Subscribe to isActive from external store - only re-renders when vault active state changes
   const isActive = useIsVaultActive();
-  console.log('[VaultView] render, isActive:', isActive);
   const [currentSection, setCurrentSection] = useState<VaultSection>('hosts');
   const [search, setSearch] = useState('');
   const [selectedGroupPath, setSelectedGroupPath] = useState<string | null>(null);

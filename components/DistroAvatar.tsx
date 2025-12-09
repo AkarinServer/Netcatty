@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { Host } from '../types';
 import { normalizeDistroId } from '../domain/host';
 import { cn } from '../lib/utils';
@@ -36,7 +36,7 @@ export const DISTRO_COLORS: Record<string, string> = {
 
 type DistroAvatarProps = { host: Host; fallback: string; className?: string };
 
-export const DistroAvatar: React.FC<DistroAvatarProps> = ({ host, fallback, className }) => {
+const DistroAvatarInner: React.FC<DistroAvatarProps> = ({ host, fallback, className }) => {
   const distro = normalizeDistroId(host.distro) || (host.distro || '').toLowerCase();
   const logo = DISTRO_LOGOS[distro];
   const [errored, setErrored] = React.useState(false);
@@ -61,3 +61,6 @@ export const DistroAvatar: React.FC<DistroAvatarProps> = ({ host, fallback, clas
     </div>
   );
 };
+
+export const DistroAvatar = memo(DistroAvatarInner);
+DistroAvatar.displayName = 'DistroAvatar';

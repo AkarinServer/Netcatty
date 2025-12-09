@@ -17,7 +17,6 @@ import { useSessionState } from './application/state/useSessionState';
 import { ToastProvider } from './components/ui/toast';
 
 function App() {
-  console.log('[App] render');
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isQuickSwitcherOpen, setIsQuickSwitcherOpen] = useState(false);

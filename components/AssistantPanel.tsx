@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, memo } from 'react';
 import { generateSSHCommand, explainLog } from '../infrastructure/services/geminiService';
 import { Sparkles, MessageSquare, Copy, Terminal, Check } from 'lucide-react';
 import { Button } from './ui/button';
@@ -6,7 +6,7 @@ import { Textarea } from './ui/textarea';
 import { Card, CardContent } from './ui/card';
 import { Label } from './ui/label';
 
-const AssistantPanel: React.FC = () => {
+const AssistantPanelInner: React.FC = () => {
   const [prompt, setPrompt] = useState('');
   const [response, setResponse] = useState('');
   const [loading, setLoading] = useState(false);
@@ -111,5 +111,8 @@ const AssistantPanel: React.FC = () => {
     </div>
   );
 };
+
+const AssistantPanel = memo(AssistantPanelInner);
+AssistantPanel.displayName = 'AssistantPanel';
 
 export default AssistantPanel;

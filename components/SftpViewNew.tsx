@@ -67,7 +67,7 @@ const getFileIcon = (entry: SftpFileEntry) => {
 };
 
 // Breadcrumb component
-const Breadcrumb: React.FC<{
+const BreadcrumbInner: React.FC<{
     path: string;
     onNavigate: (path: string) => void;
     onHome: () => void;
@@ -117,8 +117,11 @@ const Breadcrumb: React.FC<{
     );
 };
 
+const Breadcrumb = memo(BreadcrumbInner);
+Breadcrumb.displayName = 'Breadcrumb';
+
 // File row component
-const FileRow: React.FC<{
+const FileRowInner: React.FC<{
     entry: SftpFileEntry;
     isSelected: boolean;
     isDragOver: boolean;
@@ -166,6 +169,10 @@ const FileRow: React.FC<{
     );
 };
 
+// Memoized FileRow
+const FileRow = memo(FileRowInner);
+FileRow.displayName = 'FileRow';
+
 // Helper to format bytes for transfer display
 const formatTransferBytes = (bytes: number): string => {
     if (bytes === 0) return '0 B';
@@ -176,7 +183,7 @@ const formatTransferBytes = (bytes: number): string => {
 };
 
 // Transfer item component
-const TransferItem: React.FC<{
+const TransferItemInner: React.FC<{
     task: TransferTask;
     onCancel: () => void;
     onRetry: () => void;
@@ -298,6 +305,10 @@ const TransferItem: React.FC<{
         </div>
     );
 };
+
+// Memoized TransferItem
+const TransferItem = memo(TransferItemInner);
+TransferItem.displayName = 'TransferItem';
 
 // SFTP Pane component
 interface SftpPaneViewProps {
@@ -1190,7 +1201,6 @@ interface SftpViewProps {
 const SftpViewInner: React.FC<SftpViewProps> = ({ hosts, keys }) => {
     // Subscribe to isActive from external store - only re-renders when sftp active state changes
     const isActive = useIsSftpActive();
-    console.log('[SftpView] render, isActive:', isActive);
     const sftp = useSftpState(hosts, keys);
     const [permissionsState, setPermissionsState] = useState<{ file: SftpFileEntry; side: 'left' | 'right' } | null>(null);
     const [draggedFiles, setDraggedFiles] = useState<{ name: string; isDirectory: boolean; side: 'left' | 'right' }[] | null>(null);
