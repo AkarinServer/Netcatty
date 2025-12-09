@@ -49,7 +49,7 @@ import {
 } from '../infrastructure/services/portForwardingService';
 import { toast } from './ui/toast';
 
-type WizardStep = 'type' | 'local-config' | 'remote-config' | 'destination';
+type WizardStep = 'type' | 'local-config' | 'remote-config' | 'destination' | 'host-selection';
 
 interface PortForwardingProps {
     hosts: Host[];
@@ -67,7 +67,7 @@ const TYPE_LABELS: Record<PortForwardingType, string> = {
 const TYPE_DESCRIPTIONS: Record<PortForwardingType, string> = {
     local: 'Local forwarding lets you access a remote server\'s listening port as though it were local.',
     remote: 'Remote forwarding opens a port on the remote machine and forwards connections to the local (current) host.',
-    dynamic: 'This port will be open on the local (current) device, and it will receive the traffic.',
+    dynamic: 'Dynamic port forwarding turns Netcatty into a SOCKS proxy server. SOCKS proxy server is a protocol to request any connection via a remote host.',
 };
 
 const TYPE_ICONS: Record<PortForwardingType, React.ReactNode> = {
@@ -291,13 +291,8 @@ const PortForwarding: React.FC<PortForwardingProps> = ({ hosts, keys, customGrou
         setDraftRule(prev => ({ ...prev, type }));
         setShowWizard(true);
         setShowNewMenu(false);
-
-        // Go to appropriate first config step
-        if (type === 'dynamic') {
-            setWizardStep('local-config');
-        } else {
-            setWizardStep('type');
-        }
+        // All types start from 'type' selection step
+        setWizardStep('type');
     };
 
     // Edit existing rule - open edit panel
@@ -331,17 +326,19 @@ const PortForwarding: React.FC<PortForwardingProps> = ({ hosts, keys, customGrou
         switch (wizardStep) {
             case 'type':
                 if (wizardType === 'dynamic') return 'local-config';
-                if (wizardType === 'local') return 'local-config'; // Local needs local-config step
+                if (wizardType === 'local') return 'local-config';
                 if (wizardType === 'remote') return 'remote-config';
                 return null;
             case 'local-config':
-                if (wizardType === 'dynamic') return null; // Dynamic is done after local config
-                if (wizardType === 'local') return 'destination'; // Local continues to destination
+                if (wizardType === 'dynamic') return 'host-selection'; // Dynamic needs host selection after local config
+                if (wizardType === 'local') return 'destination';
                 return null;
             case 'remote-config':
                 return 'destination';
             case 'destination':
                 return null;
+            case 'host-selection':
+                return null; // Host selection is the last step for dynamic
             default:
                 return null;
         }
@@ -356,9 +353,11 @@ const PortForwarding: React.FC<PortForwardingProps> = ({ hosts, keys, customGrou
             case 'remote-config':
                 return 'type';
             case 'destination':
-                if (wizardType === 'local') return 'local-config'; // Go back to local-config
+                if (wizardType === 'local') return 'local-config';
                 if (wizardType === 'remote') return 'remote-config';
                 return null;
+            case 'host-selection':
+                return 'local-config';
             default:
                 return null;
         }
@@ -367,13 +366,17 @@ const PortForwarding: React.FC<PortForwardingProps> = ({ hosts, keys, customGrou
     const canProceed = (): boolean => {
         switch (wizardStep) {
             case 'type':
-                return !!draftRule.hostId; // Need host selected
+                // Dynamic doesn't need host on type step, others do
+                if (wizardType === 'dynamic') return true;
+                return !!draftRule.hostId;
             case 'local-config':
                 return !!(draftRule.localPort && draftRule.localPort > 0 && draftRule.localPort < 65536);
             case 'remote-config':
                 return !!(draftRule.localPort && draftRule.localPort > 0 && draftRule.localPort < 65536);
             case 'destination':
                 return !!(draftRule.remoteHost && draftRule.remotePort && draftRule.remotePort > 0);
+            case 'host-selection':
+                return !!draftRule.hostId;
             default:
                 return false;
         }
@@ -730,6 +733,46 @@ const PortForwarding: React.FC<PortForwardingProps> = ({ hosts, keys, customGrou
                     </>
                 );
 
+            case 'host-selection':
+                return (
+                    <>
+                        <div className="text-sm font-medium mb-3">Select the intermediate host:</div>
+
+                        <TrafficDiagram type={wizardType} isAnimating={true} />
+
+                        <p className="text-sm text-muted-foreground mt-2 mb-4 leading-relaxed">
+                            The intermediate host will receive the traffic that will be forwarded to the local (current) host.
+                        </p>
+
+                        <Button
+                            variant="default"
+                            className="w-full h-11"
+                            onClick={() => setShowHostSelector(true)}
+                        >
+                            {selectedHost ? (
+                                <div className="flex items-center gap-2 w-full">
+                                    <DistroAvatar host={selectedHost} fallback={selectedHost.os[0].toUpperCase()} className="h-6 w-6" />
+                                    <span>{selectedHost.label}</span>
+                                    <Check size={14} className="ml-auto" />
+                                </div>
+                            ) : (
+                                'Select a host'
+                            )}
+                        </Button>
+
+                        {/* Rule label for dynamic */}
+                        <div className="space-y-2 mt-6">
+                            <Label className="text-xs">Rule label (optional)</Label>
+                            <Input
+                                placeholder="e.g. SOCKS Proxy"
+                                className="h-10"
+                                value={draftRule.label || ''}
+                                onChange={e => setDraftRule(prev => ({ ...prev, label: e.target.value }))}
+                            />
+                        </div>
+                    </>
+                );
+
             default:
                 return null;
         }
@@ -959,34 +1002,32 @@ const PortForwarding: React.FC<PortForwardingProps> = ({ hosts, keys, customGrou
                                 />
                             </div>
 
-                            {/* Intermediate Host - for local/remote only */}
-                            {(editDraft.type === 'local' || editDraft.type === 'remote') && (
-                                <div className="space-y-2">
-                                    <Label className="text-xs">Intermediate host *</Label>
-                                    <Button
-                                        variant="secondary"
-                                        className="w-full h-10 justify-between"
-                                        onClick={() => {
-                                            setShowHostSelector(true);
-                                            // When host is selected, update editDraft instead of draftRule
-                                        }}
-                                    >
-                                        {hosts.find(h => h.id === editDraft.hostId) ? (
-                                            <div className="flex items-center gap-2">
-                                                <DistroAvatar
-                                                    host={hosts.find(h => h.id === editDraft.hostId)!}
-                                                    fallback={hosts.find(h => h.id === editDraft.hostId)!.os[0].toUpperCase()}
-                                                    className="h-6 w-6"
-                                                />
-                                                <span>{hosts.find(h => h.id === editDraft.hostId)?.label}</span>
-                                            </div>
-                                        ) : (
-                                            <span className="text-muted-foreground">Select a host</span>
-                                        )}
-                                        <ChevronDown size={14} />
-                                    </Button>
-                                </div>
-                            )}
+                            {/* Intermediate Host - for all types */}
+                            <div className="space-y-2">
+                                <Label className="text-xs">Intermediate host *</Label>
+                                <Button
+                                    variant="secondary"
+                                    className="w-full h-10 justify-between"
+                                    onClick={() => {
+                                        setShowHostSelector(true);
+                                        // When host is selected, update editDraft instead of draftRule
+                                    }}
+                                >
+                                    {hosts.find(h => h.id === editDraft.hostId) ? (
+                                        <div className="flex items-center gap-2">
+                                            <DistroAvatar
+                                                host={hosts.find(h => h.id === editDraft.hostId)!}
+                                                fallback={hosts.find(h => h.id === editDraft.hostId)!.os[0].toUpperCase()}
+                                                className="h-6 w-6"
+                                            />
+                                            <span>{hosts.find(h => h.id === editDraft.hostId)?.label}</span>
+                                        </div>
+                                    ) : (
+                                        <span className="text-muted-foreground">Select a host</span>
+                                    )}
+                                    <ChevronDown size={14} />
+                                </Button>
+                            </div>
 
                             {/* Destination - for local/remote only */}
                             {(editDraft.type === 'local' || editDraft.type === 'remote') && (
