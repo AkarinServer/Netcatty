@@ -1,4 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
     ArrowLeft,
     ArrowRight,
@@ -187,6 +188,26 @@ const PortForwarding: React.FC<PortForwardingProps> = ({ hosts, keys, customGrou
     const [editingRule, setEditingRule] = useState<PortForwardingRule | null>(null);
     const [editDraft, setEditDraft] = useState<Partial<PortForwardingRule>>({});
 
+    // New forwarding form mode (skip wizard, all-in-one form)
+    const [showNewForm, setShowNewForm] = useState(false);
+    const [newFormDraft, setNewFormDraft] = useState<Partial<PortForwardingRule>>({
+        label: '',
+        type: 'local',
+        localPort: undefined,
+        bindAddress: '127.0.0.1',
+        remoteHost: '',
+        remotePort: undefined,
+        hostId: undefined,
+    });
+    // User preference: skip wizard next time
+    const [preferFormMode, setPreferFormMode] = useState(() => {
+        try {
+            return localStorage.getItem('pf-prefer-form-mode') === 'true';
+        } catch {
+            return false;
+        }
+    });
+
     // New forwarding menu
     const [showNewMenu, setShowNewMenu] = useState(false);
 
@@ -284,15 +305,111 @@ const PortForwarding: React.FC<PortForwardingProps> = ({ hosts, keys, customGrou
         setHostSearchQuery('');
     };
 
-    // Start new rule wizard
+    // Reset new form
+    const resetNewForm = () => {
+        setNewFormDraft({
+            label: '',
+            type: 'local',
+            localPort: undefined,
+            bindAddress: '127.0.0.1',
+            remoteHost: '',
+            remotePort: undefined,
+            hostId: undefined,
+        });
+    };
+
+    // Start new rule - wizard or form based on user preference
     const startNewRule = (type: PortForwardingType) => {
-        resetWizard();
-        setWizardType(type);
-        setDraftRule(prev => ({ ...prev, type }));
-        setShowWizard(true);
         setShowNewMenu(false);
-        // All types start from 'type' selection step
+        
+        if (preferFormMode) {
+            // Form mode: show all-in-one form
+            resetNewForm();
+            setNewFormDraft(prev => ({ ...prev, type }));
+            setShowNewForm(true);
+            setShowWizard(false);
+        } else {
+            // Wizard mode
+            resetWizard();
+            setWizardType(type);
+            setDraftRule(prev => ({ ...prev, type }));
+            setShowWizard(true);
+            setShowNewForm(false);
+            setWizardStep('type');
+        }
+    };
+
+    // Skip wizard and switch to form mode
+    const skipWizardToForm = () => {
+        // Save preference
+        setPreferFormMode(true);
+        try {
+            localStorage.setItem('pf-prefer-form-mode', 'true');
+        } catch {}
+        
+        // Transfer current draft to form
+        setNewFormDraft({
+            ...draftRule,
+            type: wizardType,
+        });
+        setShowWizard(false);
+        setShowNewForm(true);
+    };
+
+    // Open wizard from form
+    const openWizardFromForm = () => {
+        // Transfer current form draft to wizard
+        setWizardType(newFormDraft.type || 'local');
+        setDraftRule({ ...newFormDraft });
+        setShowNewForm(false);
+        setShowWizard(true);
         setWizardStep('type');
+    };
+
+    // Save new rule from form
+    const saveNewFormRule = () => {
+        const label = newFormDraft.label?.trim() || (() => {
+            const host = hosts.find(h => h.id === newFormDraft.hostId);
+            switch (newFormDraft.type) {
+                case 'local':
+                    return `Local:${newFormDraft.localPort} → ${newFormDraft.remoteHost}:${newFormDraft.remotePort}`;
+                case 'remote':
+                    return `Remote:${newFormDraft.localPort} → ${newFormDraft.remoteHost}:${newFormDraft.remotePort}`;
+                case 'dynamic':
+                    return `SOCKS:${newFormDraft.localPort}`;
+                default:
+                    return 'New Rule';
+            }
+        })();
+
+        addRule({
+            label,
+            type: newFormDraft.type || 'local',
+            localPort: newFormDraft.localPort!,
+            bindAddress: newFormDraft.bindAddress || '127.0.0.1',
+            remoteHost: newFormDraft.remoteHost,
+            remotePort: newFormDraft.remotePort,
+            hostId: newFormDraft.hostId,
+        });
+
+        setShowNewForm(false);
+        resetNewForm();
+    };
+
+    // Close new form
+    const closeNewForm = () => {
+        setShowNewForm(false);
+        resetNewForm();
+    };
+
+    // Check if new form is valid
+    const isNewFormValid = (): boolean => {
+        if (!newFormDraft.localPort || newFormDraft.localPort <= 0 || newFormDraft.localPort >= 65536) return false;
+        if (!newFormDraft.hostId) return false;
+        if (newFormDraft.type !== 'dynamic') {
+            if (!newFormDraft.remoteHost || !newFormDraft.remotePort) return false;
+        }
+        return true;
     };
 
     // Edit existing rule - open edit panel
@@ -300,7 +417,8 @@ const PortForwarding: React.FC<PortForwardingProps> = ({ hosts, keys, customGrou
         setEditingRule(rule);
         setEditDraft({ ...rule });
         setShowEditPanel(true);
-        setShowWizard(false); // Close wizard if open
+        setShowWizard(false);
+        setShowNewForm(false);
     };
 
     // Save edited rule
@@ -322,6 +440,7 @@ const PortForwarding: React.FC<PortForwardingProps> = ({ hosts, keys, customGrou
     };
 
     // Handle wizard navigation
+    // Flow: type -> config -> destination (local/remote only) -> host-selection
     const getNextStep = (): WizardStep | null => {
         switch (wizardStep) {
             case 'type':
@@ -330,15 +449,15 @@ const PortForwarding: React.FC<PortForwardingProps> = ({ hosts, keys, customGrou
                 if (wizardType === 'remote') return 'remote-config';
                 return null;
             case 'local-config':
-                if (wizardType === 'dynamic') return 'host-selection'; // Dynamic needs host selection after local config
+                if (wizardType === 'dynamic') return 'host-selection';
                 if (wizardType === 'local') return 'destination';
                 return null;
             case 'remote-config':
                 return 'destination';
             case 'destination':
-                return null;
+                return 'host-selection'; // Host selection is always last for local/remote
             case 'host-selection':
-                return null; // Host selection is the last step for dynamic
+                return null;
             default:
                 return null;
         }
@@ -357,7 +476,8 @@ const PortForwarding: React.FC<PortForwardingProps> = ({ hosts, keys, customGrou
                 if (wizardType === 'remote') return 'remote-config';
                 return null;
             case 'host-selection':
-                return 'local-config';
+                if (wizardType === 'dynamic') return 'local-config';
+                return 'destination';
             default:
                 return null;
         }
@@ -366,9 +486,8 @@ const PortForwarding: React.FC<PortForwardingProps> = ({ hosts, keys, customGrou
     const canProceed = (): boolean => {
         switch (wizardStep) {
             case 'type':
-                // Dynamic doesn't need host on type step, others do
-                if (wizardType === 'dynamic') return true;
-                return !!draftRule.hostId;
+                // Type step just shows description, always can proceed
+                return true;
             case 'local-config':
                 return !!(draftRule.localPort && draftRule.localPort > 0 && draftRule.localPort < 65536);
             case 'remote-config':
@@ -545,7 +664,13 @@ const PortForwarding: React.FC<PortForwardingProps> = ({ hosts, keys, customGrou
                         </ContextMenuItem>
                     )}
                     <ContextMenuSeparator />
-                    <ContextMenuItem className="text-destructive" onClick={() => deleteRule(rule.id)}>
+                    <ContextMenuItem className="text-destructive" onClick={() => {
+                        // Close edit panel if deleting the currently editing rule
+                        if (editingRule?.id === rule.id) {
+                            closeEditPanel();
+                        }
+                        deleteRule(rule.id);
+                    }}>
                         <Trash2 className="mr-2 h-4 w-4" /> Delete
                     </ContextMenuItem>
                 </ContextMenuContent>
@@ -589,30 +714,6 @@ const PortForwarding: React.FC<PortForwardingProps> = ({ hosts, keys, customGrou
                         <p className="text-sm text-muted-foreground mt-4 leading-relaxed">
                             {TYPE_DESCRIPTIONS[wizardType]}
                         </p>
-
-                        {/* Host Selection Button */}
-                        {wizardType !== 'dynamic' && (
-                            <div className="mt-6">
-                                <div className="text-sm font-medium mb-3">
-                                    {wizardType === 'local' ? 'Select the SSH tunnel host:' : 'Select the remote host:'}
-                                </div>
-                                <Button
-                                    variant="default"
-                                    className="w-full h-11"
-                                    onClick={() => setShowHostSelector(true)}
-                                >
-                                    {selectedHost ? (
-                                        <div className="flex items-center gap-2">
-                                            <DistroAvatar host={selectedHost} fallback={selectedHost.os[0].toUpperCase()} className="h-6 w-6" />
-                                            <span>{selectedHost.label}</span>
-                                            <Check size={14} className="ml-auto" />
-                                        </div>
-                                    ) : (
-                                        'Select a host'
-                                    )}
-                                </Button>
-                            </div>
-                        )}
                     </>
                 );
 
@@ -720,15 +821,6 @@ const PortForwarding: React.FC<PortForwardingProps> = ({ hosts, keys, customGrou
                                     onChange={e => setDraftRule(prev => ({ ...prev, remotePort: parseInt(e.target.value) || undefined }))}
                                 />
                             </div>
-                            <div className="space-y-2">
-                                <Label className="text-xs">Rule label (optional)</Label>
-                                <Input
-                                    placeholder="e.g. MySQL Production"
-                                    className="h-10"
-                                    value={draftRule.label || ''}
-                                    onChange={e => setDraftRule(prev => ({ ...prev, label: e.target.value }))}
-                                />
-                            </div>
                         </div>
                     </>
                 );
@@ -760,11 +852,11 @@ const PortForwarding: React.FC<PortForwardingProps> = ({ hosts, keys, customGrou
                             )}
                         </Button>
 
-                        {/* Rule label for dynamic */}
+                        {/* Rule label */}
                         <div className="space-y-2 mt-6">
                             <Label className="text-xs">Rule label (optional)</Label>
                             <Input
-                                placeholder="e.g. SOCKS Proxy"
+                                placeholder={wizardType === 'dynamic' ? "e.g. SOCKS Proxy" : "e.g. MySQL Production"}
                                 className="h-10"
                                 value={draftRule.label || ''}
                                 onChange={e => setDraftRule(prev => ({ ...prev, label: e.target.value }))}
@@ -783,7 +875,7 @@ const PortForwarding: React.FC<PortForwardingProps> = ({ hosts, keys, customGrou
     return (
         <div className="flex h-full">
             {/* Main Content */}
-            <div className={cn("flex-1 flex flex-col min-h-0", (showWizard || showEditPanel) ? "mr-[360px]" : "")}>
+            <div className={cn("flex-1 flex flex-col min-h-0", (showWizard || showEditPanel || showNewForm) ? "mr-[360px]" : "")}>
                 {/* Toolbar */}
                 <div className="h-14 px-4 flex items-center gap-3 bg-secondary/60 border-b border-border/60">
                     <Popover open={showNewMenu} onOpenChange={setShowNewMenu}>
@@ -908,7 +1000,7 @@ const PortForwarding: React.FC<PortForwardingProps> = ({ hosts, keys, customGrou
                             <div className={cn(
                                 viewMode === 'grid'
                                     ? "grid gap-3 grid-cols-1 md:grid-cols-2 lg:grid-cols-3"
-                                    : "space-y-2"
+                                    : "flex flex-col gap-2.5"
                             )}>
                                 {filteredRules.map(rule => renderRuleCard(rule))}
                             </div>
@@ -1067,7 +1159,7 @@ const PortForwarding: React.FC<PortForwardingProps> = ({ hosts, keys, customGrou
                         </Button>
                         <Button
                             variant="ghost"
-                            className="w-full h-10 text-muted-foreground hover:text-foreground"
+                            className="w-full h-10 text-muted-foreground hover:text-foreground hover:bg-foreground/5"
                             onClick={closeEditPanel}
                         >
                             Cancel
@@ -1131,8 +1223,17 @@ const PortForwarding: React.FC<PortForwardingProps> = ({ hosts, keys, customGrou
                         </Button>
                         <Button
                             variant="ghost"
-                            className="w-full h-10 text-muted-foreground hover:text-foreground"
-                            onClick={skipWizard}
+                            className="w-full h-10 text-muted-foreground hover:text-foreground hover:bg-foreground/5"
+                            onClick={() => {
+                                if (isEditing) {
+                                    // Cancel editing - close wizard
+                                    setShowWizard(false);
+                                    resetWizard();
+                                } else {
+                                    // Skip wizard - switch to form mode
+                                    skipWizardToForm();
+                                }
+                            }}
                         >
                             {isEditing ? 'Cancel' : 'Skip wizard'}
                         </Button>
@@ -1140,31 +1241,29 @@ const PortForwarding: React.FC<PortForwardingProps> = ({ hosts, keys, customGrou
                 </div>
             )}
 
-            {/* Host Selector Overlay - Same width as wizard panel */}
-            {showHostSelector && (
-                <div className="fixed right-0 top-0 bottom-0 w-[360px] bg-background z-[60] flex flex-col border-l border-border/70">
+            {/* Host Selector Overlay - Rendered via Portal to avoid parent CSS issues */}
+            {showHostSelector && createPortal(
+                <div className="fixed right-0 top-0 bottom-0 w-[360px] bg-background z-[9999] flex flex-col border-l border-border/70 app-no-drag">
                     {/* Header */}
                     <div className="px-4 py-3 flex items-center gap-3 border-b border-border/60 bg-secondary/60">
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                            onClick={(e) => {
-                                e.stopPropagation();
+                        <button
+                            type="button"
+                            className="h-8 w-8 shrink-0 inline-flex items-center justify-center rounded-md hover:bg-accent hover:text-accent-foreground cursor-pointer"
+                            onClick={() => {
                                 if (hostSelectorPath !== null) {
                                     // Navigate up one level
                                     const parts = hostSelectorPath.split('/').filter(Boolean);
                                     parts.pop();
                                     setHostSelectorPath(parts.length > 0 ? parts.join('/') : null);
                                 } else {
-                                    // Close the selector and return to wizard
+                                    // Close the selector and return to wizard/form
                                     setShowHostSelector(false);
                                     setHostSearchQuery('');
                                 }
                             }}
                         >
                             <ArrowLeft size={18} />
-                        </Button>
+                        </button>
                         <div>
                             <h3 className="text-sm font-semibold">Select Host</h3>
                             <p className="text-xs text-muted-foreground">{hostSelectorPath || 'Personal vault'}</p>
@@ -1242,7 +1341,8 @@ const PortForwarding: React.FC<PortForwardingProps> = ({ hosts, keys, customGrou
                                     {filteredHosts.map(host => {
                                         const isSelectedInWizard = draftRule.hostId === host.id;
                                         const isSelectedInEdit = editDraft.hostId === host.id;
-                                        const isSelected = showEditPanel ? isSelectedInEdit : isSelectedInWizard;
+                                        const isSelectedInNewForm = newFormDraft.hostId === host.id;
+                                        const isSelected = showEditPanel ? isSelectedInEdit : (showNewForm ? isSelectedInNewForm : isSelectedInWizard);
 
                                         return (
                                             <div
@@ -1256,6 +1356,8 @@ const PortForwarding: React.FC<PortForwardingProps> = ({ hosts, keys, customGrou
                                                 onClick={() => {
                                                     if (showEditPanel) {
                                                         setEditDraft(prev => ({ ...prev, hostId: host.id }));
+                                                    } else if (showNewForm) {
+                                                        setNewFormDraft(prev => ({ ...prev, hostId: host.id }));
                                                     } else {
                                                         setDraftRule(prev => ({ ...prev, hostId: host.id }));
                                                     }
@@ -1286,7 +1388,7 @@ const PortForwarding: React.FC<PortForwardingProps> = ({ hosts, keys, customGrou
                     <div className="p-4 border-t border-border/60">
                         <Button
                             className="w-full h-10"
-                            disabled={showEditPanel ? !editDraft.hostId : !draftRule.hostId}
+                            disabled={showEditPanel ? !editDraft.hostId : (showNewForm ? !newFormDraft.hostId : !draftRule.hostId)}
                             onClick={() => {
                                 setShowHostSelector(false);
                                 setHostSearchQuery('');
@@ -1295,6 +1397,185 @@ const PortForwarding: React.FC<PortForwardingProps> = ({ hosts, keys, customGrou
                         >
                             Continue
                         </Button>
+                    </div>
+                </div>,
+                document.body
+            )}
+
+            {/* New Form Panel (skip wizard mode) */}
+            {showNewForm && (
+                <div className="fixed right-0 top-0 bottom-0 w-[360px] bg-secondary/95 border-l border-border/70 flex flex-col z-50">
+                    {/* Header */}
+                    <div className="px-4 py-3 flex items-center justify-between border-b border-border/60">
+                        <div>
+                            <h3 className="text-sm font-semibold">New Port Forwarding</h3>
+                            <p className="text-xs text-muted-foreground">Personal vault</p>
+                        </div>
+                        <div className="flex items-center gap-1">
+                            <Popover>
+                                <PopoverTrigger asChild>
+                                    <Button variant="ghost" size="icon" className="h-8 w-8">
+                                        <MoreVertical size={16} />
+                                    </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-40 p-1" align="end">
+                                    <Button
+                                        variant="ghost"
+                                        className="w-full justify-start gap-2 h-9"
+                                        onClick={() => {
+                                            // Clear preference
+                                            setPreferFormMode(false);
+                                            try {
+                                                localStorage.removeItem('pf-prefer-form-mode');
+                                            } catch {}
+                                        }}
+                                    >
+                                        Reset preference
+                                    </Button>
+                                </PopoverContent>
+                            </Popover>
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={closeNewForm}>
+                                <ArrowRight size={16} />
+                            </Button>
+                        </div>
+                    </div>
+
+                    {/* Content */}
+                    <ScrollArea className="flex-1">
+                        <div className="p-4 space-y-6">
+                            {/* Type Selector */}
+                            <div className="flex gap-1 p-1 bg-secondary/80 rounded-lg border border-border/60">
+                                {(['local', 'remote', 'dynamic'] as PortForwardingType[]).map((type) => (
+                                    <Button
+                                        key={type}
+                                        variant={newFormDraft.type === type ? 'default' : 'ghost'}
+                                        size="sm"
+                                        className={cn(
+                                            "flex-1 h-9",
+                                            newFormDraft.type === type ? "bg-primary text-primary-foreground" : ""
+                                        )}
+                                        onClick={() => setNewFormDraft(prev => ({ ...prev, type }))}
+                                    >
+                                        {type[0].toUpperCase() + type.slice(1)}
+                                    </Button>
+                                ))}
+                            </div>
+
+                            {/* Traffic Diagram */}
+                            <TrafficDiagram type={newFormDraft.type || 'local'} isAnimating={true} />
+
+                            {/* Label */}
+                            <div className="space-y-2">
+                                <Label className="text-xs">Label</Label>
+                                <Input
+                                    placeholder="Rule label"
+                                    className="h-10"
+                                    value={newFormDraft.label || ''}
+                                    onChange={e => setNewFormDraft(prev => ({ ...prev, label: e.target.value }))}
+                                />
+                            </div>
+
+                            {/* Local Port */}
+                            <div className="space-y-2">
+                                <Label className="text-xs">Local port number *</Label>
+                                <Input
+                                    type="number"
+                                    placeholder="e.g. 8080"
+                                    className="h-10"
+                                    value={newFormDraft.localPort || ''}
+                                    onChange={e => setNewFormDraft(prev => ({ ...prev, localPort: parseInt(e.target.value) || undefined }))}
+                                />
+                            </div>
+
+                            {/* Bind Address */}
+                            <div className="space-y-2">
+                                <Label className="text-xs">Bind address</Label>
+                                <Input
+                                    placeholder="127.0.0.1"
+                                    className="h-10"
+                                    value={newFormDraft.bindAddress || ''}
+                                    onChange={e => setNewFormDraft(prev => ({ ...prev, bindAddress: e.target.value }))}
+                                />
+                            </div>
+
+                            {/* Intermediate Host */}
+                            <div className="space-y-2">
+                                <Label className="text-xs">Intermediate host *</Label>
+                                <Button
+                                    variant="secondary"
+                                    className="w-full h-10 justify-between"
+                                    onClick={() => setShowHostSelector(true)}
+                                >
+                                    {hosts.find(h => h.id === newFormDraft.hostId) ? (
+                                        <div className="flex items-center gap-2">
+                                            <DistroAvatar
+                                                host={hosts.find(h => h.id === newFormDraft.hostId)!}
+                                                fallback={hosts.find(h => h.id === newFormDraft.hostId)!.os[0].toUpperCase()}
+                                                className="h-6 w-6"
+                                            />
+                                            <span>{hosts.find(h => h.id === newFormDraft.hostId)?.label}</span>
+                                        </div>
+                                    ) : (
+                                        <span className="text-muted-foreground">Select a host</span>
+                                    )}
+                                    <ChevronDown size={14} />
+                                </Button>
+                            </div>
+
+                            {/* Destination - for local/remote only */}
+                            {(newFormDraft.type === 'local' || newFormDraft.type === 'remote') && (
+                                <>
+                                    <div className="space-y-2">
+                                        <Label className="text-xs">Destination address *</Label>
+                                        <Input
+                                            placeholder="e.g. localhost or 192.168.1.100"
+                                            className="h-10"
+                                            value={newFormDraft.remoteHost || ''}
+                                            onChange={e => setNewFormDraft(prev => ({ ...prev, remoteHost: e.target.value }))}
+                                        />
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <Label className="text-xs">Destination port number *</Label>
+                                        <Input
+                                            type="number"
+                                            placeholder="e.g. 3306"
+                                            className="h-10"
+                                            value={newFormDraft.remotePort || ''}
+                                            onChange={e => setNewFormDraft(prev => ({ ...prev, remotePort: parseInt(e.target.value) || undefined }))}
+                                        />
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                    </ScrollArea>
+
+                    {/* Footer */}
+                    <div className="p-4 border-t border-border/60 space-y-2">
+                        <Button
+                            className="w-full h-10"
+                            disabled={!isNewFormValid()}
+                            onClick={saveNewFormRule}
+                        >
+                            Create Rule
+                        </Button>
+                        <div className="flex items-center justify-between">
+                            <Button
+                                variant="ghost"
+                                className="h-10 text-muted-foreground hover:text-foreground hover:bg-foreground/5"
+                                onClick={closeNewForm}
+                            >
+                                Cancel
+                            </Button>
+                            <button
+                                className="text-xs text-muted-foreground hover:text-foreground/80 flex items-center gap-1 px-2 py-1 rounded hover:bg-foreground/5 transition-colors"
+                                onClick={openWizardFromForm}
+                                title="Open Port Forwarding Wizard"
+                            >
+                                <Zap size={12} />
+                                Open Wizard
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
