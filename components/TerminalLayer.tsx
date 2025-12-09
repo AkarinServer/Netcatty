@@ -429,46 +429,46 @@ const TerminalLayerInner: React.FC<TerminalLayerProps> = ({
           const top = isVertical ? handle.rect.y : handle.rect.y - 3;
           const width = isVertical ? handle.rect.w + 6 : handle.rect.w;
           const height = isVertical ? handle.rect.h : handle.rect.h + 6;
-          
+
           return (
-          <div
-            key={handle.id}
-            className={cn("absolute group", isVertical ? "cursor-ew-resize" : "cursor-ns-resize")}
-            style={{
-              left: `${left}px`,
-              top: `${top}px`,
-              width: `${width}px`,
-              height: `${height}px`,
-              zIndex: 25,
-            }}
-            onMouseDown={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              const ws = activeWorkspace;
-              if (!ws) return;
-              const split = findSplitNode(ws.root, handle.splitId);
-              const childCount = split && split.type === 'split' ? split.children.length : 0;
-              const sizes = split && split.type === 'split' && split.sizes && split.sizes.length === childCount
-                ? split.sizes
-                : Array(childCount).fill(1);
-              setResizing({
-                workspaceId: ws.id,
-                splitId: handle.splitId,
-                index: handle.index,
-                direction: handle.direction,
-                startSizes: sizes.length ? sizes : [1, 1],
-                startArea: handle.splitArea,
-                startClient: { x: e.clientX, y: e.clientY },
-              });
-            }}
-          >
             <div
-              className={cn(
-                "absolute bg-border/70 group-hover:bg-primary/60 transition-colors",
-                isVertical ? "w-px h-full left-1/2 -translate-x-1/2" : "h-px w-full top-1/2 -translate-y-1/2"
-              )}
-            />
-          </div>
+              key={handle.id}
+              className={cn("absolute group", isVertical ? "cursor-ew-resize" : "cursor-ns-resize")}
+              style={{
+                left: `${left}px`,
+                top: `${top}px`,
+                width: `${width}px`,
+                height: `${height}px`,
+                zIndex: 25,
+              }}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const ws = activeWorkspace;
+                if (!ws) return;
+                const split = findSplitNode(ws.root, handle.splitId);
+                const childCount = split && split.type === 'split' ? split.children.length : 0;
+                const sizes = split && split.type === 'split' && split.sizes && split.sizes.length === childCount
+                  ? split.sizes
+                  : Array(childCount).fill(1);
+                setResizing({
+                  workspaceId: ws.id,
+                  splitId: handle.splitId,
+                  index: handle.index,
+                  direction: handle.direction,
+                  startSizes: sizes.length ? sizes : [1, 1],
+                  startArea: handle.splitArea,
+                  startClient: { x: e.clientX, y: e.clientY },
+                });
+              }}
+            >
+              <div
+                className={cn(
+                  "absolute bg-border/70 group-hover:bg-primary/60 transition-colors",
+                  isVertical ? "w-px h-full left-1/2 -translate-x-1/2" : "h-px w-full top-1/2 -translate-y-1/2"
+                )}
+              />
+            </div>
           );
         })}
       </div>
