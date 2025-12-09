@@ -1,191 +1,197 @@
 <!DOCTYPE html>
 <html lang="en" class="h-full">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>netcatty SSH</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css" />
-    <style>
-      /* Load extended Unicode ranges for terminal box drawing characters */
-      @font-face {
-        font-family: 'JetBrains Mono Extended';
-        src: local('JetBrains Mono'), local('JetBrainsMono-Regular');
-        unicode-range: U+2500-257F, U+2580-259F, U+25A0-25FF, U+2700-27BF;
-      }
-      :root {
-        --background: 216 33% 96%;
-        --foreground: 222 47% 12%;
-        --card: 0 0% 100%;
-        --card-foreground: 222 47% 12%;
-        --popover: 0 0% 100%;
-        --popover-foreground: 222 47% 12%;
-        --primary: 208 100% 50%;
-        --primary-foreground: 0 0% 100%;
-        --secondary: 220 16% 90%;
-        --secondary-foreground: 222 47% 12%;
-        --muted: 220 16% 90%;
-        --muted-foreground: 220 10% 45%;
-        --accent: var(--primary);
-        --accent-foreground: 222 47% 12%;
-        --destructive: 0 70% 50%;
-        --destructive-foreground: 0 0% 100%;
-        --border: 220 16% 82%;
-        --input: 220 16% 82%;
-        --ring: 208 100% 50%;
-        --radius: 0.65rem;
-      }
-      .dark {
-        --background: 220 28% 8%;
-        --foreground: 210 40% 95%;
-        --card: 220 22% 12%;
-        --card-foreground: 210 40% 95%;
-        --popover: 220 22% 12%;
-        --popover-foreground: 210 40% 95%;
-        --primary: 200 100% 61%;
-        --primary-foreground: 220 40% 96%;
-        --secondary: 220 16% 16%;
-        --secondary-foreground: 210 40% 90%;
-        --muted: 220 16% 16%;
-        --muted-foreground: 220 10% 70%;
-        --accent: var(--primary);
-        --accent-foreground: 220 40% 96%;
-        --destructive: 0 70% 50%;
-        --destructive-foreground: 210 40% 96%;
-        --border: 220 22% 18%;
-        --input: 220 22% 18%;
-        --ring: 200 100% 61%;
-        --radius: 0.65rem;
-      }
-      
-      body {
-        font-family: 'Space Grotesk', 'Inter', sans-serif;
-      }
-      
-      /* Global Modern Scrollbar */
-      ::-webkit-scrollbar {
-        width: 10px;
-        height: 10px;
-      }
-      
-      ::-webkit-scrollbar-track {
-        background: transparent; 
-      }
-      
-      ::-webkit-scrollbar-thumb {
-        background: hsl(var(--muted-foreground) / 0.3);
-        border-radius: 99px;
-        border: 3px solid transparent;
-        background-clip: content-box;
-      }
 
-      ::-webkit-scrollbar-thumb:hover {
-        background: hsl(var(--muted-foreground) / 0.5);
-        background-clip: content-box;
-      }
-      
-      ::-webkit-scrollbar-corner {
-        background: transparent;
-      }
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>netcatty SSH</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
+    rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css" />
+  <style>
+    /* Load extended Unicode ranges for terminal box drawing characters */
+    @font-face {
+      font-family: 'JetBrains Mono Extended';
+      src: local('JetBrains Mono'), local('JetBrainsMono-Regular');
+      unicode-range: U+2500-257F, U+2580-259F, U+25A0-25FF, U+2700-27BF;
+    }
 
-      /* Utility to hide scrollbar */
-      .scrollbar-hide::-webkit-scrollbar {
-          display: none;
-      }
-      .scrollbar-hide {
-          -ms-overflow-style: none;
-          scrollbar-width: none;
-      }
-    </style>
-    <script>
-      // Polyfill process for environment variables if missing
-      if (typeof process === 'undefined') {
-        window.process = { env: {} };
-      }
-      
-      tailwind.config = {
-        darkMode: ["class"],
-        theme: {
-          container: {
-            center: true,
-            padding: "2rem",
-            screens: {
-              "2xl": "1400px",
-            },
-          },
-          extend: {
-            fontFamily: {
-              sans: ['"Space Grotesk"', 'Inter', 'sans-serif'],
-              mono: ['JetBrains Mono', 'monospace'],
-            },
-            colors: {
-              border: "hsl(var(--border))",
-              input: "hsl(var(--input))",
-              ring: "hsl(var(--ring))",
-              background: "hsl(var(--background))",
-              foreground: "hsl(var(--foreground))",
-              primary: {
-                DEFAULT: "hsl(var(--primary))",
-                foreground: "hsl(var(--primary-foreground))",
-              },
-              secondary: {
-                DEFAULT: "hsl(var(--secondary))",
-                foreground: "hsl(var(--secondary-foreground))",
-              },
-              destructive: {
-                DEFAULT: "hsl(var(--destructive))",
-                foreground: "hsl(var(--destructive-foreground))",
-              },
-              muted: {
-                DEFAULT: "hsl(var(--muted))",
-                foreground: "hsl(var(--muted-foreground))",
-              },
-              accent: {
-                DEFAULT: "hsl(var(--accent))",
-                foreground: "hsl(var(--accent-foreground))",
-              },
-              popover: {
-                DEFAULT: "hsl(var(--popover))",
-                foreground: "hsl(var(--popover-foreground))",
-              },
-              card: {
-                DEFAULT: "hsl(var(--card))",
-                foreground: "hsl(var(--card-foreground))",
-              },
-            },
-            borderRadius: {
-              lg: "var(--radius)",
-              md: "calc(var(--radius) - 2px)",
-              sm: "calc(var(--radius) - 4px)",
-            },
-            keyframes: {
-              "accordion-down": {
-                from: { height: "0" },
-                to: { height: "var(--radix-collapsible-content-height)" },
-              },
-              "accordion-up": {
-                from: { height: "var(--radix-collapsible-content-height)" },
-                to: { height: "0" },
-              },
-              "fade-in": {
-                from: { opacity: "0" },
-                to: { opacity: "1" },
-              },
-              "zoom-in-95": {
-                from: { transform: "scale(0.95)" },
-                to: { transform: "scale(1)" },
-              },
-            },
-            animation: {
-              "accordion-down": "accordion-down 0.2s ease-out",
-              "accordion-up": "accordion-up 0.2s ease-out",
-              "fade-in": "fade-in 0.2s ease-out",
-            },
+    :root {
+      --background: 216 33% 96%;
+      --foreground: 222 47% 12%;
+      --card: 0 0% 100%;
+      --card-foreground: 222 47% 12%;
+      --popover: 0 0% 100%;
+      --popover-foreground: 222 47% 12%;
+      --primary: 208 100% 50%;
+      --primary-foreground: 0 0% 100%;
+      --secondary: 220 16% 90%;
+      --secondary-foreground: 222 47% 12%;
+      --muted: 220 16% 90%;
+      --muted-foreground: 220 10% 45%;
+      --accent: var(--primary);
+      --accent-foreground: 222 47% 12%;
+      --destructive: 0 70% 50%;
+      --destructive-foreground: 0 0% 100%;
+      --border: 220 16% 82%;
+      --input: 220 16% 82%;
+      --ring: 208 100% 50%;
+      --radius: 0.65rem;
+    }
+
+    .dark {
+      --background: 220 28% 8%;
+      --foreground: 210 40% 95%;
+      --card: 220 22% 12%;
+      --card-foreground: 210 40% 95%;
+      --popover: 220 22% 12%;
+      --popover-foreground: 210 40% 95%;
+      --primary: 200 100% 61%;
+      --primary-foreground: 220 40% 96%;
+      --secondary: 220 16% 16%;
+      --secondary-foreground: 210 40% 90%;
+      --muted: 220 16% 16%;
+      --muted-foreground: 220 10% 70%;
+      --accent: var(--primary);
+      --accent-foreground: 220 40% 96%;
+      --destructive: 0 70% 50%;
+      --destructive-foreground: 210 40% 96%;
+      --border: 220 22% 18%;
+      --input: 220 22% 18%;
+      --ring: 200 100% 61%;
+      --radius: 0.65rem;
+    }
+
+    body {
+      font-family: 'Space Grotesk', 'Inter', sans-serif;
+    }
+
+    /* Global Modern Scrollbar */
+    ::-webkit-scrollbar {
+      width: 10px;
+      height: 10px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: hsl(var(--muted-foreground) / 0.3);
+      border-radius: 99px;
+      border: 3px solid transparent;
+      background-clip: content-box;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: hsl(var(--muted-foreground) / 0.5);
+      background-clip: content-box;
+    }
+
+    ::-webkit-scrollbar-corner {
+      background: transparent;
+    }
+
+    /* Utility to hide scrollbar */
+    .scrollbar-hide::-webkit-scrollbar {
+      display: none;
+    }
+
+    .scrollbar-hide {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+  </style>
+  <script>
+    // Polyfill process for environment variables if missing
+    if (typeof process === 'undefined') {
+      window.process = { env: {} };
+    }
+
+    tailwind.config = {
+      darkMode: ["class"],
+      theme: {
+        container: {
+          center: true,
+          padding: "2rem",
+          screens: {
+            "2xl": "1400px",
           },
         },
-      }
-    </script>
+        extend: {
+          fontFamily: {
+            sans: ['"Space Grotesk"', 'Inter', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            border: "hsl(var(--border))",
+            input: "hsl(var(--input))",
+            ring: "hsl(var(--ring))",
+            background: "hsl(var(--background))",
+            foreground: "hsl(var(--foreground))",
+            primary: {
+              DEFAULT: "hsl(var(--primary))",
+              foreground: "hsl(var(--primary-foreground))",
+            },
+            secondary: {
+              DEFAULT: "hsl(var(--secondary))",
+              foreground: "hsl(var(--secondary-foreground))",
+            },
+            destructive: {
+              DEFAULT: "hsl(var(--destructive))",
+              foreground: "hsl(var(--destructive-foreground))",
+            },
+            muted: {
+              DEFAULT: "hsl(var(--muted))",
+              foreground: "hsl(var(--muted-foreground))",
+            },
+            accent: {
+              DEFAULT: "hsl(var(--accent))",
+              foreground: "hsl(var(--accent-foreground))",
+            },
+            popover: {
+              DEFAULT: "hsl(var(--popover))",
+              foreground: "hsl(var(--popover-foreground))",
+            },
+            card: {
+              DEFAULT: "hsl(var(--card))",
+              foreground: "hsl(var(--card-foreground))",
+            },
+          },
+          borderRadius: {
+            lg: "var(--radius)",
+            md: "calc(var(--radius) - 2px)",
+            sm: "calc(var(--radius) - 4px)",
+          },
+          keyframes: {
+            "accordion-down": {
+              from: { height: "0" },
+              to: { height: "var(--radix-collapsible-content-height)" },
+            },
+            "accordion-up": {
+              from: { height: "var(--radix-collapsible-content-height)" },
+              to: { height: "0" },
+            },
+            "fade-in": {
+              from: { opacity: "0" },
+              to: { opacity: "1" },
+            },
+            "zoom-in-95": {
+              from: { transform: "scale(0.95)" },
+              to: { transform: "scale(1)" },
+            },
+          },
+          animation: {
+            "accordion-down": "accordion-down 0.2s ease-out",
+            "accordion-up": "accordion-up 0.2s ease-out",
+            "fade-in": "fade-in 0.2s ease-out",
+          },
+        },
+      },
+    }
+  </script>
   <script type="importmap">
 {
   "imports": {
@@ -212,10 +218,12 @@
   }
 }
 </script>
-<link rel="stylesheet" href="/index.css">
+  <link rel="stylesheet" href="/index.css">
 </head>
-  <body class="bg-background text-foreground overflow-hidden antialiased h-screen w-screen">
-    <div id="root" class="h-full w-full"></div>
+
+<body class="bg-background text-foreground overflow-hidden antialiased h-screen w-screen">
+  <div id="root" class="h-full w-full"></div>
   <script type="module" src="/index.tsx"></script>
 </body>
+
 </html>
