@@ -495,9 +495,12 @@ const VaultViewInner: React.FC<VaultViewProps> = ({
         {currentSection === 'keys' && (
           <KeychainManager
             keys={keys}
+            hosts={hosts}
+            customGroups={customGroups}
             onSave={k => onUpdateKeys([...keys, k])}
             onUpdate={k => onUpdateKeys(keys.map(existing => existing.id === k.id ? k : existing))}
             onDelete={id => onUpdateKeys(keys.filter(k => k.id !== id))}
+            onNewHost={onNewHost}
           />
         )}
         {currentSection === 'port' && <PortForwarding hosts={hosts} keys={keys} customGroups={customGroups} onNewHost={onNewHost} />}

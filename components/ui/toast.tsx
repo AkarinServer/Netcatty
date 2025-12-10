@@ -54,10 +54,10 @@ const TOAST_ICONS: Record<ToastType, React.ReactNode> = {
 };
 
 const TOAST_STYLES: Record<ToastType, string> = {
-    success: 'border-emerald-500/30 bg-emerald-500/10',
-    error: 'border-red-500/30 bg-red-500/10',
-    warning: 'border-yellow-500/30 bg-yellow-500/10',
-    info: 'border-blue-500/30 bg-blue-500/10',
+    success: 'border-emerald-600 bg-emerald-50 dark:bg-emerald-950',
+    error: 'border-red-600 bg-red-50 dark:bg-red-950',
+    warning: 'border-yellow-600 bg-yellow-50 dark:bg-yellow-950',
+    info: 'border-blue-600 bg-blue-50 dark:bg-blue-950',
 };
 
 export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -105,8 +105,8 @@ const ToastContainer: React.FC<{ toasts: Toast[]; onDismiss: (id: string) => voi
                 <div
                     key={t.id}
                     className={cn(
-                        "flex items-start gap-3 p-3 rounded-lg border shadow-lg backdrop-blur-sm",
-                        "bg-card/95 animate-in slide-in-from-right-5 fade-in duration-200",
+                        "flex items-start gap-3 p-3 rounded-lg border shadow-lg",
+                        "bg-card animate-in slide-in-from-right-5 fade-in duration-200",
                         TOAST_STYLES[t.type]
                     )}
                 >

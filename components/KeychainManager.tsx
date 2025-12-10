@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useCallback } from 'react';
-import { SSHKey, KeyType, KeySource, KeyCategory, Identity, IdentityAuthMethod } from '../types';
+import { SSHKey, KeyType, KeySource, KeyCategory, Identity, IdentityAuthMethod, Host } from '../types';
 import {
     Key,
     Plus,
@@ -21,6 +21,9 @@ import {
     Upload,
     User,
     UserPlus,
+    ExternalLink,
+    Info,
+    Pencil,
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -29,6 +32,16 @@ import { Label } from './ui/label';
 import { Textarea } from './ui/textarea';
 import { cn } from '../lib/utils';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
+import {
+    ContextMenu,
+    ContextMenuContent,
+    ContextMenuItem,
+    ContextMenuSeparator,
+    ContextMenuTrigger,
+} from './ui/context-menu';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './ui/collapsible';
+import SelectHostPanel from './SelectHostPanel';
+import { toast } from './ui/toast';
 
 // Filter tab types
 type FilterTab = 'key' | 'certificate' | 'biometric' | 'fido2';
@@ -38,38 +51,126 @@ type PanelMode =
     | { type: 'closed' }
     | { type: 'view'; key: SSHKey }
     | { type: 'edit'; key: SSHKey }
-    | { type: 'generate'; keyType: 'standard' | 'biometric' }
+    | { type: 'generate'; keyType: 'standard' | 'biometric' | 'fido2' }
     | { type: 'import' }
-    | { type: 'identity'; identity?: Identity };
+    | { type: 'identity'; identity?: Identity }
+    | { type: 'export'; key: SSHKey };
 
 interface KeychainManagerProps {
     keys: SSHKey[];
     identities?: Identity[];
+    hosts?: Host[];
+    customGroups?: string[];
     onSave: (key: SSHKey) => void;
     onUpdate: (key: SSHKey) => void;
     onDelete: (id: string) => void;
     onSaveIdentity?: (identity: Identity) => void;
     onDeleteIdentity?: (id: string) => void;
+    onNewHost?: () => void;
 }
 
 // Helper to generate mock key pair (in real app, use crypto APIs)
-const generateMockKeyPair = (type: KeyType, label: string): { privateKey: string; publicKey: string } => {
-    const typeMap = {
+const generateMockKeyPair = (type: KeyType, label: string, keySize?: number): { privateKey: string; publicKey: string } => {
+    const typeMap: Record<KeyType, string> = {
         'ED25519': 'ed25519',
-        'ECDSA': 'ecdsa-sha2-nistp256',
+        'ECDSA': `ecdsa-sha2-nistp${keySize || 256}`,
         'RSA': 'rsa',
     };
 
     const randomId = crypto.randomUUID().replace(/-/g, '').substring(0, 32);
 
+    // Generate size-appropriate random data for more realistic keys
+    const keyLength = type === 'RSA' ? (keySize || 4096) / 8 : 32;
+    const randomData = Array.from(crypto.getRandomValues(new Uint8Array(keyLength)))
+        .map(b => b.toString(16).padStart(2, '0')).join('');
+
     const privateKey = `-----BEGIN OPENSSH PRIVATE KEY-----
 b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtzc2gtZW
-QyNTUxOQAAACB${randomId}AAAEC${randomId}
+QyNTUxOQAAACB${randomId}AAAEC${randomData.substring(0, 64)}
 -----END OPENSSH PRIVATE KEY-----`;
 
     const publicKey = `ssh-${typeMap[type]} AAAAC3NzaC1lZDI1NTE5AAAAI${randomId.substring(0, 20)} ${label}@netcatty`;
 
     return { privateKey, publicKey };
+};
+
+// FIDO2 hardware key helper (YubiKey, etc.)
+const createFido2Credential = async (label: string): Promise<{
+    credentialId: string;
+    publicKey: string;
+    rpId: string;
+} | null> => {
+    try {
+        // Check if WebAuthn is supported
+        if (!window.PublicKeyCredential) {
+            throw new Error('WebAuthn is not supported in this environment');
+        }
+
+        // Check if we're in a secure context
+        if (!window.isSecureContext) {
+            throw new Error('WebAuthn requires a secure context (HTTPS). Please run the app via localhost or HTTPS.');
+        }
+
+        // For FIDO2 hardware keys, we use cross-platform authenticator
+        let rpId: string;
+        const hostname = window.location.hostname;
+
+        if (!hostname || hostname === '' || hostname === 'localhost' || hostname === '127.0.0.1') {
+            rpId = 'localhost';
+        } else {
+            rpId = hostname;
+        }
+
+        const userId = new TextEncoder().encode(crypto.randomUUID());
+
+        const credential = await navigator.credentials.create({
+            publicKey: {
+                challenge: crypto.getRandomValues(new Uint8Array(32)),
+                rp: {
+                    name: 'Netcatty SSH Manager',
+                    id: rpId,
+                },
+                user: {
+                    id: userId,
+                    name: label,
+                    displayName: label,
+                },
+                pubKeyCredParams: [
+                    { alg: -7, type: 'public-key' },   // ES256 (ECDSA P-256)
+                    { alg: -257, type: 'public-key' }, // RS256 (RSA)
+                ],
+                authenticatorSelection: {
+                    // cross-platform for hardware security keys like YubiKey
+                    authenticatorAttachment: 'cross-platform',
+                    residentKey: 'discouraged',
+                    userVerification: 'preferred',
+                },
+                timeout: 180000, // 3 minutes
+                attestation: 'none',
+            },
+        }) as PublicKeyCredential;
+
+        if (!credential) {
+            return null;
+        }
+
+        const response = credential.response as AuthenticatorAttestationResponse;
+        const credentialId = btoa(String.fromCharCode(...new Uint8Array(credential.rawId)));
+        const publicKeyBytes = new Uint8Array(response.getPublicKey?.() || []);
+        const publicKeyBase64 = btoa(String.fromCharCode(...publicKeyBytes));
+
+        // Format as OpenSSH sk-ecdsa key
+        const publicKey = `sk-ecdsa-sha2-nistp256@openssh.com AAAAInNrLWVjZHNhLXNoYTItbmlzdHAyNTZAb3BlbnNzaC5jb20${publicKeyBase64.substring(0, 100)} ${label}@fido2`;
+
+        return {
+            credentialId,
+            publicKey,
+            rpId,
+        };
+    } catch (error) {
+        console.error('FIDO2 credential creation failed:', error);
+        throw error;
+    }
 };
 
 // WebAuthn helper for Windows Hello
@@ -165,16 +266,42 @@ const createBiometricCredential = async (label: string): Promise<{
 const KeychainManager: React.FC<KeychainManagerProps> = ({
     keys,
     identities = [],
+    hosts = [],
+    customGroups = [],
     onSave,
     onUpdate,
     onDelete,
     onSaveIdentity,
     onDeleteIdentity,
+    onNewHost,
 }) => {
     const [activeFilter, setActiveFilter] = useState<FilterTab>('key');
     const [search, setSearch] = useState('');
     const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-    const [panel, setPanel] = useState<PanelMode>({ type: 'closed' });
+
+    // Panel stack for navigation (supports back navigation)
+    const [panelStack, setPanelStack] = useState<PanelMode[]>([]);
+    const panel = panelStack.length > 0 ? panelStack[panelStack.length - 1] : { type: 'closed' } as PanelMode;
+
+    const [showHostSelector, setShowHostSelector] = useState(false);
+    const [isExporting, setIsExporting] = useState(false);
+
+    // Export panel state
+    const [exportLocation, setExportLocation] = useState('.ssh');
+    const [exportFilename, setExportFilename] = useState('authorized_keys');
+    const [exportHost, setExportHost] = useState<Host | null>(null);
+    const [exportAdvancedOpen, setExportAdvancedOpen] = useState(false);
+    const [exportScript, setExportScript] = useState(`DIR="$HOME/$1"
+FILE="$DIR/$2"
+if [ ! -d "$DIR" ]; then
+  mkdir -p "$DIR"
+  chmod 700 "$DIR"
+fi
+if [ ! -f "$FILE" ]; then
+  touch "$FILE"
+  chmod 600 "$FILE"
+fi
+echo $3 >> "$FILE"`);
 
     // Detect if running on macOS
     const isMac = useMemo(() => {
@@ -235,25 +362,77 @@ const KeychainManager: React.FC<KeychainManagerProps> = ({
         );
     }, [identities, search]);
 
-    // Close panel
+    // Push a new panel onto the stack
+    const pushPanel = useCallback((newPanel: PanelMode) => {
+        setPanelStack(prev => [...prev, newPanel]);
+        setError(null);
+    }, []);
+
+    // Pop the top panel from the stack (go back)
+    const popPanel = useCallback(() => {
+        setPanelStack(prev => {
+            if (prev.length <= 1) {
+                // Last panel, close everything
+                setDraftKey({});
+                setDraftIdentity({});
+                setError(null);
+                setShowPassphrase(false);
+                setExportHost(null);
+                setExportAdvancedOpen(false);
+                return [];
+            }
+            return prev.slice(0, -1);
+        });
+    }, []);
+
+    // Close all panels
     const closePanel = useCallback(() => {
-        setPanel({ type: 'closed' });
+        setPanelStack([]);
         setDraftKey({});
         setDraftIdentity({});
         setError(null);
         setShowPassphrase(false);
+        setExportHost(null);
+        setExportAdvancedOpen(false);
     }, []);
 
-    // Open panel for viewing key
+    // Open panel for viewing key (replaces stack with single panel)
     const openKeyView = useCallback((key: SSHKey) => {
-        setPanel({ type: 'view', key });
+        setPanelStack([{ type: 'view', key }]);
         setDraftKey({ ...key });
         setError(null);
     }, []);
 
+    // Open panel for exporting key (pushes onto stack)
+    const openKeyExport = useCallback((key: SSHKey) => {
+        pushPanel({ type: 'export', key });
+        setExportHost(null);
+        setExportLocation('.ssh');
+        setExportFilename('authorized_keys');
+    }, [pushPanel]);
+
+    // Open panel for editing key (replaces stack)
+    const openKeyEdit = useCallback((key: SSHKey) => {
+        setPanelStack([{ type: 'edit', key }]);
+        setDraftKey({ ...key });
+        setError(null);
+    }, []);
+
+    // Copy public key to clipboard
+    const copyPublicKey = useCallback(async (key: SSHKey) => {
+        if (key.publicKey) {
+            try {
+                await navigator.clipboard.writeText(key.publicKey);
+                // Could add toast notification here
+            } catch (err) {
+                console.error('Failed to copy public key:', err);
+            }
+        }
+    }, []);
+
     // Open panel for new identity
     const openNewIdentity = useCallback(() => {
-        setPanel({ type: 'identity' });
+        setPanelStack([{ type: 'identity' }]);
         setDraftIdentity({
             id: '',
             label: '',
@@ -265,15 +444,30 @@ const KeychainManager: React.FC<KeychainManagerProps> = ({
     }, []);
 
     // Open generate panel
-    const openGenerate = useCallback((keyType: 'standard' | 'biometric') => {
-        setPanel({ type: 'generate', keyType });
+    const openGenerate = useCallback((keyType: 'standard' | 'biometric' | 'fido2') => {
+        const defaultType = (keyType === 'biometric' || keyType === 'fido2') ? 'ECDSA' : 'ED25519';
+        // Set default keySize based on type: ED25519 doesn't need size, RSA defaults to 4096, ECDSA to 256
+        const getDefaultKeySize = (type: string) => {
+            if (type === 'ED25519') return undefined;
+            if (type === 'RSA') return 4096;
+            return 256; // ECDSA
+        };
+
+        const getSource = () => {
+            if (keyType === 'biometric') return 'biometric';
+            if (keyType === 'fido2') return 'fido2';
+            return 'generated';
+        };
+
+        setPanelStack([{ type: 'generate', keyType }]);
         setDraftKey({
             id: '',
             label: '',
-            type: keyType === 'biometric' ? 'ECDSA' : 'ED25519',
+            type: defaultType,
+            keySize: getDefaultKeySize(defaultType),
             privateKey: '',
             publicKey: '',
-            source: keyType === 'biometric' ? 'biometric' : 'generated',
+            source: getSource(),
             category: 'key',
             created: Date.now(),
         });
@@ -282,7 +476,7 @@ const KeychainManager: React.FC<KeychainManagerProps> = ({
 
     // Open import panel
     const openImport = useCallback(() => {
-        setPanel({ type: 'import' });
+        setPanelStack([{ type: 'import' }]);
         setDraftKey({
             id: '',
             label: '',
@@ -310,15 +504,20 @@ const KeychainManager: React.FC<KeychainManagerProps> = ({
             // Simulate key generation delay
             await new Promise(resolve => setTimeout(resolve, 500));
 
+            const keyType = draftKey.type as KeyType || 'ED25519';
+            const keySize = draftKey.keySize;
+
             const { privateKey, publicKey } = generateMockKeyPair(
-                draftKey.type as KeyType || 'ED25519',
-                draftKey.label
+                keyType,
+                draftKey.label,
+                keySize
             );
 
             const newKey: SSHKey = {
                 id: crypto.randomUUID(),
                 label: draftKey.label.trim(),
-                type: draftKey.type as KeyType || 'ED25519',
+                type: keyType,
+                keySize: keyType !== 'ED25519' ? keySize : undefined,
                 privateKey,
                 publicKey,
                 passphrase: draftKey.passphrase,
@@ -371,6 +570,45 @@ const KeychainManager: React.FC<KeychainManagerProps> = ({
             closePanel();
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to create biometric credential');
+        } finally {
+            setIsGenerating(false);
+        }
+    }, [draftKey, onSave, closePanel]);
+
+    // Handle FIDO2 hardware key registration
+    const handleGenerateFido2 = useCallback(async () => {
+        if (!draftKey.label?.trim()) {
+            setError('Please enter a label for the security key');
+            return;
+        }
+
+        setIsGenerating(true);
+        setError(null);
+
+        try {
+            const result = await createFido2Credential(draftKey.label.trim());
+
+            if (!result) {
+                throw new Error('Security key registration was cancelled');
+            }
+
+            const newKey: SSHKey = {
+                id: crypto.randomUUID(),
+                label: draftKey.label.trim(),
+                type: 'ECDSA',
+                privateKey: '', // Hardware keys don't expose private keys
+                publicKey: result.publicKey,
+                credentialId: result.credentialId,
+                rpId: result.rpId,
+                source: 'fido2',
+                category: 'key',
+                created: Date.now(),
+            };
+
+            onSave(newKey);
+            closePanel();
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to register security key');
         } finally {
             setIsGenerating(false);
         }
@@ -559,76 +797,112 @@ const KeychainManager: React.FC<KeychainManagerProps> = ({
                 <div className="flex flex-wrap items-center gap-3 bg-secondary/60 border-b border-border/70 px-3 py-1.5">
                     {/* Filter Tabs */}
                     <div className="flex items-center gap-1">
-                        <Popover>
-                            <PopoverTrigger asChild>
-                                <Button
-                                    size="sm"
-                                    variant="secondary"
-                                    className={cn(
-                                        "h-8 px-3 gap-2",
-                                        activeFilter === 'key' && "bg-primary/15 text-primary"
-                                    )}
-                                >
-                                    <Key size={14} />
-                                    KEY
-                                    <ChevronDown size={12} />
-                                </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-44 p-1">
-                                <Button
-                                    variant="ghost"
-                                    className="w-full justify-start gap-2"
-                                    onClick={() => openGenerate('standard')}
-                                >
-                                    <Plus size={14} /> Generate Key
-                                </Button>
-                                <Button
-                                    variant="ghost"
-                                    className="w-full justify-start gap-2"
-                                    onClick={openImport}
-                                >
-                                    <Upload size={14} /> Import Key
-                                </Button>
-                                {onSaveIdentity && (
+                        {/* KEY button with split interaction: left=switch view, right=dropdown */}
+                        <div className={cn(
+                            "flex items-center rounded-md transition-colors",
+                            activeFilter === 'key'
+                                ? "bg-primary/15"
+                                : "hover:bg-accent"
+                        )}>
+                            <Button
+                                size="sm"
+                                variant="ghost"
+                                className={cn(
+                                    "h-8 px-3 gap-2 rounded-r-none hover:bg-transparent",
+                                    activeFilter === 'key' && "text-primary"
+                                )}
+                                onClick={() => setActiveFilter('key')}
+                            >
+                                <Key size={14} />
+                                KEY
+                            </Button>
+                            <Popover>
+                                <PopoverTrigger asChild>
+                                    <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        className={cn(
+                                            "h-8 px-1.5 rounded-l-none hover:bg-transparent",
+                                            activeFilter === 'key' && "text-primary"
+                                        )}
+                                    >
+                                        <ChevronDown size={12} />
+                                    </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-44 p-1">
                                     <Button
                                         variant="ghost"
                                         className="w-full justify-start gap-2"
-                                        onClick={openNewIdentity}
+                                        onClick={() => openGenerate('standard')}
                                     >
-                                        <UserPlus size={14} /> New Identity
+                                        <Plus size={14} /> Generate Key
                                     </Button>
-                                )}
-                            </PopoverContent>
-                        </Popover>
-
-                        <Popover>
-                            <PopoverTrigger asChild>
-                                <Button
-                                    size="sm"
-                                    variant={activeFilter === 'certificate' ? "secondary" : "ghost"}
-                                    className={cn(
-                                        "h-8 px-3 gap-2",
-                                        activeFilter === 'certificate' && "bg-primary/15 text-primary"
+                                    <Button
+                                        variant="ghost"
+                                        className="w-full justify-start gap-2"
+                                        onClick={openImport}
+                                    >
+                                        <Upload size={14} /> Import Key
+                                    </Button>
+                                    {onSaveIdentity && (
+                                        <Button
+                                            variant="ghost"
+                                            className="w-full justify-start gap-2"
+                                            onClick={openNewIdentity}
+                                        >
+                                            <UserPlus size={14} /> New Identity
+                                        </Button>
                                     )}
-                                    onClick={() => setActiveFilter('certificate')}
-                                >
-                                    <BadgeCheck size={14} />
-                                    CERTIFICATE
-                                    <span className="text-[10px] px-1.5 rounded-full bg-muted text-muted-foreground">
-                                        {keys.filter(k => k.certificate).length}
-                                    </span>
-                                </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-44 p-1">
-                                <Button
-                                    variant="ghost"
-                                    className="w-full justify-start gap-2"
-                                    onClick={openImport}
-                                >
-                                    <Upload size={14} /> Import Certificate
-                                </Button>
-                            </PopoverContent>
-                        </Popover>
+                                </PopoverContent>
+                            </Popover>
+                        </div>
+
+                        {/* CERTIFICATE button with split interaction */}
+                        <div className={cn(
+                            "flex items-center rounded-md transition-colors",
+                            activeFilter === 'certificate'
+                                ? "bg-primary/15"
+                                : "hover:bg-accent"
+                        )}>
+                            <Button
+                                size="sm"
+                                variant="ghost"
+                                className={cn(
+                                    "h-8 px-3 gap-2 rounded-r-none hover:bg-transparent",
+                                    activeFilter === 'certificate' && "text-primary"
+                                )}
+                                onClick={() => setActiveFilter('certificate')}
+                            >
+                                <BadgeCheck size={14} />
+                                CERTIFICATE
+                                <span className="text-[10px] px-1.5 rounded-full bg-muted text-muted-foreground">
+                                    {keys.filter(k => k.certificate).length}
+                                </span>
+                            </Button>
+                            <Popover>
+                                <PopoverTrigger asChild>
+                                    <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        className={cn(
+                                            "h-8 px-1.5 rounded-l-none hover:bg-transparent",
+                                            activeFilter === 'certificate' && "text-primary"
+                                        )}
+                                    >
+                                        <ChevronDown size={12} />
+                                    </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-44 p-1">
+                                    <Button
+                                        variant="ghost"
+                                        className="w-full justify-start gap-2"
+                                        onClick={openImport}
+                                    >
+                                        <Upload size={14} /> Import Certificate
+                                    </Button>
+                                </PopoverContent>
+                            </Popover>
+                        </div>
 
                         <Button
                             size="sm"
@@ -727,6 +1001,12 @@ const KeychainManager: React.FC<KeychainManagerProps> = ({
                                     Create Biometric Key
                                 </Button>
                             )}
+                            {activeFilter === 'fido2' && (
+                                <Button onClick={() => openGenerate('fido2')}>
+                                    <Shield size={14} className="mr-2" />
+                                    Register Security Key
+                                </Button>
+                            )}
                             {(activeFilter === 'key' || activeFilter === 'certificate') && (
                                 <div className="flex gap-2">
                                     <Button variant="secondary" onClick={openImport}>
@@ -746,47 +1026,78 @@ const KeychainManager: React.FC<KeychainManagerProps> = ({
                             : "space-y-2"
                         }>
                             {filteredKeys.map((key) => (
-                                <Card
-                                    key={key.id}
-                                    className={cn(
-                                        "group relative overflow-hidden bg-secondary/60 border transition-all cursor-pointer",
-                                        "h-[72px] px-3 py-2",
-                                        viewMode === 'list' && "w-full",
-                                        "border-border/60 shadow-sm hover:shadow-[0_0_0_2px_var(--ring)]",
-                                        panel.type === 'view' && panel.key.id === key.id && "ring-2 ring-primary"
-                                    )}
-                                    onClick={() => openKeyView(key)}
-                                >
-                                    <div className="flex items-center gap-3 h-full">
-                                        <div className={cn(
-                                            "h-9 w-9 rounded-md flex items-center justify-center",
-                                            key.source === 'biometric'
-                                                ? "bg-blue-500/15 text-blue-500"
-                                                : "bg-primary/15 text-primary"
-                                        )}>
-                                            {getKeyIcon(key)}
-                                        </div>
-                                        <div className="min-w-0 flex-1">
-                                            <CardTitle className="text-sm font-semibold truncate">{key.label}</CardTitle>
-                                            <CardDescription className="text-[11px] font-mono text-muted-foreground truncate">
-                                                Type {getKeyTypeDisplay(key)}
-                                            </CardDescription>
-                                        </div>
-                                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <Button
-                                                size="icon"
-                                                variant="ghost"
-                                                className="h-8 w-8 text-destructive hover:text-destructive"
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    handleDelete(key.id);
-                                                }}
-                                            >
-                                                <Trash2 size={14} />
-                                            </Button>
-                                        </div>
-                                    </div>
-                                </Card>
+                                <ContextMenu key={key.id}>
+                                    <ContextMenuTrigger asChild>
+                                        <Card
+                                            className={cn(
+                                                "group relative overflow-hidden bg-secondary/60 border transition-all cursor-pointer",
+                                                "h-[72px] px-3 py-2",
+                                                viewMode === 'list' && "w-full",
+                                                "border-border/60 shadow-sm hover:shadow-[0_0_0_2px_var(--ring)]",
+                                                (panel.type === 'view' && panel.key.id === key.id) && "ring-2 ring-primary",
+                                                (panel.type === 'export' && panel.key.id === key.id) && "ring-2 ring-primary"
+                                            )}
+                                            onClick={() => openKeyView(key)}
+                                        >
+                                            <div className="flex items-center gap-3 h-full">
+                                                <div className={cn(
+                                                    "h-9 w-9 rounded-md flex items-center justify-center",
+                                                    key.source === 'biometric'
+                                                        ? "bg-blue-500/15 text-blue-500"
+                                                        : key.source === 'fido2'
+                                                            ? "bg-amber-500/15 text-amber-500"
+                                                            : "bg-primary/15 text-primary"
+                                                )}>
+                                                    {getKeyIcon(key)}
+                                                </div>
+                                                <div className="min-w-0 flex-1">
+                                                    <CardTitle className="text-sm font-semibold truncate">{key.label}</CardTitle>
+                                                    <CardDescription className="text-[11px] font-mono text-muted-foreground truncate">
+                                                        Type {getKeyTypeDisplay(key)}
+                                                    </CardDescription>
+                                                </div>
+                                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <Button
+                                                        size="icon"
+                                                        variant="ghost"
+                                                        className="h-8 w-8 text-destructive hover:text-destructive"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleDelete(key.id);
+                                                        }}
+                                                    >
+                                                        <Trash2 size={14} />
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        </Card>
+                                    </ContextMenuTrigger>
+                                    <ContextMenuContent>
+                                        <ContextMenuItem
+                                            onClick={() => copyPublicKey(key)}
+                                            disabled={!key.publicKey}
+                                        >
+                                            <Copy size={14} className="mr-2" />
+                                            Copy Public Key
+                                        </ContextMenuItem>
+                                        <ContextMenuItem onClick={() => openKeyExport(key)}>
+                                            <ExternalLink size={14} className="mr-2" />
+                                            Key Export
+                                        </ContextMenuItem>
+                                        <ContextMenuItem onClick={() => openKeyEdit(key)}>
+                                            <Pencil size={14} className="mr-2" />
+                                            Edit
+                                        </ContextMenuItem>
+                                        <ContextMenuSeparator />
+                                        <ContextMenuItem
+                                            onClick={() => handleDelete(key.id)}
+                                            className="text-destructive focus:text-destructive"
+                                        >
+                                            <Trash2 size={14} className="mr-2" />
+                                            Delete
+                                        </ContextMenuItem>
+                                    </ContextMenuContent>
+                                </ContextMenu>
                             ))}
                         </div>
                     )}
@@ -814,7 +1125,7 @@ const KeychainManager: React.FC<KeychainManagerProps> = ({
                                         panel.type === 'identity' && panel.identity?.id === identity.id && "ring-2 ring-primary"
                                     )}
                                     onClick={() => {
-                                        setPanel({ type: 'identity', identity });
+                                        setPanelStack([{ type: 'identity', identity }]);
                                         setDraftIdentity({ ...identity });
                                     }}
                                 >
@@ -861,10 +1172,12 @@ const KeychainManager: React.FC<KeychainManagerProps> = ({
                             <p className="text-sm font-semibold">
                                 {panel.type === 'generate' && panel.keyType === 'biometric' && 'Generate Biometric Key'}
                                 {panel.type === 'generate' && panel.keyType === 'standard' && 'Generate Key'}
+                                {panel.type === 'generate' && panel.keyType === 'fido2' && 'Register Security Key'}
                                 {panel.type === 'import' && 'New Key'}
-                                {panel.type === 'view' && (panel.key.source === 'biometric' ? 'Biometric Key' : 'Key Details')}
+                                {panel.type === 'view' && (panel.key.source === 'biometric' ? 'Biometric Key' : panel.key.source === 'fido2' ? 'Security Key' : 'Key Details')}
                                 {panel.type === 'edit' && 'Edit Key'}
                                 {panel.type === 'identity' && (panel.identity ? 'Edit Identity' : 'New Identity')}
+                                {panel.type === 'export' && 'Key Export'}
                             </p>
                             <p className="text-xs text-muted-foreground">Personal vault</p>
                         </div>
@@ -874,7 +1187,7 @@ const KeychainManager: React.FC<KeychainManagerProps> = ({
                                     <MoreHorizontal size={16} />
                                 </Button>
                             )}
-                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={closePanel}>
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={popPanel}>
                                 <ChevronRight size={16} />
                             </Button>
                         </div>
@@ -955,6 +1268,61 @@ const KeychainManager: React.FC<KeychainManagerProps> = ({
                             </>
                         )}
 
+                        {/* Register FIDO2 Hardware Key */}
+                        {panel.type === 'generate' && panel.keyType === 'fido2' && (
+                            <>
+                                {/* Security key illustration */}
+                                <div className="bg-card border border-border/80 rounded-lg p-4 flex items-center justify-center">
+                                    <div className="text-center">
+                                        <div className="flex justify-center mb-3">
+                                            <div className="w-20 h-12 bg-gradient-to-b from-zinc-600 to-zinc-800 rounded-lg flex items-center justify-center border border-zinc-500/50 shadow-lg">
+                                                <div className="w-4 h-6 bg-amber-500/80 rounded-sm" />
+                                            </div>
+                                        </div>
+                                        <p className="text-xs text-muted-foreground">YubiKey or compatible device</p>
+                                    </div>
+                                </div>
+
+                                <p className="text-sm text-muted-foreground text-center">
+                                    Connect your hardware security key (YubiKey, Titan, etc.) and touch it when prompted. The private key never leaves the device.
+                                </p>
+
+                                <div className="space-y-2">
+                                    <Label>Label</Label>
+                                    <Input
+                                        value={draftKey.label || ''}
+                                        onChange={e => setDraftKey({ ...draftKey, label: e.target.value })}
+                                        placeholder="My YubiKey"
+                                    />
+                                </div>
+
+                                <div className="space-y-1">
+                                    <Label className="text-muted-foreground">Type</Label>
+                                    <p className="text-sm">ECDSA (Hardware-backed)</p>
+                                </div>
+
+                                <div className="space-y-1">
+                                    <Label className="text-muted-foreground">Key Size</Label>
+                                    <p className="text-sm">P-256</p>
+                                </div>
+
+                                <Button
+                                    className="w-full h-11"
+                                    onClick={handleGenerateFido2}
+                                    disabled={isGenerating || !draftKey.label?.trim()}
+                                >
+                                    {isGenerating ? (
+                                        <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                    ) : (
+                                        <>
+                                            <Shield size={14} className="mr-2" />
+                                            Register Security Key
+                                        </>
+                                    )}
+                                </Button>
+                            </>
+                        )}
+
                         {/* Generate Standard Key */}
                         {panel.type === 'generate' && panel.keyType === 'standard' && (
                             <>
@@ -978,13 +1346,42 @@ const KeychainManager: React.FC<KeychainManagerProps> = ({
                                                     "flex-1 h-10",
                                                     draftKey.type === t && "bg-primary/15 text-primary"
                                                 )}
-                                                onClick={() => setDraftKey({ ...draftKey, type: t })}
+                                                onClick={() => {
+                                                    // Set default keySize based on type
+                                                    const defaultSize = t === 'ED25519' ? undefined : (t === 'RSA' ? 4096 : 256);
+                                                    setDraftKey({ ...draftKey, type: t, keySize: defaultSize });
+                                                }}
                                             >
                                                 {t}
                                             </Button>
                                         ))}
                                     </div>
                                 </div>
+
+                                {/* Key Size selector - only for RSA and ECDSA */}
+                                {(draftKey.type === 'RSA' || draftKey.type === 'ECDSA') && (
+                                    <div className="space-y-2">
+                                        <Label>Key size</Label>
+                                        <div className="flex gap-2">
+                                            {(draftKey.type === 'RSA'
+                                                ? [4096, 2048, 1024]
+                                                : [256, 384, 521]
+                                            ).map((size) => (
+                                                <Button
+                                                    key={size}
+                                                    variant={draftKey.keySize === size ? 'secondary' : 'ghost'}
+                                                    className={cn(
+                                                        "flex-1 h-10",
+                                                        draftKey.keySize === size && "bg-primary/15 text-primary"
+                                                    )}
+                                                    onClick={() => setDraftKey({ ...draftKey, keySize: size })}
+                                                >
+                                                    {draftKey.type === 'RSA' ? `${size} bits` : `P-${size}`}
+                                                </Button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
 
                                 <div className="space-y-2">
                                     <Label>Passphrase</Label>
@@ -1149,10 +1546,21 @@ const KeychainManager: React.FC<KeychainManagerProps> = ({
                                     </div>
                                 )}
 
-                                <Button className="w-full h-11">
-                                    <Download size={14} className="mr-2" />
-                                    Export to host
-                                </Button>
+                                {/* Key Export section */}
+                                <div className="pt-4 mt-4 border-t border-border/60">
+                                    <div className="flex items-center gap-2 mb-3">
+                                        <span className="text-sm font-medium">Key export</span>
+                                        <div className="h-4 w-4 rounded-full bg-muted flex items-center justify-center">
+                                            <Info size={10} className="text-muted-foreground" />
+                                        </div>
+                                    </div>
+                                    <Button
+                                        className="w-full h-11"
+                                        onClick={() => openKeyExport(panel.key)}
+                                    >
+                                        Export to host
+                                    </Button>
+                                </div>
                             </>
                         )}
 
@@ -1274,7 +1682,248 @@ const KeychainManager: React.FC<KeychainManagerProps> = ({
                                 </Button>
                             </>
                         )}
+
+                        {/* Key Export Panel */}
+                        {panel.type === 'export' && !showHostSelector && (
+                            <>
+                                {/* Key info card */}
+                                <div className="flex items-center gap-3 p-3 bg-card border border-border/80 rounded-lg">
+                                    <div className={cn(
+                                        "h-10 w-10 rounded-md flex items-center justify-center",
+                                        panel.key.source === 'biometric'
+                                            ? "bg-blue-500/15 text-blue-500"
+                                            : panel.key.source === 'fido2'
+                                                ? "bg-amber-500/15 text-amber-500"
+                                                : "bg-primary/15 text-primary"
+                                    )}>
+                                        {getKeyIcon(panel.key)}
+                                    </div>
+                                    <div className="min-w-0 flex-1">
+                                        <p className="text-sm font-semibold truncate">{panel.key.label}</p>
+                                        <p className="text-xs text-muted-foreground">Type {getKeyTypeDisplay(panel.key)}</p>
+                                    </div>
+                                </div>
+
+                                {/* Export to field */}
+                                <div className="space-y-2">
+                                    <div className="flex items-center justify-between">
+                                        <Label className="text-muted-foreground">Export to *</Label>
+                                        <Button
+                                            variant="link"
+                                            className="h-auto p-0 text-primary text-sm"
+                                            onClick={() => setShowHostSelector(true)}
+                                        >
+                                            Select Host
+                                        </Button>
+                                    </div>
+                                    <Input
+                                        value={exportHost?.label || ''}
+                                        readOnly
+                                        placeholder="Select a host..."
+                                        className="bg-muted/50 cursor-pointer"
+                                        onClick={() => setShowHostSelector(true)}
+                                    />
+                                </div>
+
+                                {/* Location field */}
+                                <div className="space-y-2">
+                                    <Label className="text-muted-foreground">Location ~ $1 *</Label>
+                                    <Input
+                                        value={exportLocation}
+                                        onChange={e => setExportLocation(e.target.value)}
+                                        placeholder=".ssh"
+                                    />
+                                </div>
+
+                                {/* Filename field */}
+                                <div className="space-y-2">
+                                    <Label className="text-muted-foreground">Filename ~ $2 *</Label>
+                                    <Input
+                                        value={exportFilename}
+                                        onChange={e => setExportFilename(e.target.value)}
+                                        placeholder="authorized_keys"
+                                    />
+                                </div>
+
+                                {/* Info note */}
+                                <div className="flex items-start gap-2 p-3 bg-muted/50 border border-border/60 rounded-lg">
+                                    <Info size={14} className="mt-0.5 text-muted-foreground shrink-0" />
+                                    <p className="text-xs text-muted-foreground">
+                                        Key export currently supports only <span className="font-semibold text-foreground">UNIX</span> systems.
+                                        Use <span className="font-semibold text-foreground">Advanced</span> section to customize the export script.
+                                    </p>
+                                </div>
+
+                                {/* Advanced collapsible */}
+                                <Collapsible open={exportAdvancedOpen} onOpenChange={setExportAdvancedOpen}>
+                                    <CollapsibleTrigger asChild>
+                                        <Button variant="ghost" className="w-full justify-between px-0 h-10 hover:bg-transparent hover:text-current">
+                                            <span className="font-medium">Advanced</span>
+                                            <ChevronRight size={16} className={cn(
+                                                "transition-transform",
+                                                exportAdvancedOpen && "rotate-90"
+                                            )} />
+                                        </Button>
+                                    </CollapsibleTrigger>
+                                    <CollapsibleContent className="space-y-2 pt-2">
+                                        <Label className="text-muted-foreground">Script *</Label>
+                                        <Textarea
+                                            value={exportScript}
+                                            onChange={e => setExportScript(e.target.value)}
+                                            className="min-h-[180px] font-mono text-xs"
+                                            placeholder="Export script..."
+                                        />
+                                    </CollapsibleContent>
+                                </Collapsible>
+
+                                {/* Export button */}
+                                <Button
+                                    className="w-full h-11"
+                                    disabled={!exportHost || !exportLocation || !exportFilename || isExporting}
+                                    onClick={async () => {
+                                        if (!exportHost || !panel.key.publicKey) return;
+
+                                        setIsExporting(true);
+                                        setError('');
+
+                                        try {
+                                            // Get private key for authentication if host uses key auth
+                                            const hostPrivateKey = exportHost.identityFileId
+                                                ? keys.find(k => k.id === exportHost.identityFileId)?.privateKey
+                                                : undefined;
+
+                                            // Escape the public key for shell (single quotes, escape existing quotes)
+                                            const escapedPublicKey = panel.key.publicKey.replace(/'/g, "'\\''");
+
+                                            // Build the command by replacing $1, $2, $3
+                                            const command = exportScript
+                                                .replace(/\$1/g, exportLocation)
+                                                .replace(/\$2/g, exportFilename)
+                                                .replace(/\$3/g, `'${escapedPublicKey}'`);
+
+                                            // Execute via SSH
+                                            const result = await window.nebula?.execCommand({
+                                                hostname: exportHost.hostname,
+                                                username: exportHost.username,
+                                                port: exportHost.port || 22,
+                                                password: exportHost.password,
+                                                privateKey: hostPrivateKey,
+                                                command,
+                                                timeout: 30000,
+                                            });
+
+                                            if (result?.code === 0) {
+                                                toast.success(`Public key exported to ${exportHost.label}`, 'Export Successful');
+                                                closePanel();
+                                            } else {
+                                                const errorMsg = result?.stderr || result?.stdout || 'Unknown error';
+                                                toast.error(`Failed to export key: ${errorMsg}`, 'Export Failed');
+                                            }
+                                        } catch (err) {
+                                            const message = err instanceof Error ? err.message : 'Unknown error';
+                                            toast.error(message, 'Export Failed');
+                                        } finally {
+                                            setIsExporting(false);
+                                        }
+                                    }}
+                                >
+                                    {isExporting ? 'Exporting...' : 'Export and Attach'}
+                                </Button>
+                            </>
+                        )}
+
+                        {/* Edit Key Panel */}
+                        {panel.type === 'edit' && (
+                            <>
+                                <div className="space-y-2">
+                                    <Label>Label *</Label>
+                                    <Input
+                                        value={draftKey.label || ''}
+                                        onChange={e => setDraftKey({ ...draftKey, label: e.target.value })}
+                                        placeholder="Key label"
+                                    />
+                                </div>
+
+                                <div className="space-y-2">
+                                    <Label className="text-destructive">Private key *</Label>
+                                    <Textarea
+                                        value={draftKey.privateKey || ''}
+                                        onChange={e => setDraftKey({ ...draftKey, privateKey: e.target.value })}
+                                        placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"
+                                        className="min-h-[180px] font-mono text-xs"
+                                    />
+                                </div>
+
+                                <div className="space-y-2">
+                                    <Label className="text-muted-foreground">Public key</Label>
+                                    <Textarea
+                                        value={draftKey.publicKey || ''}
+                                        onChange={e => setDraftKey({ ...draftKey, publicKey: e.target.value })}
+                                        placeholder="ssh-ed25519 AAAA..."
+                                        className="min-h-[80px] font-mono text-xs"
+                                    />
+                                </div>
+
+                                <div className="space-y-2">
+                                    <Label className="text-muted-foreground">Certificate</Label>
+                                    <Textarea
+                                        value={draftKey.certificate || ''}
+                                        onChange={e => setDraftKey({ ...draftKey, certificate: e.target.value })}
+                                        placeholder="Certificate content (optional)"
+                                        className="min-h-[60px] font-mono text-xs"
+                                    />
+                                </div>
+
+                                {/* Key Export section */}
+                                <div className="pt-4 mt-4 border-t border-border/60">
+                                    <div className="flex items-center gap-2 mb-3">
+                                        <span className="text-sm font-medium">Key export</span>
+                                        <div className="h-4 w-4 rounded-full bg-muted flex items-center justify-center">
+                                            <Info size={10} className="text-muted-foreground" />
+                                        </div>
+                                    </div>
+                                    <Button
+                                        className="w-full h-11"
+                                        onClick={() => openKeyExport(panel.key)}
+                                    >
+                                        Export to host
+                                    </Button>
+                                </div>
+
+                                {/* Save button */}
+                                <Button
+                                    className="w-full h-11 mt-4"
+                                    disabled={!draftKey.label?.trim() || !draftKey.privateKey?.trim()}
+                                    onClick={() => {
+                                        if (draftKey.id) {
+                                            onUpdate({
+                                                ...panel.key,
+                                                ...draftKey as SSHKey,
+                                            });
+                                            closePanel();
+                                        }
+                                    }}
+                                >
+                                    Save Changes
+                                </Button>
+                            </>
+                        )}
                     </div>
+
+                    {/* Host Selector Overlay for Export */}
+                    {showHostSelector && panel.type === 'export' && (
+                        <SelectHostPanel
+                            hosts={hosts}
+                            customGroups={customGroups}
+                            selectedHostId={exportHost?.id}
+                            onSelect={(host) => {
+                                setExportHost(host);
+                                setShowHostSelector(false);
+                            }}
+                            onBack={() => setShowHostSelector(false)}
+                            onNewHost={onNewHost}
+                        />
+                    )}
                 </div>
             )}
         </div>

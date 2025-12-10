@@ -32,6 +32,7 @@ export interface SSHKey {
   id: string;
   label: string;
   type: KeyType;
+  keySize?: number; // RSA: 4096/2048/1024, ECDSA: 521/384/256
   privateKey: string;
   publicKey?: string;
   certificate?: string;

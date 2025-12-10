@@ -22,6 +22,7 @@ const path = require("node:path");
 const os = require("node:os");
 const fs = require("node:fs");
 const net = require("node:net");
+const http = require("node:http");
 const pty = require("node-pty");
 const SftpClient = require("ssh2-sftp-client");
 const { Client: SSHClient } = require("ssh2");
@@ -37,6 +38,95 @@ const isDev = !!devServerUrl;
 const preload = path.join(__dirname, "preload.cjs");
 const isMac = process.platform === "darwin";
 const appIcon = path.join(__dirname, "../public/icon.png");
+
+// Production static file server (for WebAuthn secure context requirement)
+let productionServer = null;
+let productionServerUrl = null;
+
+const MIME_TYPES = {
+  '.html': 'text/html',
+  '.js': 'application/javascript',
+  '.mjs': 'application/javascript',
+  '.css': 'text/css',
+  '.json': 'application/json',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.svg': 'image/svg+xml',
+  '.ico': 'image/x-icon',
+  '.woff': 'font/woff',
+  '.woff2': 'font/woff2',
+  '.ttf': 'font/ttf',
+  '.eot': 'application/vnd.ms-fontobject',
+  '.wasm': 'application/wasm',
+};
+
+// Start a local HTTP server for production to enable WebAuthn (requires secure context)
+async function startProductionServer() {
+  const distPath = path.join(__dirname, "../dist");
+  
+  return new Promise((resolve, reject) => {
+    const server = http.createServer((req, res) => {
+      let filePath = path.join(distPath, req.url === '/' ? 'index.html' : req.url);
+      
+      // Security: prevent directory traversal
+      if (!filePath.startsWith(distPath)) {
+        res.writeHead(403);
+        res.end('Forbidden');
+        return;
+      }
+      
+      // Handle SPA routing - serve index.html for non-file routes
+      if (!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
+        filePath = path.join(distPath, 'index.html');
+      }
+      
+      const ext = path.extname(filePath).toLowerCase();
+      const mimeType = MIME_TYPES[ext] || 'application/octet-stream';
+      
+      fs.readFile(filePath, (err, data) => {
+        if (err) {
+          if (err.code === 'ENOENT') {
+            // Fallback to index.html for SPA
+            fs.readFile(path.join(distPath, 'index.html'), (err2, data2) => {
+              if (err2) {
+                res.writeHead(404);
+                res.end('Not Found');
+                return;
+              }
+              res.writeHead(200, { 'Content-Type': 'text/html' });
+              res.end(data2);
+            });
+            return;
+          }
+          res.writeHead(500);
+          res.end('Server Error');
+          return;
+        }
+        res.writeHead(200, { 'Content-Type': mimeType });
+        res.end(data);
+      });
+    });
+    
+    // Find an available port starting from 17789
+    const tryPort = (port) => {
+      server.listen(port, '127.0.0.1', () => {
+        productionServer = server;
+        productionServerUrl = `http://127.0.0.1:${port}`;
+        console.log(`Production server started at ${productionServerUrl}`);
+        resolve(productionServerUrl);
+      }).on('error', (err) => {
+        if (err.code === 'EADDRINUSE') {
+          tryPort(port + 1);
+        } else {
+          reject(err);
+        }
+      });
+    };
+    
+    tryPort(17789);
+  });
+}
 
 const sessions = new Map();
 const sftpClients = new Map();
@@ -1286,8 +1376,18 @@ async function createWindow() {
     }
   }
 
-  const indexPath = path.join(__dirname, "../dist/index.html");
-  await win.loadFile(indexPath);
+  // In production, use local HTTP server for WebAuthn support (requires secure context)
+  // WebAuthn (Windows Hello, Touch ID, FIDO2) requires either HTTPS or localhost
+  try {
+    if (!productionServerUrl) {
+      await startProductionServer();
+    }
+    await win.loadURL(productionServerUrl);
+  } catch (e) {
+    console.warn("Failed to start production server, falling back to file://", e);
+    const indexPath = path.join(__dirname, "../dist/index.html");
+    await win.loadFile(indexPath);
+  }
   registerSSHBridge(win);
 }
 
@@ -1367,5 +1467,11 @@ app.whenReady().then(() => {
 });
 
 app.on("window-all-closed", () => {
+  // Cleanup production server
+  if (productionServer) {
+    productionServer.close();
+    productionServer = null;
+    productionServerUrl = null;
+  }
   if (process.platform !== "darwin") app.quit();
 });
