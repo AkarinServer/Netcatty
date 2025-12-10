@@ -173,6 +173,10 @@ export interface TerminalSession {
   status: 'connecting' | 'connected' | 'disconnected';
   workspaceId?: string;
   startupCommand?: string; // Command to run after connection (for snippet runner)
+  // Connection-time protocol overrides (used instead of looking up from hosts)
+  protocol?: 'ssh' | 'telnet' | 'local';
+  port?: number;
+  moshEnabled?: boolean;
 }
 
 export interface RemoteFile {

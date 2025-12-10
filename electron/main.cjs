@@ -661,11 +661,13 @@ const registerSSHBridge = (win) => {
   const write = (_event, payload) => {
     const session = sessions.get(payload.sessionId);
     if (!session) return;
-    // SSH sessions use stream, local terminal uses proc
+    // SSH sessions use stream, local terminal uses proc, telnet-native uses socket
     if (session.stream) {
       session.stream.write(payload.data);
     } else if (session.proc) {
       session.proc.write(payload.data);
+    } else if (session.socket) {
+      session.socket.write(payload.data);
     }
   };
 
@@ -679,6 +681,19 @@ const registerSSHBridge = (win) => {
       } else if (session.proc) {
         // Local terminal - use resize
         session.proc.resize(payload.cols, payload.rows);
+      } else if (session.socket && session.type === 'telnet-native') {
+        // Telnet native - send NAWS if supported
+        session.cols = payload.cols;
+        session.rows = payload.rows;
+        // Send NAWS sub-negotiation
+        const TELNET = { IAC: 255, SB: 250, SE: 240, NAWS: 31 };
+        const buf = Buffer.from([
+          TELNET.IAC, TELNET.SB, TELNET.NAWS,
+          (payload.cols >> 8) & 0xff, payload.cols & 0xff,
+          (payload.rows >> 8) & 0xff, payload.rows & 0xff,
+          TELNET.IAC, TELNET.SE
+        ]);
+        session.socket.write(buf);
       }
     } catch (err) {
       console.warn("Resize failed", err);
@@ -694,6 +709,8 @@ const registerSSHBridge = (win) => {
         session.conn?.end();
       } else if (session.proc) {
         session.proc.kill();
+      } else if (session.socket) {
+        session.socket.destroy();
       }
       // Cleanup chain connections if any
       if (session.chainConnections) {
@@ -707,64 +724,223 @@ const registerSSHBridge = (win) => {
     sessions.delete(payload.sessionId);
   };
 
-  // Telnet session using node-pty to spawn system telnet
+  // Telnet session using native Node.js net module (no system telnet dependency)
   const startTelnet = async (event, options) => {
     const sessionId =
       options.sessionId ||
       `telnet-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
+    const hostname = options.hostname;
+    const port = options.port || 23;
     const cols = options.cols || 80;
     const rows = options.rows || 24;
 
-    // Find telnet executable
-    let telnetCmd = 'telnet';
-    if (process.platform === 'win32') {
-      telnetCmd = findExecutable('telnet') || 'telnet.exe';
-    }
+    console.log(`[Telnet] Starting connection to ${hostname}:${port}`);
 
-    const args = [options.hostname];
-    if (options.port && options.port !== 23) {
-      args.push(String(options.port));
-    }
+    return new Promise((resolve, reject) => {
+      const socket = new net.Socket();
+      let connected = false;
 
-    const env = {
-      ...process.env,
-      ...(options.env || {}),
-      TERM: 'xterm-256color',
-      LANG: options.charset || 'en_US.UTF-8',
-    };
-
-    try {
-      const proc = pty.spawn(telnetCmd, args, {
-        cols,
-        rows,
-        env,
-        cwd: os.homedir(),
-      });
-
-      const session = {
-        proc,
-        type: 'telnet',
-        webContentsId: event.sender.id,
+      // Telnet protocol constants
+      const TELNET = {
+        IAC: 255,   // Interpret As Command
+        DONT: 254,
+        DO: 253,
+        WONT: 252,
+        WILL: 251,
+        SB: 250,    // Sub-negotiation Begin
+        SE: 240,    // Sub-negotiation End
+        // Options
+        ECHO: 1,
+        SUPPRESS_GO_AHEAD: 3,
+        STATUS: 5,
+        TERMINAL_TYPE: 24,
+        NAWS: 31,   // Negotiate About Window Size
+        TERMINAL_SPEED: 32,
+        LINEMODE: 34,
+        NEW_ENVIRON: 39,
       };
-      sessions.set(sessionId, session);
 
-      proc.onData((data) => {
-        const contents = electronModule.webContents.fromId(session.webContentsId);
-        contents?.send("nebula:data", { sessionId, data });
+      // Send NAWS (window size) sub-negotiation
+      const sendWindowSize = () => {
+        const buf = Buffer.from([
+          TELNET.IAC, TELNET.SB, TELNET.NAWS,
+          (cols >> 8) & 0xff, cols & 0xff,
+          (rows >> 8) & 0xff, rows & 0xff,
+          TELNET.IAC, TELNET.SE
+        ]);
+        socket.write(buf);
+      };
+
+      // Handle Telnet protocol negotiation
+      const handleTelnetNegotiation = (data) => {
+        const output = [];
+        let i = 0;
+
+        while (i < data.length) {
+          if (data[i] === TELNET.IAC) {
+            if (i + 1 >= data.length) break;
+            
+            const cmd = data[i + 1];
+            
+            if (cmd === TELNET.IAC) {
+              // Escaped IAC (255 255) -> output single 255
+              output.push(255);
+              i += 2;
+              continue;
+            }
+
+            if (cmd === TELNET.DO || cmd === TELNET.DONT || cmd === TELNET.WILL || cmd === TELNET.WONT) {
+              if (i + 2 >= data.length) break;
+              
+              const opt = data[i + 2];
+              console.log(`[Telnet] Received: ${cmd === TELNET.DO ? 'DO' : cmd === TELNET.DONT ? 'DONT' : cmd === TELNET.WILL ? 'WILL' : 'WONT'} ${opt}`);
+
+              // Respond to negotiation
+              if (cmd === TELNET.DO) {
+                if (opt === TELNET.NAWS) {
+                  // We support NAWS
+                  socket.write(Buffer.from([TELNET.IAC, TELNET.WILL, opt]));
+                  sendWindowSize();
+                } else if (opt === TELNET.TERMINAL_TYPE) {
+                  socket.write(Buffer.from([TELNET.IAC, TELNET.WILL, opt]));
+                } else if (opt === TELNET.SUPPRESS_GO_AHEAD) {
+                  socket.write(Buffer.from([TELNET.IAC, TELNET.WILL, opt]));
+                } else {
+                  // Refuse other options
+                  socket.write(Buffer.from([TELNET.IAC, TELNET.WONT, opt]));
+                }
+              } else if (cmd === TELNET.WILL) {
+                if (opt === TELNET.ECHO || opt === TELNET.SUPPRESS_GO_AHEAD) {
+                  socket.write(Buffer.from([TELNET.IAC, TELNET.DO, opt]));
+                } else {
+                  socket.write(Buffer.from([TELNET.IAC, TELNET.DONT, opt]));
+                }
+              } else if (cmd === TELNET.DONT) {
+                socket.write(Buffer.from([TELNET.IAC, TELNET.WONT, opt]));
+              } else if (cmd === TELNET.WONT) {
+                socket.write(Buffer.from([TELNET.IAC, TELNET.DONT, opt]));
+              }
+
+              i += 3;
+              continue;
+            }
+
+            if (cmd === TELNET.SB) {
+              // Sub-negotiation - find SE
+              let seIndex = i + 2;
+              while (seIndex < data.length - 1) {
+                if (data[seIndex] === TELNET.IAC && data[seIndex + 1] === TELNET.SE) {
+                  break;
+                }
+                seIndex++;
+              }
+
+              if (seIndex < data.length - 1) {
+                const subOpt = data[i + 2];
+                console.log(`[Telnet] Sub-negotiation for option ${subOpt}`);
+                
+                // Handle terminal type request
+                if (subOpt === TELNET.TERMINAL_TYPE && data[i + 3] === 1) {
+                  // Server is asking for terminal type (SEND = 1)
+                  const termType = 'xterm-256color';
+                  const response = Buffer.concat([
+                    Buffer.from([TELNET.IAC, TELNET.SB, TELNET.TERMINAL_TYPE, 0]), // 0 = IS
+                    Buffer.from(termType),
+                    Buffer.from([TELNET.IAC, TELNET.SE])
+                  ]);
+                  socket.write(response);
+                }
+                
+                i = seIndex + 2;
+                continue;
+              }
+            }
+
+            // Unknown command, skip
+            i += 2;
+            continue;
+          }
+
+          // Regular data
+          output.push(data[i]);
+          i++;
+        }
+
+        return Buffer.from(output);
+      };
+
+      // Connection timeout
+      const connectTimeout = setTimeout(() => {
+        if (!connected) {
+          console.error(`[Telnet] Connection timeout to ${hostname}:${port}`);
+          socket.destroy();
+          reject(new Error(`Connection timeout to ${hostname}:${port}`));
+        }
+      }, 10000);
+
+      socket.on('connect', () => {
+        connected = true;
+        clearTimeout(connectTimeout);
+        console.log(`[Telnet] Connected to ${hostname}:${port}`);
+
+        const session = {
+          socket,
+          type: 'telnet-native',
+          webContentsId: event.sender.id,
+          cols,
+          rows,
+        };
+        sessions.set(sessionId, session);
+
+        resolve({ sessionId });
       });
 
-      proc.onExit((evt) => {
+      socket.on('data', (data) => {
+        const session = sessions.get(sessionId);
+        if (!session) return;
+
+        // Process Telnet protocol and extract clean data
+        const cleanData = handleTelnetNegotiation(data);
+        
+        if (cleanData.length > 0) {
+          const contents = electronModule.webContents.fromId(session.webContentsId);
+          contents?.send("nebula:data", { sessionId, data: cleanData.toString('binary') });
+        }
+      });
+
+      socket.on('error', (err) => {
+        console.error(`[Telnet] Socket error: ${err.message}`);
+        clearTimeout(connectTimeout);
+        
+        if (!connected) {
+          reject(new Error(`Failed to connect: ${err.message}`));
+        } else {
+          const session = sessions.get(sessionId);
+          if (session) {
+            const contents = electronModule.webContents.fromId(session.webContentsId);
+            contents?.send("nebula:exit", { sessionId, exitCode: 1, error: err.message });
+          }
+          sessions.delete(sessionId);
+        }
+      });
+
+      socket.on('close', (hadError) => {
+        console.log(`[Telnet] Connection closed${hadError ? ' with error' : ''}`);
+        clearTimeout(connectTimeout);
+        
+        const session = sessions.get(sessionId);
+        if (session) {
+          const contents = electronModule.webContents.fromId(session.webContentsId);
+          contents?.send("nebula:exit", { sessionId, exitCode: hadError ? 1 : 0 });
+        }
         sessions.delete(sessionId);
-        const contents = electronModule.webContents.fromId(session.webContentsId);
-        contents?.send("nebula:exit", { sessionId, ...evt });
       });
 
-      return { sessionId };
-    } catch (err) {
-      console.error("[Telnet] Failed to start telnet session:", err.message);
-      throw err;
-    }
+      // Connect
+      console.log(`[Telnet] Connecting to ${hostname}:${port}...`);
+      socket.connect(port, hostname);
+    });
   };
 
   // Mosh session using node-pty to spawn system mosh-client

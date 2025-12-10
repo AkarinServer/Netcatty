@@ -5,7 +5,8 @@ import { TopTabs } from './components/TopTabs';
 import { QuickSwitcher } from './components/QuickSwitcher';
 import { VaultView } from './components/VaultView';
 import { TerminalLayer } from './components/TerminalLayer';
-import { Host } from './types';
+import ProtocolSelectDialog from './components/ProtocolSelectDialog';
+import { Host, HostProtocol } from './types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from './components/ui/dialog';
 import { Button } from './components/ui/button';
 import { Input } from './components/ui/input';
@@ -37,6 +38,8 @@ function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isQuickSwitcherOpen, setIsQuickSwitcherOpen] = useState(false);
   const [quickSearch, setQuickSearch] = useState('');
+  // Protocol selection dialog state for QuickSwitcher
+  const [protocolSelectHost, setProtocolSelectHost] = useState<Host | null>(null);
 
   const {
     theme,
@@ -130,6 +133,47 @@ function App() {
     if (!confirmed) return;
     updateHosts(hosts.filter(h => h.id !== hostId));
   }, [hosts, updateHosts]);
+
+  // Check if host has multiple protocols enabled
+  const hasMultipleProtocols = useCallback((host: Host) => {
+    let count = 0;
+    // SSH is always available as base protocol (unless explicitly set to something else)
+    if (host.protocol === 'ssh' || !host.protocol) count++;
+    // Mosh adds another option
+    if (host.moshEnabled) count++;
+    // Telnet adds another option
+    if (host.telnetEnabled) count++;
+    // If protocol is explicitly telnet (not ssh), count it
+    if (host.protocol === 'telnet' && !host.telnetEnabled) count++;
+    return count > 1;
+  }, []);
+
+  // Handle host connect with protocol selection (used by QuickSwitcher)
+  const handleHostConnectWithProtocolCheck = useCallback((host: Host) => {
+    if (hasMultipleProtocols(host)) {
+      setProtocolSelectHost(host);
+      setIsQuickSwitcherOpen(false);
+      setQuickSearch('');
+    } else {
+      connectToHost(host);
+      setIsQuickSwitcherOpen(false);
+      setQuickSearch('');
+    }
+  }, [hasMultipleProtocols, connectToHost]);
+
+  // Handle protocol selection from dialog
+  const handleProtocolSelect = useCallback((protocol: HostProtocol, port: number) => {
+    if (protocolSelectHost) {
+      const hostWithProtocol: Host = {
+        ...protocolSelectHost,
+        protocol: protocol === 'mosh' ? 'ssh' : protocol,
+        port,
+        moshEnabled: protocol === 'mosh',
+      };
+      connectToHost(hostWithProtocol);
+      setProtocolSelectHost(null);
+    }
+  }, [protocolSelectHost, connectToHost]);
 
   const handleToggleTheme = useCallback(() => {
     setTheme(prev => prev === 'dark' ? 'light' : 'dark');
@@ -229,11 +273,7 @@ function App() {
         sessions={sessions}
         workspaces={workspaces}
         onQueryChange={setQuickSearch}
-        onSelect={(host) => {
-          connectToHost(host);
-          setIsQuickSwitcherOpen(false);
-          setQuickSearch('');
-        }}
+        onSelect={handleHostConnectWithProtocolCheck}
         onSelectTab={(tabId) => {
           setActiveTabId(tabId);
           setIsQuickSwitcherOpen(false);
@@ -295,6 +335,15 @@ function App() {
         terminalThemeId={terminalThemeId}
         onTerminalThemeChange={setTerminalThemeId}
       />
+
+      {/* Protocol Select Dialog for QuickSwitcher */}
+      {protocolSelectHost && (
+        <ProtocolSelectDialog
+          host={protocolSelectHost}
+          onSelect={handleProtocolSelect}
+          onCancel={() => setProtocolSelectHost(null)}
+        />
+      )}
     </div>
   );
 }

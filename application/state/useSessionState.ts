@@ -45,6 +45,10 @@ export const useSessionState = () => {
       hostname: host.hostname,
       username: host.username,
       status: 'connecting',
+      // Store connection-time protocol settings from the host object
+      protocol: host.protocol,
+      port: host.port,
+      moshEnabled: host.moshEnabled,
     };
     setSessions(prev => [...prev, newSession]);
     setActiveTabId(newSession.id);

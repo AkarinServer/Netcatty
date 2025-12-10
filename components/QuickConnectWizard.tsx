@@ -162,13 +162,8 @@ const QuickConnectWizard: React.FC<QuickConnectWizardProps> = ({
     const handleContinue = () => {
         switch (step) {
             case 'protocol':
-                // If no username provided yet, go to username step
-                if (!target.username && !username) {
-                    setStep('username');
-                } else {
-                    // Skip to auth step (known host check happens during connection)
-                    setStep('auth');
-                }
+                // Always go to username step to let user confirm/edit username
+                setStep('username');
                 break;
             case 'username':
                 setStep('auth');
@@ -189,18 +184,11 @@ const QuickConnectWizard: React.FC<QuickConnectWizardProps> = ({
                 setStep('protocol');
                 break;
             case 'knownhost':
-                if (!target.username) {
-                    setStep('username');
-                } else {
-                    setStep('protocol');
-                }
+                setStep('username');
                 break;
             case 'auth':
-                if (!target.username && !username) {
-                    setStep('username');
-                } else {
-                    setStep('protocol');
-                }
+                // Always go back to username step
+                setStep('username');
                 break;
         }
     };
@@ -224,6 +212,9 @@ const QuickConnectWizard: React.FC<QuickConnectWizardProps> = ({
             password: authMethod === 'password' ? password : undefined,
             identityFileId: authMethod === 'key' ? selectedKeyId || undefined : undefined,
             moshEnabled: protocol === 'mosh',
+            // Set telnet-specific fields when using telnet protocol
+            telnetEnabled: protocol === 'telnet',
+            telnetPort: protocol === 'telnet' ? effectivePort : undefined,
         };
 
         // Save host if requested

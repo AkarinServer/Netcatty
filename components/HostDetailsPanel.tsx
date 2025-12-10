@@ -108,7 +108,13 @@ const HostDetailsPanel: React.FC<HostDetailsPanelProps> = ({
 
   useEffect(() => {
     if (initialData) {
-      setForm(initialData);
+      // Ensure telnetEnabled is set when protocol is telnet
+      const updatedData = { ...initialData };
+      if (initialData.protocol === 'telnet' && !initialData.telnetEnabled) {
+        updatedData.telnetEnabled = true;
+        updatedData.telnetPort = initialData.telnetPort || initialData.port || 23;
+      }
+      setForm(updatedData);
       setGroupInputValue(initialData.group || "");
     }
   }, [initialData]);
@@ -1090,7 +1096,7 @@ const HostDetailsPanel: React.FC<HostDetailsPanelProps> = ({
         </div>
 
         {/* Telnet Protocol Card */}
-        {form.telnetEnabled ? (
+        {(form.telnetEnabled || form.protocol === 'telnet') ? (
           <Card className="p-3 space-y-3 bg-card border-border/80">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 bg-secondary/70 border border-border/70 rounded-md px-2 py-1">

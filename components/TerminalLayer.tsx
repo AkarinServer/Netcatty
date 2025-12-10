@@ -138,7 +138,15 @@ const TerminalLayerInner: React.FC<TerminalLayerProps> = ({
     for (const session of sessions) {
       const existingHost = hostMap.get(session.hostId);
       if (existingHost) {
-        map.set(session.id, existingHost);
+        // Apply session-time protocol overrides to the host
+        const hostWithOverrides: Host = {
+          ...existingHost,
+          // Use session protocol settings if provided (from connection-time selection)
+          protocol: session.protocol ?? existingHost.protocol,
+          port: session.port ?? existingHost.port,
+          moshEnabled: session.moshEnabled ?? existingHost.moshEnabled,
+        };
+        map.set(session.id, hostWithOverrides);
       } else {
         // Create stable fallback host object
         map.set(session.id, {
@@ -146,11 +154,12 @@ const TerminalLayerInner: React.FC<TerminalLayerProps> = ({
           label: session.hostLabel || 'Local Terminal',
           hostname: session.hostname || 'localhost',
           username: session.username || 'local',
-          port: 22,
+          port: session.port ?? 22,
           os: 'linux',
           group: '',
           tags: [],
-          protocol: 'local' as const,
+          protocol: session.protocol ?? 'local' as const,
+          moshEnabled: session.moshEnabled,
         });
       }
     }
