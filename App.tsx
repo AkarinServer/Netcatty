@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import SettingsDialog from './components/SettingsDialog';
-import HostDetailsPanel from './components/HostDetailsPanel';
 import { SftpView } from './components/SftpViewNew';
 import { TopTabs } from './components/TopTabs';
 import { QuickSwitcher } from './components/QuickSwitcher';
@@ -35,11 +34,9 @@ const VaultViewContainer: React.FC<{ children: React.ReactNode }> = ({ children 
 function App() {
   console.log('[App] render');
 
-  const [isFormOpen, setIsFormOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isQuickSwitcherOpen, setIsQuickSwitcherOpen] = useState(false);
   const [quickSearch, setQuickSearch] = useState('');
-  const [editingHost, setEditingHost] = useState<Host | null>(null);
 
   const {
     theme,
@@ -127,11 +124,6 @@ function App() {
     return filtered.slice(0, 8);
   }, [hosts, quickSearch]);
 
-  const handleEditHost = useCallback((host: Host) => {
-    setEditingHost(host);
-    setIsFormOpen(true);
-  }, []);
-
   const handleDeleteHost = useCallback((hostId: string) => {
     const target = hosts.find(h => h.id === hostId);
     const confirmed = window.confirm(`Delete host "${target?.label || hostId}"?`);
@@ -149,11 +141,6 @@ function App() {
 
   const handleOpenSettings = useCallback(() => {
     setIsSettingsOpen(true);
-  }, []);
-
-  const handleNewHost = useCallback(() => {
-    setEditingHost(null);
-    setIsFormOpen(true);
   }, []);
 
   const handleEndSessionDrag = useCallback(() => {
@@ -194,8 +181,6 @@ function App() {
             onOpenSettings={handleOpenSettings}
             onOpenQuickSwitcher={handleOpenQuickSwitcher}
             onCreateLocalTerminal={createLocalTerminal}
-            onNewHost={handleNewHost}
-            onEditHost={handleEditHost}
             onDeleteHost={handleDeleteHost}
             onConnect={connectToHost}
             onUpdateHosts={updateHosts}
@@ -295,24 +280,6 @@ function App() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {isFormOpen && (
-        <HostDetailsPanel
-          initialData={editingHost}
-          availableKeys={keys}
-          groups={Array.from(new Set([...customGroups, ...hosts.map(h => h.group || 'General')]))}
-          allHosts={hosts}
-          onSave={host => {
-            updateHosts(editingHost ? hosts.map(h => h.id === host.id ? host : h) : [...hosts, host]);
-            setIsFormOpen(false);
-            setEditingHost(null);
-          }}
-          onCancel={() => { setIsFormOpen(false); setEditingHost(null); }}
-          onCreateGroup={(groupPath) => {
-            updateCustomGroups(Array.from(new Set([...customGroups, groupPath])));
-          }}
-        />
-      )}
 
       <SettingsDialog
         isOpen={isSettingsOpen}

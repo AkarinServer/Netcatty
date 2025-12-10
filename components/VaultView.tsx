@@ -25,6 +25,7 @@ import SnippetsManager from './SnippetsManager';
 import KeychainManager from './KeychainManager';
 import PortForwarding from './PortForwardingNew';
 import KnownHostsManager from './KnownHostsManager';
+import HostDetailsPanel from './HostDetailsPanel';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
@@ -49,9 +50,7 @@ interface VaultViewProps {
   sessions: TerminalSession[];
   onOpenSettings: () => void;
   onOpenQuickSwitcher: () => void;
-  onNewHost: () => void;
   onCreateLocalTerminal: () => void;
-  onEditHost: (host: Host) => void;
   onDeleteHost: (id: string) => void;
   onConnect: (host: Host) => void;
   onUpdateHosts: (hosts: Host[]) => void;
@@ -75,9 +74,7 @@ const VaultViewInner: React.FC<VaultViewProps> = ({
   sessions,
   onOpenSettings,
   onOpenQuickSwitcher,
-  onNewHost,
   onCreateLocalTerminal,
-  onEditHost,
   onDeleteHost,
   onConnect,
   onUpdateHosts,
@@ -95,6 +92,20 @@ const VaultViewInner: React.FC<VaultViewProps> = ({
   const [isNewFolderOpen, setIsNewFolderOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
   const [targetParentPath, setTargetParentPath] = useState<string | null>(null);
+
+  // Host panel state (local to hosts section)
+  const [isHostPanelOpen, setIsHostPanelOpen] = useState(false);
+  const [editingHost, setEditingHost] = useState<Host | null>(null);
+
+  const handleNewHost = useCallback(() => {
+    setEditingHost(null);
+    setIsHostPanelOpen(true);
+  }, []);
+
+  const handleEditHost = useCallback((host: Host) => {
+    setEditingHost(host);
+    setIsHostPanelOpen(true);
+  }, []);
 
   const buildGroupTree = useMemo<Record<string, GroupNode>>(() => {
     const root: Record<string, GroupNode> = {};
@@ -306,7 +317,7 @@ const VaultViewInner: React.FC<VaultViewProps> = ({
                 <Button variant="ghost" size="icon" className="h-10 w-10 text-muted-foreground hover:text-foreground"><Star size={16} /></Button>
               </div>
               <div className="flex items-center gap-2">
-                <Button size="sm" className="h-11 px-3" onClick={onNewHost}>
+                <Button size="sm" className="h-11 px-3" onClick={handleNewHost}>
                   <Plus size={14} className="mr-2" /> New Host
                 </Button>
                 <Popover>
@@ -452,7 +463,7 @@ const VaultViewInner: React.FC<VaultViewProps> = ({
                             <ContextMenuItem onClick={() => onConnect(host)}>
                               <Plug className="mr-2 h-4 w-4" /> Connect
                             </ContextMenuItem>
-                            <ContextMenuItem onClick={() => onEditHost(host)}>
+                            <ContextMenuItem onClick={() => handleEditHost(host)}>
                               <Edit2 className="mr-2 h-4 w-4" /> Edit
                             </ContextMenuItem>
                             <ContextMenuItem className="text-destructive" onClick={() => onDeleteHost(host.id)}>
@@ -501,15 +512,34 @@ const VaultViewInner: React.FC<VaultViewProps> = ({
             onSave={k => onUpdateKeys([...keys, k])}
             onUpdate={k => onUpdateKeys(keys.map(existing => existing.id === k.id ? k : existing))}
             onDelete={id => onUpdateKeys(keys.filter(k => k.id !== id))}
-            onNewHost={onNewHost}
+            onNewHost={handleNewHost}
           />
         )}
-        {currentSection === 'port' && <PortForwarding hosts={hosts} keys={keys} customGroups={customGroups} onNewHost={onNewHost} />}
+        {currentSection === 'port' && <PortForwarding hosts={hosts} keys={keys} customGroups={customGroups} onNewHost={handleNewHost} />}
         {/* Always render KnownHostsManager but hide with CSS to prevent unmounting */}
         <div style={{ display: currentSection === 'knownhosts' ? 'contents' : 'none' }}>
           {knownHostsManagerElement}
         </div>
       </div>
+
+      {/* Host Details Panel - positioned at VaultView root level for correct top alignment */}
+      {currentSection === 'hosts' && isHostPanelOpen && (
+        <HostDetailsPanel
+          initialData={editingHost}
+          availableKeys={keys}
+          groups={Array.from(new Set([...customGroups, ...hosts.map(h => h.group || 'General')]))}
+          allHosts={hosts}
+          onSave={host => {
+            onUpdateHosts(editingHost ? hosts.map(h => h.id === host.id ? host : h) : [...hosts, host]);
+            setIsHostPanelOpen(false);
+            setEditingHost(null);
+          }}
+          onCancel={() => { setIsHostPanelOpen(false); setEditingHost(null); }}
+          onCreateGroup={(groupPath) => {
+            onUpdateCustomGroups(Array.from(new Set([...customGroups, groupPath])));
+          }}
+        />
+      )}
 
       <Dialog open={isNewFolderOpen} onOpenChange={setIsNewFolderOpen}>
         <DialogContent>

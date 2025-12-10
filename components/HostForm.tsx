@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Host, SSHKey } from '../types';
-import { Server, Save, Key, Lock } from 'lucide-react';
+import { Server, Save, Key, Lock, X, Plus } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from './ui/dialog';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -33,6 +33,27 @@ const HostForm: React.FC<HostFormProps> = ({ initialData, availableKeys, groups,
   const [authType, setAuthType] = useState<'password' | 'key'>(
     initialData?.identityFileId ? 'key' : 'password'
   );
+
+  const [tagInput, setTagInput] = useState('');
+
+  const handleAddTag = () => {
+    const tag = tagInput.trim();
+    if (tag && !formData.tags?.includes(tag)) {
+      setFormData(prev => ({ ...prev, tags: [...(prev.tags || []), tag] }));
+      setTagInput('');
+    }
+  };
+
+  const handleRemoveTag = (tagToRemove: string) => {
+    setFormData(prev => ({ ...prev, tags: (prev.tags || []).filter(t => t !== tagToRemove) }));
+  };
+
+  const handleTagKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleAddTag();
+    }
+  };
 
   // Effect to ensure we have a valid auth state if switching back and forth
   useEffect(() => {
@@ -146,6 +167,48 @@ const HostForm: React.FC<HostFormProps> = ({ initialData, availableKeys, groups,
                       <option key={g} value={g} />
                   ))}
               </datalist>
+          </div>
+
+          <div className="grid gap-2">
+              <Label htmlFor="tags">Tags</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="tags"
+                  placeholder="Add a tag..."
+                  value={tagInput}
+                  onChange={e => setTagInput(e.target.value)}
+                  onKeyDown={handleTagKeyDown}
+                  className="flex-1"
+                />
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="icon"
+                  onClick={handleAddTag}
+                  disabled={!tagInput.trim()}
+                >
+                  <Plus size={16} />
+                </Button>
+              </div>
+              {formData.tags && formData.tags.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mt-1">
+                  {formData.tags.map(tag => (
+                    <span
+                      key={tag}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/10 text-primary text-xs"
+                    >
+                      {tag}
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveTag(tag)}
+                        className="hover:bg-primary/20 rounded-full p-0.5"
+                      >
+                        <X size={12} />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
           </div>
 
           <div className="space-y-3 pt-2">

@@ -2,18 +2,21 @@ import React, { useMemo, useState } from 'react';
 import { Host } from '../types';
 import {
     ArrowLeft,
+    X,
     Plus,
     Search,
     LayoutGrid,
-    MoreVertical,
-    ChevronDown,
     Check,
+    ChevronRight,
+    Home,
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { ScrollArea } from './ui/scroll-area';
 import { cn } from '../lib/utils';
 import { DistroAvatar } from './DistroAvatar';
+import { SortDropdown, SortMode } from './ui/sort-dropdown';
+import { TagFilterDropdown } from './ui/tag-filter-dropdown';
 
 interface SelectHostPanelProps {
     hosts: Host[];
@@ -44,6 +47,19 @@ const SelectHostPanel: React.FC<SelectHostPanelProps> = ({
 }) => {
     const [searchQuery, setSearchQuery] = useState('');
     const [currentPath, setCurrentPath] = useState<string | null>(null);
+    const [sortMode, setSortMode] = useState<SortMode>('az');
+    const [selectedTags, setSelectedTags] = useState<string[]>([]);
+
+    // Get all unique tags from hosts
+    const allTags = useMemo(() => {
+        const tagSet = new Set<string>();
+        hosts.forEach(h => {
+            if (h.tags) {
+                h.tags.forEach(tag => tagSet.add(tag));
+            }
+        });
+        return Array.from(tagSet).sort();
+    }, [hosts]);
 
     // Get unique group paths from both hosts and customGroups
     const allGroupPaths = useMemo(() => {
@@ -92,7 +108,7 @@ const SelectHostPanel: React.FC<SelectHostPanelProps> = ({
         return groups;
     }, [allGroupPaths, currentPath, hosts]);
 
-    // Get hosts at current level
+    // Get hosts at current level with filtering and sorting
     const filteredHosts = useMemo(() => {
         let result = hosts;
 
@@ -111,8 +127,42 @@ const SelectHostPanel: React.FC<SelectHostPanelProps> = ({
             );
         }
 
+        // Filter by tags
+        if (selectedTags.length > 0) {
+            result = result.filter(h => 
+                h.tags && selectedTags.some(tag => h.tags.includes(tag))
+            );
+        }
+
+        // Sort hosts
+        result = [...result].sort((a, b) => {
+            switch (sortMode) {
+                case 'az':
+                    return a.label.localeCompare(b.label);
+                case 'za':
+                    return b.label.localeCompare(a.label);
+                case 'newest':
+                    // Use id as proxy for creation time (UUIDs are time-sortable or fall back to label)
+                    return b.id.localeCompare(a.id);
+                case 'oldest':
+                    return a.id.localeCompare(b.id);
+                default:
+                    return 0;
+            }
+        });
+
         return result;
-    }, [hosts, currentPath, searchQuery]);
+    }, [hosts, currentPath, searchQuery, selectedTags, sortMode]);
+
+    // Build breadcrumb from current path
+    const breadcrumbs = useMemo(() => {
+        if (!currentPath) return [];
+        const parts = currentPath.split('/');
+        return parts.map((part, index) => ({
+            name: part,
+            path: parts.slice(0, index + 1).join('/'),
+        }));
+    }, [currentPath]);
 
     const handleBack = () => {
         if (currentPath) {
@@ -128,23 +178,31 @@ const SelectHostPanel: React.FC<SelectHostPanelProps> = ({
     };
 
     return (
-        <div className={cn("absolute inset-0 bg-secondary/95 backdrop-blur z-40 flex flex-col app-no-drag", className)}>
+        <div className={cn("absolute right-0 top-0 bottom-0 w-[380px] border-l border-border/60 bg-background z-30 flex flex-col app-no-drag", className)}>
             {/* Header */}
-            <div className="px-4 py-3 border-b border-border/60 flex items-center gap-3">
-                <button
-                    onClick={handleBack}
-                    className="p-1 hover:bg-secondary rounded-md transition-colors cursor-pointer"
-                >
-                    <ArrowLeft size={18} />
-                </button>
-                <div>
-                    <h3 className="text-sm font-semibold">{title}</h3>
-                    <p className="text-xs text-muted-foreground">{currentPath || subtitle}</p>
+            <div className="px-4 py-3 border-b border-border/60 flex items-center justify-between gap-3 shrink-0">
+                <div className="flex items-center gap-3 min-w-0">
+                    <button
+                        onClick={onBack}
+                        className="p-1 hover:bg-muted rounded-md transition-colors cursor-pointer shrink-0"
+                    >
+                        <ArrowLeft size={18} />
+                    </button>
+                    <div className="min-w-0">
+                        <h3 className="text-sm font-semibold">{title}</h3>
+                        <p className="text-xs text-muted-foreground">{subtitle}</p>
+                    </div>
                 </div>
+                <button
+                    onClick={onBack}
+                    className="p-1.5 hover:bg-muted rounded-md transition-colors cursor-pointer shrink-0"
+                >
+                    <X size={18} />
+                </button>
             </div>
 
             {/* Toolbar */}
-            <div className="px-4 py-3 flex items-center gap-2 border-b border-border/60">
+            <div className="px-4 py-3 flex items-center gap-2 border-b border-border/60 shrink-0">
                 {onNewHost && (
                     <Button
                         variant="secondary"
@@ -169,21 +227,46 @@ const SelectHostPanel: React.FC<SelectHostPanelProps> = ({
                     />
                 </div>
                 <div className="ml-auto flex items-center gap-1">
-                    <Button variant="ghost" size="icon" className="h-8 w-8">
-                        <LayoutGrid size={14} />
-                        <ChevronDown size={10} />
-                    </Button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8">
-                        <MoreVertical size={14} />
-                        <ChevronDown size={10} />
-                    </Button>
+                    <TagFilterDropdown
+                        allTags={allTags}
+                        selectedTags={selectedTags}
+                        onChange={setSelectedTags}
+                    />
+                    <SortDropdown
+                        value={sortMode}
+                        onChange={setSortMode}
+                    />
                 </div>
             </div>
 
             {/* Content */}
             <ScrollArea className="flex-1">
                 <div className="p-4 space-y-4">
-                    {/* Groups Section */}
+                    {/* Breadcrumbs */}
+                    {currentPath && (
+                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                            <button 
+                                onClick={() => setCurrentPath(null)}
+                                className="text-primary hover:underline"
+                            >
+                                All hosts
+                            </button>
+                            {breadcrumbs.map((crumb, index) => (
+                                <React.Fragment key={crumb.path}>
+                                    <ChevronRight size={12} className="shrink-0 opacity-50" />
+                                    <button
+                                        onClick={() => setCurrentPath(crumb.path)}
+                                        className={cn(
+                                            "hover:underline",
+                                            index === breadcrumbs.length - 1 ? "text-foreground font-medium" : "text-primary"
+                                        )}
+                                    >
+                                        {crumb.name}
+                                    </button>
+                                </React.Fragment>
+                            ))}
+                        </div>
+                    )}
                     {groupsWithCounts.length > 0 && (
                         <div>
                             <h4 className="text-sm font-semibold mb-3">Groups</h4>
@@ -191,7 +274,7 @@ const SelectHostPanel: React.FC<SelectHostPanelProps> = ({
                                 {groupsWithCounts.map(group => (
                                     <div
                                         key={group.path}
-                                        className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-secondary cursor-pointer"
+                                        className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-muted/70 cursor-pointer transition-colors"
                                         onClick={() => setCurrentPath(group.path)}
                                     >
                                         <div className="h-10 w-10 rounded-lg bg-primary/15 text-primary flex items-center justify-center">
@@ -223,11 +306,21 @@ const SelectHostPanel: React.FC<SelectHostPanelProps> = ({
                                             className={cn(
                                                 "flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-colors",
                                                 isSelected
-                                                    ? "bg-primary/15 border border-primary/30"
-                                                    : "hover:bg-secondary"
+                                                    ? "bg-muted border border-border"
+                                                    : "hover:bg-muted/70"
                                             )}
                                             onClick={() => onSelect(host)}
                                         >
+                                            {multiSelect && (
+                                                <div className={cn(
+                                                    "h-5 w-5 rounded-full border-2 flex items-center justify-center shrink-0",
+                                                    isSelected 
+                                                        ? "bg-primary border-primary" 
+                                                        : "border-muted-foreground/50"
+                                                )}>
+                                                    {isSelected && <Check size={12} className="text-primary-foreground" />}
+                                                </div>
+                                            )}
                                             <DistroAvatar host={host} fallback={host.os[0].toUpperCase()} className="h-10 w-10" />
                                             <div className="flex-1 min-w-0">
                                                 <div className="font-medium">{host.label}</div>

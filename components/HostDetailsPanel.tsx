@@ -8,6 +8,7 @@ import { cn } from "../lib/utils";
 import { Network, KeyRound, Lock, Share2, Server, Shield, Zap, TerminalSquare, Tag, ChevronLeft, Navigation, PhoneCall, Plus, FolderPlus, ArrowLeft, Link2, Trash2, GripVertical, Globe, HelpCircle, X, ArrowDown, ArrowRight, Check, Variable } from "lucide-react";
 import { ScrollArea } from "./ui/scroll-area";
 import { DistroAvatar } from "./DistroAvatar";
+import { AsidePanel, AsidePanelContent, AsidePanelFooter } from "./ui/aside-panel";
 
 type Protocol = "ssh" | "telnet";
 type AuthMethod = "password" | "key" | "certificate" | "fido2";
@@ -57,6 +58,32 @@ const HostDetailsPanel: React.FC<HostDetailsPanelProps> = ({
   // Group input state for inline creation suggestion
   const [groupInputValue, setGroupInputValue] = useState(form.group || "");
   const [showCreateGroupSuggestion, setShowCreateGroupSuggestion] = useState(false);
+
+  // Tag input state
+  const [tagInputValue, setTagInputValue] = useState("");
+  const [showTagInput, setShowTagInput] = useState(false);
+
+  const handleAddTag = () => {
+    const tag = tagInputValue.trim();
+    if (tag && !form.tags?.includes(tag)) {
+      update("tags", [...(form.tags || []), tag]);
+      setTagInputValue("");
+    }
+  };
+
+  const handleRemoveTag = (tagToRemove: string) => {
+    update("tags", (form.tags || []).filter(t => t !== tagToRemove));
+  };
+
+  const handleTagKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleAddTag();
+    } else if (e.key === 'Escape') {
+      setShowTagInput(false);
+      setTagInputValue("");
+    }
+  };
 
   const tagsInput = useMemo(() => form.tags?.join(", "), [form.tags]);
 
@@ -205,26 +232,19 @@ const HostDetailsPanel: React.FC<HostDetailsPanelProps> = ({
   // Render sub-panels
   if (activeSubPanel === "create-group") {
     return (
-      <div className="fixed right-0 top-0 bottom-0 w-[380px] border-l border-border/60 bg-secondary/90 backdrop-blur z-50 flex flex-col">
-        {/* Header - Fixed */}
-        <div className="px-4 py-3 flex items-center justify-between border-b border-border/60 app-no-drag">
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setActiveSubPanel("none")}>
-              <ArrowLeft size={16} />
-            </Button>
-            <div>
-              <p className="text-sm font-semibold">New Group</p>
-              <p className="text-xs text-muted-foreground">Personal vault</p>
-            </div>
-          </div>
+      <AsidePanel
+        open={true}
+        onClose={onCancel}
+        title="New Group"
+        showBackButton={true}
+        onBack={() => setActiveSubPanel("none")}
+        actions={
           <Button size="sm" onClick={handleCreateGroup} disabled={!newGroupName.trim()}>
             Save
           </Button>
-        </div>
-
-        {/* Content - Scrollable */}
-        <ScrollArea className="flex-1">
-          <div className="p-4 space-y-4">
+        }
+      >
+        <AsidePanelContent>
             <Card className="p-3 space-y-3 bg-card border-border/80">
               <p className="text-xs font-semibold">General</p>
               <div className="flex items-center gap-2">
@@ -265,33 +285,26 @@ const HostDetailsPanel: React.FC<HostDetailsPanelProps> = ({
               <Plus size={16} /> Add protocol
             </Button>
           </div>
-        </ScrollArea>
-      </div>
+        </AsidePanelContent>
+      </AsidePanel>
     );
   }
 
   if (activeSubPanel === "proxy") {
     return (
-      <div className="fixed right-0 top-0 bottom-0 w-[380px] border-l border-border/60 bg-secondary/90 backdrop-blur z-50 flex flex-col">
-        {/* Header - Fixed */}
-        <div className="px-4 py-3 flex items-center justify-between border-b border-border/60 app-no-drag">
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setActiveSubPanel("none")}>
-              <ArrowLeft size={16} />
-            </Button>
-            <div>
-              <p className="text-sm font-semibold">New Proxy</p>
-              <p className="text-xs text-muted-foreground">Personal vault</p>
-            </div>
-          </div>
+      <AsidePanel
+        open={true}
+        onClose={onCancel}
+        title="New Proxy"
+        showBackButton={true}
+        onBack={() => setActiveSubPanel("none")}
+        actions={
           <Button size="sm" onClick={() => setActiveSubPanel("none")} disabled={!form.proxyConfig?.host}>
             Save
           </Button>
-        </div>
-
-        {/* Content - Scrollable */}
-        <ScrollArea className="flex-1">
-          <div className="p-4 space-y-4">
+        }
+      >
+        <AsidePanelContent>
             <Card className="p-3 space-y-3 bg-card border-border/80">
               <div className="flex items-center justify-between">
                 <p className="text-xs font-semibold">Type</p>
@@ -366,33 +379,26 @@ const HostDetailsPanel: React.FC<HostDetailsPanelProps> = ({
               </Button>
             )}
           </div>
-        </ScrollArea>
-      </div>
+        </AsidePanelContent>
+      </AsidePanel>
     );
   }
 
   if (activeSubPanel === "chain") {
     return (
-      <div className="fixed right-0 top-0 bottom-0 w-[380px] border-l border-border/60 bg-secondary/90 backdrop-blur z-50 flex flex-col">
-        {/* Header - Fixed */}
-        <div className="px-4 py-3 flex items-center justify-between border-b border-border/60 app-no-drag">
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setActiveSubPanel("none")}>
-              <ArrowLeft size={16} />
-            </Button>
-            <div className="flex items-center gap-1">
-              <p className="text-sm font-semibold">Edit Chain</p>
-              <HelpCircle size={14} className="text-muted-foreground" />
-            </div>
-          </div>
+      <AsidePanel
+        open={true}
+        onClose={onCancel}
+        title="Edit Chain"
+        showBackButton={true}
+        onBack={() => setActiveSubPanel("none")}
+        actions={
           <Button size="sm" onClick={() => setActiveSubPanel("none")}>
             Save
           </Button>
-        </div>
-
-        {/* Content - Scrollable */}
-        <ScrollArea className="flex-1">
-          <div className="p-4 space-y-4">
+        }
+      >
+        <AsidePanelContent>
             <Card className="p-3 space-y-3 bg-card border-border/80">
               <p className="text-xs text-muted-foreground">
                 Adding another host will create a connection to <span className="font-semibold text-foreground">{form.label || form.hostname}</span>
@@ -472,33 +478,27 @@ const HostDetailsPanel: React.FC<HostDetailsPanelProps> = ({
               </Button>
             )}
           </div>
-        </ScrollArea>
-      </div>
+        </AsidePanelContent>
+      </AsidePanel>
     );
   }
 
   // Environment Variables sub-panel
   if (activeSubPanel === "env-vars") {
     return (
-      <div className="fixed right-0 top-0 bottom-0 w-[380px] border-l border-border/60 bg-secondary/90 backdrop-blur z-50 flex flex-col">
-        {/* Header - Fixed */}
-        <div className="px-4 py-3 flex items-center justify-between border-b border-border/60 app-no-drag">
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setActiveSubPanel("none")}>
-              <ArrowLeft size={16} />
-            </Button>
-            <div>
-              <p className="text-sm font-semibold">Environment Variables</p>
-            </div>
-          </div>
+      <AsidePanel
+        open={true}
+        onClose={onCancel}
+        title="Environment Variables"
+        showBackButton={true}
+        onBack={() => setActiveSubPanel("none")}
+        actions={
           <Button size="sm" onClick={() => setActiveSubPanel("none")}>
             Save
           </Button>
-        </div>
-
-        {/* Content - Scrollable */}
-        <ScrollArea className="flex-1">
-          <div className="p-4 space-y-4">
+        }
+      >
+        <AsidePanelContent>
             <div className="text-sm text-muted-foreground">
               Set an environment variable for <span className="font-semibold text-foreground">{form.label || form.hostname}</span>.
               <p className="text-xs mt-1">Some SSH servers by default only allow variables with prefix LC_ and LANG_.</p>
@@ -565,35 +565,31 @@ const HostDetailsPanel: React.FC<HostDetailsPanelProps> = ({
               />
             </Card>
           </div>
-        </ScrollArea>
-      </div>
+        </AsidePanelContent>
+      </AsidePanel>
     );
   }
 
+  // Main panel
   return (
-    <div className="fixed right-0 top-0 bottom-0 w-[380px] border-l border-border/60 bg-secondary/90 backdrop-blur z-50 flex flex-col">
-      {/* Header - Fixed */}
-      <div className="px-4 py-3 flex items-center justify-between border-b border-border/60 app-no-drag">
-        <div>
-          <p className="text-sm font-semibold">{initialData ? "Host Details" : "New Host"}</p>
-          <p className="text-xs text-muted-foreground">Personal vault</p>
-        </div>
-        <div className="flex items-center gap-1">
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleSubmit} disabled={!form.hostname || !form.label} aria-label="Save">
-            <Check size={16} />
-          </Button>
-          <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="More options">
-            <Navigation size={16} />
-          </Button>
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onCancel} aria-label="Close">
-            <ArrowLeft size={16} />
-          </Button>
-        </div>
-      </div>
-
-      {/* Content - Scrollable */}
-      <ScrollArea className="flex-1">
-        <div className="p-4 space-y-4">
+    <AsidePanel
+      open={true}
+      onClose={onCancel}
+      title={initialData ? "Host Details" : "New Host"}
+      actions={
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8"
+          onClick={handleSubmit}
+          disabled={!form.hostname || !form.label}
+          aria-label="Save"
+        >
+          <Check size={16} />
+        </Button>
+      }
+    >
+      <AsidePanelContent>
           <Card className="p-3 space-y-2 bg-card border-border/80">
             <p className="text-xs font-semibold">Address</p>
             <div className="flex items-center gap-2">
@@ -650,14 +646,80 @@ const HostDetailsPanel: React.FC<HostDetailsPanelProps> = ({
               </datalist>
             </div>
 
-            <div className="flex items-center gap-2">
-              <div className="h-10 w-10 rounded-lg bg-secondary/80 flex items-center justify-center">
-                <Tag size={16} className="text-muted-foreground" />
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <div className="h-10 w-10 rounded-lg bg-secondary/80 flex items-center justify-center shrink-0">
+                  <Tag size={16} className="text-muted-foreground" />
+                </div>
+                <div 
+                  className="flex-1 flex items-center gap-1 bg-secondary/50 rounded-md border border-border/60 px-2 min-h-10 py-1.5 cursor-pointer hover:bg-secondary/70 transition-colors"
+                  onClick={() => setShowTagInput(true)}
+                >
+                  {form.tags && form.tags.length > 0 ? (
+                    <div className="flex flex-wrap gap-1">
+                      {form.tags.map(tag => (
+                        <span
+                          key={tag}
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/10 text-primary text-xs"
+                        >
+                          {tag}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRemoveTag(tag);
+                            }}
+                            className="hover:bg-primary/20 rounded-full p-0.5"
+                          >
+                            <X size={10} />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">Click to add tags...</span>
+                  )}
+                </div>
               </div>
-              <div className="flex-1 flex items-center gap-1 bg-secondary/50 rounded-md border border-border/60 px-2 h-10">
-                <span className="text-xs text-muted-foreground">Namespace</span>
-                <span className="text-sm font-medium">Default</span>
-              </div>
+              {showTagInput && (
+                <div className="flex items-center gap-2 ml-12">
+                  <Input
+                    autoFocus
+                    placeholder="Enter tag name..."
+                    value={tagInputValue}
+                    onChange={(e) => setTagInputValue(e.target.value)}
+                    onKeyDown={handleTagKeyDown}
+                    onBlur={() => {
+                      if (!tagInputValue.trim()) {
+                        setShowTagInput(false);
+                      }
+                    }}
+                    className="h-8 flex-1"
+                  />
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={handleAddTag}
+                    disabled={!tagInputValue.trim()}
+                    className="h-8"
+                  >
+                    <Plus size={14} />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setShowTagInput(false);
+                      setTagInputValue("");
+                    }}
+                    className="h-8"
+                  >
+                    <X size={14} />
+                  </Button>
+                </div>
+              )}
             </div>
           </Card>
 
@@ -820,9 +882,8 @@ const HostDetailsPanel: React.FC<HostDetailsPanelProps> = ({
           <Button className="w-full h-12" onClick={handleSubmit} disabled={!form.hostname || !form.label}>
             Connect
           </Button>
-        </div>
-      </ScrollArea>
-    </div>
+        </AsidePanelContent>
+      </AsidePanel>
   );
 };
 

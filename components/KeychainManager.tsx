@@ -24,12 +24,15 @@ import {
     ExternalLink,
     Info,
     Pencil,
+    ArrowLeft,
+    ArrowRight,
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Card, CardDescription, CardTitle } from './ui/card';
 import { Label } from './ui/label';
 import { Textarea } from './ui/textarea';
+import { ScrollArea } from './ui/scroll-area';
 import { cn } from '../lib/utils';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import {
@@ -1165,21 +1168,31 @@ echo $3 >> "$FILE"`);
 
             {/* Slide-out Panel */}
             {panel.type !== 'closed' && (
-                <div className="absolute right-0 top-0 bottom-0 w-[380px] border-l border-border/60 bg-secondary/95 backdrop-blur z-30 overflow-y-auto">
+                <div className="absolute right-0 top-0 bottom-0 w-[380px] border-l border-border/60 bg-background z-30 flex flex-col">
                     {/* Panel Header */}
-                    <div className="p-4 flex items-center justify-between border-b border-border/60">
-                        <div>
-                            <p className="text-sm font-semibold">
-                                {panel.type === 'generate' && panel.keyType === 'biometric' && 'Generate Biometric Key'}
-                                {panel.type === 'generate' && panel.keyType === 'standard' && 'Generate Key'}
-                                {panel.type === 'generate' && panel.keyType === 'fido2' && 'Register Security Key'}
-                                {panel.type === 'import' && 'New Key'}
-                                {panel.type === 'view' && (panel.key.source === 'biometric' ? 'Biometric Key' : panel.key.source === 'fido2' ? 'Security Key' : 'Key Details')}
-                                {panel.type === 'edit' && 'Edit Key'}
-                                {panel.type === 'identity' && (panel.identity ? 'Edit Identity' : 'New Identity')}
-                                {panel.type === 'export' && 'Key Export'}
-                            </p>
-                            <p className="text-xs text-muted-foreground">Personal vault</p>
+                    <div className="px-4 py-3 flex items-center justify-between border-b border-border/60 app-no-drag shrink-0">
+                        <div className="flex items-center gap-2">
+                            {panelStack.length > 1 && (
+                                <button
+                                    onClick={popPanel}
+                                    className="p-1 hover:bg-muted rounded-md transition-colors cursor-pointer"
+                                >
+                                    <ArrowLeft size={18} />
+                                </button>
+                            )}
+                            <div>
+                                <p className="text-sm font-semibold">
+                                    {panel.type === 'generate' && panel.keyType === 'biometric' && 'Generate Biometric Key'}
+                                    {panel.type === 'generate' && panel.keyType === 'standard' && 'Generate Key'}
+                                    {panel.type === 'generate' && panel.keyType === 'fido2' && 'Register Security Key'}
+                                    {panel.type === 'import' && 'New Key'}
+                                    {panel.type === 'view' && (panel.key.source === 'biometric' ? 'Biometric Key' : panel.key.source === 'fido2' ? 'Security Key' : 'Key Details')}
+                                    {panel.type === 'edit' && 'Edit Key'}
+                                    {panel.type === 'identity' && (panel.identity ? 'Edit Identity' : 'New Identity')}
+                                    {panel.type === 'export' && 'Key Export'}
+                                </p>
+                                <p className="text-xs text-muted-foreground">Personal vault</p>
+                            </div>
                         </div>
                         <div className="flex items-center gap-1">
                             {(panel.type === 'view' || panel.type === 'identity') && (
@@ -1187,14 +1200,18 @@ echo $3 >> "$FILE"`);
                                     <MoreHorizontal size={16} />
                                 </Button>
                             )}
-                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={popPanel}>
-                                <ChevronRight size={16} />
-                            </Button>
+                            <button
+                                onClick={closePanel}
+                                className="p-1.5 hover:bg-muted rounded-md transition-colors cursor-pointer"
+                            >
+                                <ArrowRight size={18} />
+                            </button>
                         </div>
                     </div>
 
-                    {/* Panel Content */}
-                    <div className="p-4 space-y-4">
+                    {/* Panel Content - Scrollable */}
+                    <ScrollArea className="flex-1">
+                        <div className="p-4 space-y-4">
                         {/* Error Display */}
                         {error && (
                             <div className="p-3 bg-destructive/10 border border-destructive/30 rounded-lg text-sm text-destructive">
@@ -1908,7 +1925,8 @@ echo $3 >> "$FILE"`);
                                 </Button>
                             </>
                         )}
-                    </div>
+                        </div>
+                    </ScrollArea>
 
                     {/* Host Selector Overlay for Export */}
                     {showHostSelector && panel.type === 'export' && (

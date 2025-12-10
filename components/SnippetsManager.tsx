@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useCallback, useRef, useEffect } from 'react';
 import { Host, Snippet, ShellHistoryEntry } from '../types';
-import { FileCode, Plus, Trash2, Edit2, Copy, Clock, List as ListIcon, FolderPlus, Grid, Play, ArrowLeft, Check, X, ChevronDown, Loader2 } from 'lucide-react';
+import { FileCode, Plus, Trash2, Edit2, Copy, Clock, List as ListIcon, FolderPlus, Grid, Play, ArrowLeft, X, Check, ChevronDown, Loader2 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Textarea } from './ui/textarea';
@@ -11,6 +11,7 @@ import { cn } from '../lib/utils';
 import { ScrollArea } from './ui/scroll-area';
 import { DistroAvatar } from './DistroAvatar';
 import SelectHostPanel from './SelectHostPanel';
+import { AsidePanel, AsidePanelContent } from './ui/aside-panel';
 
 interface SnippetsManagerProps {
   snippets: Snippet[];
@@ -250,53 +251,42 @@ const SnippetsManager: React.FC<SnippetsManagerProps> = ({
   const renderRightPanel = () => {
     if (rightPanelMode === 'select-targets') {
       return (
-        <div className="fixed right-0 top-0 bottom-0 w-[380px] z-50">
-          <SelectHostPanel
-            hosts={hosts}
-            customGroups={customGroups}
-            selectedHostIds={targetSelection}
-            multiSelect={true}
-            onSelect={handleTargetSelect}
-            onBack={handleTargetPickerBack}
-            onContinue={handleTargetPickerBack}
-            onNewHost={undefined}
-            title="Select Targets"
-            subtitle={`${targetSelection.length} selected`}
-            className="relative inset-auto w-full h-full"
-          />
-        </div>
+        <SelectHostPanel
+          hosts={hosts}
+          customGroups={customGroups}
+          selectedHostIds={targetSelection}
+          multiSelect={true}
+          onSelect={handleTargetSelect}
+          onBack={handleTargetPickerBack}
+          onContinue={handleTargetPickerBack}
+          onNewHost={undefined}
+          title="Add targets"
+          subtitle="Personal vault"
+        />
       );
     }
 
     if (rightPanelMode === 'edit-snippet') {
       return (
-        <div className="fixed right-0 top-0 bottom-0 w-[380px] border-l border-border/60 bg-secondary/90 backdrop-blur z-50 flex flex-col">
-          {/* Header */}
-          <div className="px-4 py-3 flex items-center justify-between border-b border-border/60 app-no-drag">
-            <div>
-              <p className="text-sm font-semibold">{editingSnippet.id ? 'Edit Snippet' : 'New Snippet'}</p>
-              <p className="text-xs text-muted-foreground">Personal vault</p>
-            </div>
-            <div className="flex items-center gap-1">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8"
-                onClick={handleSubmit}
-                disabled={!editingSnippet.label || !editingSnippet.command}
-                aria-label="Save"
-              >
-                <Check size={16} />
-              </Button>
-              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleClosePanel} aria-label="Close">
-                <X size={16} />
-              </Button>
-            </div>
-          </div>
-
-          {/* Content */}
-          <ScrollArea className="flex-1">
-            <div className="p-4 space-y-4">
+        <AsidePanel
+          open={true}
+          onClose={handleClosePanel}
+          title={editingSnippet.id ? 'Edit Snippet' : 'New Snippet'}
+          subtitle="Personal vault"
+          actions={
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={handleSubmit}
+              disabled={!editingSnippet.label || !editingSnippet.command}
+              aria-label="Save"
+            >
+              <Check size={16} />
+            </Button>
+          }
+        >
+          <AsidePanelContent>
               {/* Action Description */}
               <Card className="p-3 space-y-2 bg-card border-border/80">
                 <p className="text-xs font-semibold text-muted-foreground">Action description</p>
@@ -363,11 +353,10 @@ const SnippetsManager: React.FC<SnippetsManagerProps> = ({
                   </div>
                 )}
               </Card>
-            </div>
-          </ScrollArea>
+          </AsidePanelContent>
 
           {/* Footer */}
-          <div className="px-4 py-3 border-t border-border/60">
+          <div className="px-4 py-3 border-t border-border/60 shrink-0">
             <Button
               className="w-full"
               onClick={handleSubmit}
@@ -376,26 +365,20 @@ const SnippetsManager: React.FC<SnippetsManagerProps> = ({
               {editingSnippet.targets?.length ? 'Run' : 'Save'}
             </Button>
           </div>
-        </div>
+        </AsidePanel>
       );
     }
 
     if (rightPanelMode === 'history') {
       return (
-        <div className="fixed right-0 top-0 bottom-0 w-[380px] border-l border-border/60 bg-secondary/90 backdrop-blur z-50 flex flex-col">
-          {/* Header */}
-          <div className="px-4 py-3 flex items-center justify-between border-b border-border/60 app-no-drag">
-            <div className="flex items-center gap-3">
-              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleClosePanel}>
-                <ArrowLeft size={16} />
-              </Button>
-              <div>
-                <p className="text-sm font-semibold">Shell History</p>
-                <p className="text-xs text-muted-foreground">{shellHistory.length} commands</p>
-              </div>
-            </div>
-          </div>
-
+        <AsidePanel
+          open={true}
+          onClose={handleClosePanel}
+          title="Shell History"
+          subtitle={`${shellHistory.length} commands`}
+          showBackButton={true}
+          onBack={handleClosePanel}
+        >
           {/* History List */}
           <div
             className="flex-1 overflow-y-auto p-3 space-y-2"
@@ -433,7 +416,7 @@ const SnippetsManager: React.FC<SnippetsManagerProps> = ({
               </>
             )}
           </div>
-        </div>
+        </AsidePanel>
       );
     }
 
@@ -441,7 +424,7 @@ const SnippetsManager: React.FC<SnippetsManagerProps> = ({
   };
 
   return (
-    <div className="px-2.5 py-2.5 lg:px-3 lg:py-3 h-full overflow-hidden flex gap-3">
+    <div className="px-2.5 py-2.5 lg:px-3 lg:py-3 h-full overflow-hidden flex gap-3 relative">
       <div className="flex-1 flex flex-col min-h-0 space-y-3">
         <div className="flex items-center gap-2">
           <Button onClick={() => handleEdit()} size="sm" className="h-9">

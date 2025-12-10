@@ -1,5 +1,4 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { createPortal } from 'react-dom';
 import {
     ArrowLeft,
     ArrowRight,
@@ -28,6 +27,7 @@ import {
 } from 'lucide-react';
 import { PortForwardingRule, PortForwardingType, Host, SSHKey } from '../domain/models';
 import { Button } from './ui/button';
+import { AsidePanel, AsidePanelContent, AsidePanelFooter, AsideActionMenu, AsideActionMenuItem } from './ui/aside-panel';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Card, CardContent } from './ui/card';
@@ -867,7 +867,7 @@ const PortForwarding: React.FC<PortForwardingProps> = ({ hosts, keys, customGrou
     const hasRules = filteredRules.length > 0;
 
     return (
-        <div className="flex h-full">
+        <div className="flex h-full relative">
             {/* Main Content */}
             <div className={cn("flex-1 flex flex-col min-h-0", (showWizard || showEditPanel || showNewForm) ? "mr-[360px]" : "")}>
                 {/* Toolbar */}
@@ -1005,52 +1005,36 @@ const PortForwarding: React.FC<PortForwardingProps> = ({ hosts, keys, customGrou
 
             {/* Edit Panel - shown when a rule is selected */}
             {showEditPanel && editingRule && (
-                <div className="fixed right-0 top-0 bottom-0 w-[360px] bg-secondary/95 border-l border-border/70 flex flex-col z-50">
-                    {/* Header */}
-                    <div className="px-4 py-3 flex items-center justify-between border-b border-border/60">
-                        <div>
-                            <h3 className="text-sm font-semibold">Edit Port Forwarding</h3>
-                            <p className="text-xs text-muted-foreground">Personal vault</p>
-                        </div>
-                        <div className="flex items-center gap-1">
-                            <Popover>
-                                <PopoverTrigger asChild>
-                                    <Button variant="ghost" size="icon" className="h-8 w-8">
-                                        <MoreVertical size={16} />
-                                    </Button>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-40 p-1" align="end">
-                                    <Button
-                                        variant="ghost"
-                                        className="w-full justify-start gap-2 h-9"
-                                        onClick={() => {
-                                            duplicateRule(editingRule.id);
-                                            closeEditPanel();
-                                        }}
-                                    >
-                                        <Copy size={14} /> Duplicate
-                                    </Button>
-                                    <Button
-                                        variant="ghost"
-                                        className="w-full justify-start gap-2 h-9 text-destructive"
-                                        onClick={() => {
-                                            deleteRule(editingRule.id);
-                                            closeEditPanel();
-                                        }}
-                                    >
-                                        <Trash2 size={14} /> Delete
-                                    </Button>
-                                </PopoverContent>
-                            </Popover>
-                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={closeEditPanel}>
-                                <ArrowRight size={16} />
-                            </Button>
-                        </div>
-                    </div>
-
-                    {/* Content */}
-                    <ScrollArea className="flex-1">
-                        <div className="p-4 space-y-2">
+                <AsidePanel
+                    open={true}
+                    onClose={closeEditPanel}
+                    title="Edit Port Forwarding"
+                    width="w-[360px]"
+                    actions={
+                        <AsideActionMenu>
+                            <AsideActionMenuItem
+                                icon={<Copy size={14} />}
+                                onClick={() => {
+                                    duplicateRule(editingRule.id);
+                                    closeEditPanel();
+                                }}
+                            >
+                                Duplicate
+                            </AsideActionMenuItem>
+                            <AsideActionMenuItem
+                                icon={<Trash2 size={14} />}
+                                variant="destructive"
+                                onClick={() => {
+                                    deleteRule(editingRule.id);
+                                    closeEditPanel();
+                                }}
+                            >
+                                Delete
+                            </AsideActionMenuItem>
+                        </AsideActionMenu>
+                    }
+                >
+                    <AsidePanelContent>
                             {/* Traffic Diagram */}
                             <div className="-my-1">
                                 <TrafficDiagram type={editDraft.type || editingRule.type} isAnimating={true} />
@@ -1098,7 +1082,6 @@ const PortForwarding: React.FC<PortForwardingProps> = ({ hosts, keys, customGrou
                                     className="w-full h-10 justify-between"
                                     onClick={() => {
                                         setShowHostSelector(true);
-                                        // When host is selected, update editDraft instead of draftRule
                                     }}
                                 >
                                     {hosts.find(h => h.id === editDraft.hostId) ? (
@@ -1142,11 +1125,8 @@ const PortForwarding: React.FC<PortForwardingProps> = ({ hosts, keys, customGrou
                                     </div>
                                 </>
                             )}
-                        </div>
-                    </ScrollArea>
-
-                    {/* Footer */}
-                    <div className="p-4 border-t border-border/60 space-y-2">
+                    </AsidePanelContent>
+                    <AsidePanelFooter className="space-y-2">
                         <Button
                             className="w-full h-10"
                             onClick={saveEditedRule}
@@ -1160,50 +1140,27 @@ const PortForwarding: React.FC<PortForwardingProps> = ({ hosts, keys, customGrou
                         >
                             Cancel
                         </Button>
-                    </div>
-                </div>
+                    </AsidePanelFooter>
+                </AsidePanel>
             )}
 
             {/* Wizard Panel */}
             {showWizard && (
-                <div className="fixed right-0 top-0 bottom-0 w-[360px] bg-secondary/95 border-l border-border/70 flex flex-col z-50">
-                    {/* Header */}
-                    <div className="px-4 py-3 flex items-center justify-between border-b border-border/60">
-                        <div>
-                            <h3 className="text-sm font-semibold">
-                                {isEditing ? 'Edit Port Forwarding' : 'New Port Forwarding'}
-                            </h3>
-                            <p className="text-xs text-muted-foreground">Personal vault</p>
-                        </div>
-                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => {
-                            // Just close wizard, don't change preference
-                            setShowWizard(false);
-                            resetWizard();
-                        }}>
-                            <ArrowRight size={16} />
-                        </Button>
-                    </div>
-
-                    {/* Content */}
-                    <div className="flex-1 overflow-auto p-4">
-                        {/* Back button */}
-                        {getPrevStep() && (
-                            <button
-                                className="flex items-center gap-1 text-sm text-primary hover:text-primary/80 mb-4"
-                                onClick={() => {
-                                    const prev = getPrevStep();
-                                    if (prev) setWizardStep(prev);
-                                }}
-                            >
-                                <ArrowLeft size={14} /> Back
-                            </button>
-                        )}
-
+                <AsidePanel
+                    open={true}
+                    onClose={() => { setShowWizard(false); resetWizard(); }}
+                    title={isEditing ? 'Edit Port Forwarding' : 'New Port Forwarding'}
+                    width="w-[360px]"
+                    showBackButton={!!getPrevStep()}
+                    onBack={getPrevStep() ? () => {
+                        const prev = getPrevStep();
+                        if (prev) setWizardStep(prev);
+                    } : undefined}
+                >
+                    <AsidePanelContent>
                         {renderWizardContent()}
-                    </div>
-
-                    {/* Footer */}
-                    <div className="p-4 border-t border-border/60 space-y-2">
+                    </AsidePanelContent>
+                    <AsidePanelFooter className="space-y-2">
                         <Button
                             className="w-full h-10"
                             disabled={!canProceed()}
@@ -1223,76 +1180,62 @@ const PortForwarding: React.FC<PortForwardingProps> = ({ hosts, keys, customGrou
                             className="w-full h-10 text-muted-foreground hover:text-foreground hover:bg-foreground/5"
                             onClick={() => {
                                 if (isEditing) {
-                                    // Cancel editing - close wizard
                                     setShowWizard(false);
                                     resetWizard();
                                 } else {
-                                    // Skip wizard - switch to form mode
                                     skipWizardToForm();
                                 }
                             }}
                         >
                             {isEditing ? 'Cancel' : 'Skip wizard'}
                         </Button>
-                    </div>
-                </div>
+                    </AsidePanelFooter>
+                </AsidePanel>
             )}
 
-            {/* Host Selector Overlay - Rendered via Portal */}
-            {showHostSelector && createPortal(
-                <div className="fixed right-0 top-0 bottom-0 w-[360px] z-[9999]">
-                    <SelectHostPanel
-                        hosts={hosts}
-                        customGroups={customGroups}
-                        selectedHostIds={
-                            showEditPanel
-                                ? (editDraft.hostId ? [editDraft.hostId] : [])
-                                : showNewForm
-                                    ? (newFormDraft.hostId ? [newFormDraft.hostId] : [])
-                                    : (draftRule.hostId ? [draftRule.hostId] : [])
+            {/* Host Selector Overlay */}
+            {showHostSelector && (
+                <SelectHostPanel
+                    hosts={hosts}
+                    customGroups={customGroups}
+                    selectedHostIds={
+                        showEditPanel
+                            ? (editDraft.hostId ? [editDraft.hostId] : [])
+                            : showNewForm
+                                ? (newFormDraft.hostId ? [newFormDraft.hostId] : [])
+                                : (draftRule.hostId ? [draftRule.hostId] : [])
+                    }
+                    multiSelect={false}
+                    onSelect={(host) => {
+                        if (showEditPanel) {
+                            setEditDraft(prev => ({ ...prev, hostId: host.id }));
+                        } else if (showNewForm) {
+                            setNewFormDraft(prev => ({ ...prev, hostId: host.id }));
+                        } else {
+                            setDraftRule(prev => ({ ...prev, hostId: host.id }));
                         }
-                        multiSelect={false}
-                        onSelect={(host) => {
-                            if (showEditPanel) {
-                                setEditDraft(prev => ({ ...prev, hostId: host.id }));
-                            } else if (showNewForm) {
-                                setNewFormDraft(prev => ({ ...prev, hostId: host.id }));
-                            } else {
-                                setDraftRule(prev => ({ ...prev, hostId: host.id }));
-                            }
-                            setShowHostSelector(false);
-                        }}
-                        onBack={() => setShowHostSelector(false)}
-                        onContinue={() => setShowHostSelector(false)}
-                        onNewHost={onNewHost ? () => {
-                            setShowHostSelector(false);
-                            onNewHost();
-                        } : undefined}
-                        title="Select Host"
-                        subtitle="Personal vault"
-                        className="relative inset-auto w-full h-full border-l border-border/70"
-                    />
-                </div>,
-                document.body
+                        setShowHostSelector(false);
+                    }}
+                    onBack={() => setShowHostSelector(false)}
+                    onContinue={() => setShowHostSelector(false)}
+                    onNewHost={onNewHost ? () => {
+                        setShowHostSelector(false);
+                        onNewHost();
+                    } : undefined}
+                    title="Select Host"
+                    subtitle="Personal vault"
+                />
             )}
 
             {/* New Form Panel (skip wizard mode) */}
             {showNewForm && (
-                <div className="fixed right-0 top-0 bottom-0 w-[360px] bg-secondary/95 border-l border-border/70 flex flex-col z-50">
-                    {/* Header */}
-                    <div className="px-4 py-3 flex items-center justify-between border-b border-border/60">
-                        <div>
-                            <h3 className="text-sm font-semibold">New Port Forwarding</h3>
-                            <p className="text-xs text-muted-foreground">Personal vault</p>
-                        </div>
-                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={closeNewForm}>
-                            <ArrowRight size={16} />
-                        </Button>
-                    </div>
-
-                    {/* Content */}
-                    <ScrollArea className="flex-1">
-                        <div className="p-4 space-y-2">
+                <AsidePanel
+                    open={true}
+                    onClose={closeNewForm}
+                    title="New Port Forwarding"
+                    width="w-[360px]"
+                >
+                    <AsidePanelContent>
                             {/* Type Selector */}
                             <div className="flex gap-1 p-1 bg-secondary/80 rounded-lg border border-border/60">
                                 {(['local', 'remote', 'dynamic'] as PortForwardingType[]).map((type) => (
@@ -1399,11 +1342,8 @@ const PortForwarding: React.FC<PortForwardingProps> = ({ hosts, keys, customGrou
                                     </div>
                                 </>
                             )}
-                        </div>
-                    </ScrollArea>
-
-                    {/* Footer */}
-                    <div className="p-4 border-t border-border/60 space-y-2">
+                    </AsidePanelContent>
+                    <AsidePanelFooter className="space-y-2">
                         <Button
                             className="w-full h-10"
                             disabled={!isNewFormValid()}
@@ -1428,8 +1368,8 @@ const PortForwarding: React.FC<PortForwardingProps> = ({ hosts, keys, customGrou
                                 Open Wizard
                             </button>
                         </div>
-                    </div>
-                </div>
+                    </AsidePanelFooter>
+                </AsidePanel>
             )}
         </div>
     );
