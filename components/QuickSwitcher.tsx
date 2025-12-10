@@ -146,7 +146,7 @@ const QuickSwitcherInner: React.FC<QuickSwitcherProps> = ({
         onMouseEnter={() => setSelectedIndex(idx)}
       >
         <div className="flex items-center gap-3 min-w-0">
-          <DistroAvatar host={host} fallback={host.label.slice(0, 2).toUpperCase()} className="h-6 w-6" />
+          <DistroAvatar host={host} fallback={host.label.slice(0, 2).toUpperCase()} size="sm" />
           <span className="text-sm font-medium truncate">{host.label}</span>
         </div>
         <div className="text-[11px] text-muted-foreground">

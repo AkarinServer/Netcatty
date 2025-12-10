@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useCallback, useRef, useEffect } from 'react';
 import { Host, Snippet, ShellHistoryEntry, SSHKey } from '../types';
-import { FileCode, Plus, Trash2, Edit2, Copy, Clock, List as ListIcon, FolderPlus, Grid, Play, ArrowLeft, X, Check, ChevronDown, Loader2, Package, Search, LayoutGrid } from 'lucide-react';
+import { FileCode, Plus, Trash2, Edit2, Copy, Clock, List as ListIcon, FolderPlus, Play, ArrowLeft, X, Check, ChevronDown, Loader2, Package, Search, LayoutGrid } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Textarea } from './ui/textarea';
@@ -605,7 +605,7 @@ const SnippetsManager: React.FC<SnippetsManagerProps> = ({
                       >
                         <div className="flex items-center gap-3 h-full">
                           <div className="h-11 w-11 rounded-xl bg-primary/15 text-primary flex items-center justify-center flex-shrink-0">
-                            <Grid size={18} />
+                            <Package size={18} />
                           </div>
                           <div className="min-w-0 flex-1">
                             <div className="text-sm font-semibold truncate">{pkg.name}</div>

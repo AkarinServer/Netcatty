@@ -5,9 +5,9 @@ import {
   BookMarked,
   ChevronDown,
   FolderPlus,
+  FolderTree,
   Edit2,
   FileCode,
-  Grid,
   Key,
   LayoutGrid,
   List,
@@ -539,7 +539,7 @@ const VaultViewInner: React.FC<VaultViewProps> = ({
                         className="w-full justify-start gap-2"
                         onClick={() => { setTargetParentPath(selectedGroupPath); setIsNewFolderOpen(true); }}
                       >
-                        <Grid size={14} /> New Group
+                        <FolderTree size={14} /> New Group
                       </Button>
                       <Button
                         variant="ghost"
@@ -630,7 +630,7 @@ const VaultViewInner: React.FC<VaultViewProps> = ({
                           >
                             <div className="flex items-center gap-3 h-full">
                               <div className="h-11 w-11 rounded-xl bg-primary/15 text-primary flex items-center justify-center">
-                                <Grid size={18} />
+                                <FolderTree size={20} />
                               </div>
                               <div className="flex-1 min-w-0">
                                 <div className="text-sm font-semibold truncate">{node.name}</div>

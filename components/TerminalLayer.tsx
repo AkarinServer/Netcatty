@@ -430,7 +430,7 @@ const TerminalLayerInner: React.FC<TerminalLayerProps> = ({
                 >
                   <div className="relative">
                     {host ? (
-                      <DistroAvatar host={host} fallback={session.hostLabel} size="sm" className="h-6 w-6" />
+                      <DistroAvatar host={host} fallback={session.hostLabel} size="sm" />
                     ) : (
                       <Server size={16} className="text-muted-foreground" />
                     )}

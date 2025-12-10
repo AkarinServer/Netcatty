@@ -37,16 +37,26 @@ export const DISTRO_COLORS: Record<string, string> = {
 
 type DistroAvatarProps = { host: Host; fallback: string; className?: string; size?: 'sm' | 'md' | 'lg' };
 
-const DistroAvatarInner: React.FC<DistroAvatarProps> = ({ host, fallback, className, size }) => {
+const DistroAvatarInner: React.FC<DistroAvatarProps> = ({ host, fallback, className, size = 'md' }) => {
   const distro = normalizeDistroId(host.distro) || (host.distro || '').toLowerCase();
   const logo = DISTRO_LOGOS[distro];
   const [errored, setErrored] = React.useState(false);
   const bg = DISTRO_COLORS[distro] || DISTRO_COLORS.default;
 
-  // Unified size: 44x44 (h-11 w-11) with rounded-xl for all modes
-  const containerClass = "h-11 w-11 rounded-xl";
-  const iconSize = "h-5 w-5";
-  const serverIconSize = "h-5 w-5";
+  // Size variants - all use rounded corners for consistency
+  const sizeClasses = {
+    sm: "h-6 w-6 rounded-md",
+    md: "h-11 w-11 rounded-xl",
+    lg: "h-14 w-14 rounded-xl",
+  };
+  const iconSizes = {
+    sm: "h-3.5 w-3.5",
+    md: "h-5 w-5",
+    lg: "h-6 w-6",
+  };
+
+  const containerClass = sizeClasses[size];
+  const iconSize = iconSizes[size];
 
   if (logo && !errored) {
     return (
@@ -63,7 +73,7 @@ const DistroAvatarInner: React.FC<DistroAvatarProps> = ({ host, fallback, classN
 
   return (
     <div className={cn(containerClass, "flex items-center justify-center bg-primary/15 text-primary", className)}>
-      <Server className={serverIconSize} />
+      <Server className={iconSize} />
     </div>
   );
 };
