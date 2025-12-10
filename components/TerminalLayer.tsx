@@ -109,6 +109,31 @@ const TerminalLayerInner: React.FC<TerminalLayerProps> = ({
     return map;
   }, [hosts]);
 
+  // Pre-compute fallback hosts to avoid creating new objects on every render
+  const sessionHostsMap = useMemo(() => {
+    const map = new Map<string, Host>();
+    for (const session of sessions) {
+      const existingHost = hostMap.get(session.hostId);
+      if (existingHost) {
+        map.set(session.id, existingHost);
+      } else {
+        // Create stable fallback host object
+        map.set(session.id, {
+          id: session.hostId,
+          label: session.hostLabel || 'Local Terminal',
+          hostname: session.hostname || 'localhost',
+          username: session.username || 'local',
+          port: 22,
+          os: 'linux',
+          group: '',
+          tags: [],
+          protocol: 'local' as const,
+        });
+      }
+    }
+    return map;
+  }, [sessions, hostMap]);
+
   const computeWorkspaceRects = useCallback((workspace?: Workspace, size?: { width: number; height: number }): Record<string, WorkspaceRect> => {
     if (!workspace) return {} as Record<string, WorkspaceRect>;
     const wTotal = size?.width || 1;
@@ -356,17 +381,8 @@ const TerminalLayerInner: React.FC<TerminalLayerProps> = ({
       )}
       <div ref={workspaceInnerRef} className="absolute inset-0 overflow-hidden">
         {sessions.map(session => {
-          const host = hostMap.get(session.hostId) || {
-            id: session.hostId,
-            label: session.hostLabel || 'Local Terminal',
-            hostname: session.hostname || 'localhost',
-            username: session.username || 'local',
-            port: 22,
-            os: 'linux',
-            group: '',
-            tags: [],
-            protocol: 'local' as const,
-          };
+          // Use pre-computed host to avoid creating new objects on every render
+          const host = sessionHostsMap.get(session.id)!;
           const inActiveWorkspace = !!activeWorkspace && session.workspaceId === activeWorkspace.id;
           const isActiveSolo = activeTabId === session.id && !activeWorkspace && isTerminalLayerVisible;
           const isVisible = (inActiveWorkspace || isActiveSolo) && isTerminalLayerVisible;

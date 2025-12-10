@@ -263,10 +263,11 @@ const TerminalComponent: React.FC<TerminalProps> = ({
         if (prev >= 95) return prev;
         // Smooth asymptotic approach - slows down as it gets higher
         const remaining = 95 - prev;
-        const increment = Math.max(0.5, remaining * 0.08);
+        // Larger increment since we update less frequently (200ms instead of 100ms)
+        const increment = Math.max(1, remaining * 0.15);
         return Math.min(95, prev + increment);
       });
-    }, 100);
+    }, 200);  // Reduced from 100ms to 200ms to cut re-renders in half
 
     return () => {
       clearInterval(stepTimer);
@@ -293,10 +294,18 @@ const TerminalComponent: React.FC<TerminalProps> = ({
         selectionBackground: terminalTheme.colors.selection,
       };
     }
-    if (isVisible) {
-      safeFit();
+    // Note: ghostty-web handles fontSize/theme changes internally with its own resize logic
+    // We only need safeFit() on visibility change, not on every theme update
+  }, [fontSize, terminalTheme]);
+
+  // Separate effect for visibility-triggered fit (less frequent)
+  useEffect(() => {
+    if (isVisible && fitAddonRef.current) {
+      // Small delay to ensure container is properly sized
+      const timer = setTimeout(() => safeFit(), 50);
+      return () => clearTimeout(timer);
     }
-  }, [fontSize, terminalTheme, isVisible]);
+  }, [isVisible]);
 
   // Re-fit once webfonts are ready so canvas sizing uses correct font metrics
   useEffect(() => {

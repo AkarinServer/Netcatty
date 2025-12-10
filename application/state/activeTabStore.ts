@@ -11,7 +11,6 @@ class ActiveTabStore {
 
   setActiveTabId = (id: string) => {
     if (this.activeTabId !== id) {
-      console.log('[ActiveTabStore] setActiveTabId:', id, 'listeners:', this.listeners.size);
       this.activeTabId = id;
       this.listeners.forEach(listener => listener());
     }

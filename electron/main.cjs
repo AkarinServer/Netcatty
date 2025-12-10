@@ -204,7 +204,13 @@ const registerSSHBridge = (win) => {
         port: options.port || 22,
         username: options.username || "root",
         readyTimeout: 30000,
-        keepaliveInterval: 10000,
+        keepaliveInterval: 5000,      // Reduced from 10000ms to 5000ms for faster detection of connection issues
+        keepaliveCountMax: 3,         // Disconnect after 3 failed keepalives (15 seconds total)
+        // Performance: prefer faster ciphers and disable compression for lower latency
+        algorithms: {
+          cipher: ['aes128-gcm@openssh.com', 'aes256-gcm@openssh.com', 'aes128-ctr', 'aes256-ctr'],
+          compress: ['none'],  // Disable compression for lower latency on fast connections
+        },
       };
 
       // Authentication: private key takes precedence

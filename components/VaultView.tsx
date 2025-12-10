@@ -85,11 +85,6 @@ const VaultViewInner: React.FC<VaultViewProps> = ({
   onUpdateKnownHosts,
   onConvertKnownHost,
 }) => {
-  // Debug: track what's causing re-renders
-  const renderCountRef = React.useRef(0);
-  renderCountRef.current++;
-  console.log(`[VaultViewInner] render #${renderCountRef.current} - knownHosts: ${knownHosts.length}`);
-
   const [currentSection, setCurrentSection] = useState<VaultSection>('hosts');
   const [search, setSearch] = useState('');
   const [selectedGroupPath, setSelectedGroupPath] = useState<string | null>(null);
@@ -187,7 +182,6 @@ const VaultViewInner: React.FC<VaultViewProps> = ({
 
   // Memoize the KnownHostsManager element to prevent re-renders when VaultViewInner re-renders
   const knownHostsManagerElement = useMemo(() => {
-    console.log('[VaultViewInner] knownHostsManagerElement useMemo recalculated');
     return (
       <KnownHostsManager
         knownHosts={knownHosts}
@@ -539,20 +533,6 @@ const vaultViewAreEqual = (prev: VaultViewProps, next: VaultViewProps): boolean 
     prev.knownHosts === next.knownHosts &&
     prev.sessions === next.sessions
   );
-
-  console.log('[VaultView memo] comparing, isEqual:', isEqual);
-
-  if (!isEqual) {
-    console.log('[VaultView memo] props changed:', {
-      hosts: prev.hosts !== next.hosts,
-      keys: prev.keys !== next.keys,
-      snippets: prev.snippets !== next.snippets,
-      snippetPackages: prev.snippetPackages !== next.snippetPackages,
-      customGroups: prev.customGroups !== next.customGroups,
-      knownHosts: prev.knownHosts !== next.knownHosts,
-      sessions: prev.sessions !== next.sessions,
-    });
-  }
 
   return isEqual;
 };
