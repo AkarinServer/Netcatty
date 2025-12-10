@@ -439,62 +439,65 @@ const HostDetailsPanel: React.FC<HostDetailsPanelProps> = ({
           </Button>
         }
       >
-        <AsidePanelContent>
-          <Card className="p-3 space-y-3 bg-card border-border/80">
-            <p className="text-xs text-muted-foreground">
-              Adding another host will create a connection to <span className="font-semibold text-foreground">{form.label || form.hostname}</span>
-            </p>
-            <Button className="w-full h-10" onClick={() => { }}>
-              <Plus size={14} className="mr-2" /> Add a Host
-            </Button>
-          </Card>
+        <ScrollArea className="flex-1">
+          <div className="p-4 space-y-4">
+            <Card className="p-3 space-y-3 bg-card border-border/80">
+              <p className="text-xs text-muted-foreground">
+                Adding another host will create a connection to <span className="font-semibold text-foreground">{form.label || form.hostname}</span>
+              </p>
+              <Button className="w-full h-10" onClick={() => { }}>
+                <Plus size={14} className="mr-2" /> Add a Host
+              </Button>
+            </Card>
 
-          {/* Chain visualization */}
-          <div className="space-y-2">
-            {chainedHosts.map((host, index) => (
-              <React.Fragment key={host.id}>
-                {index > 0 && (
-                  <div className="flex justify-center py-1">
-                    <ArrowDown size={16} className="text-muted-foreground" />
+            {/* Chain visualization */}
+            <div className="space-y-2">
+              {chainedHosts.map((host, index) => (
+                <React.Fragment key={host.id}>
+                  {index > 0 && (
+                    <div className="flex justify-center py-1">
+                      <ArrowDown size={16} className="text-muted-foreground" />
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2 p-2 rounded-lg border border-border/60 bg-card">
+                    <DistroAvatar host={host} fallback={host.label.slice(0, 2).toUpperCase()} className="h-8 w-8" />
+                    <span className="text-sm font-medium flex-1">{host.label || host.hostname}</span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                      onClick={() => removeHostFromChain(index)}
+                    >
+                      <X size={14} />
+                    </Button>
                   </div>
-                )}
-                <div className="flex items-center gap-2 p-2 rounded-lg border border-border/60 bg-card">
-                  <DistroAvatar host={host} fallback={host.label.slice(0, 2).toUpperCase()} className="h-8 w-8" />
-                  <span className="text-sm font-medium flex-1">{host.label || host.hostname}</span>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6 text-muted-foreground hover:text-destructive"
-                    onClick={() => removeHostFromChain(index)}
-                  >
-                    <X size={14} />
-                  </Button>
+                </React.Fragment>
+              ))}
+
+              {chainedHosts.length > 0 && (
+                <div className="flex justify-center py-1">
+                  <ArrowDown size={16} className="text-muted-foreground" />
                 </div>
-              </React.Fragment>
-            ))}
+              )}
 
-            {chainedHosts.length > 0 && (
-              <div className="flex justify-center py-1">
-                <ArrowDown size={16} className="text-muted-foreground" />
+              {/* Target host (current) */}
+              <div className="flex items-center gap-2 p-2 rounded-lg border border-border/60 bg-card">
+                <DistroAvatar
+                  host={form as Host}
+                  fallback={form.label?.slice(0, 2).toUpperCase() || form.hostname?.slice(0, 2).toUpperCase() || "H"}
+                  className="h-8 w-8"
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium truncate">{form.label || form.hostname || "Target"}</div>
+                  <div className="text-xs text-muted-foreground">Target</div>
+                </div>
               </div>
-            )}
-
-            {/* Target host (current) */}
-            <div className="flex items-center gap-2 p-2 rounded-lg border-2 border-primary/30 bg-primary/5">
-              <DistroAvatar
-                host={form as Host}
-                fallback={form.label?.slice(0, 2).toUpperCase() || form.hostname?.slice(0, 2).toUpperCase() || "H"}
-                className="h-8 w-8"
-              />
-              <span className="text-sm font-medium text-primary">{form.label || form.hostname || "Target"}</span>
             </div>
-          </div>
 
-          {/* Available hosts to add */}
-          {availableHostsForChain.length > 0 && (
-            <Card className="p-3 space-y-2 bg-card border-border/80">
-              <p className="text-xs font-semibold text-muted-foreground">Available Hosts</p>
-              <ScrollArea className="max-h-48">
+            {/* Available hosts to add */}
+            {availableHostsForChain.length > 0 && (
+              <Card className="p-3 bg-card border-border/80">
+                <p className="text-xs font-semibold text-muted-foreground mb-2">Available Hosts</p>
                 <div className="space-y-1">
                   {availableHostsForChain.map((host) => (
                     <button
@@ -511,16 +514,16 @@ const HostDetailsPanel: React.FC<HostDetailsPanelProps> = ({
                     </button>
                   ))}
                 </div>
-              </ScrollArea>
-            </Card>
-          )}
+              </Card>
+            )}
 
-          {chainedHosts.length > 0 && (
-            <Button variant="ghost" className="w-full h-10 text-destructive" onClick={clearHostChain}>
-              Clear
-            </Button>
-          )}
-        </AsidePanelContent>
+            {chainedHosts.length > 0 && (
+              <Button variant="ghost" className="w-full h-10 text-destructive" onClick={clearHostChain}>
+                Clear
+              </Button>
+            )}
+          </div>
+        </ScrollArea>
       </AsidePanel>
     );
   }
