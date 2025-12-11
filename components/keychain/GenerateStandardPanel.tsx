@@ -127,7 +127,7 @@ export const GenerateStandardPanel: React.FC<GenerateStandardPanelProps> = ({
                 disabled={isGenerating || !draftKey.label?.trim()}
             >
                 {isGenerating ? (
-                    <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    <div className="h-4 w-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
                 ) : (
                     'Generate & save'
                 )}

@@ -139,6 +139,157 @@ export interface SyncConfig {
   lastSync?: number;
 }
 
+// Keyboard Shortcuts / Hotkeys
+export type HotkeyScheme = 'disabled' | 'mac' | 'pc';
+
+export interface KeyBinding {
+  id: string;
+  action: string;
+  label: string;
+  mac: string; // e.g., '⌘+1', '⌘+⌥+arrows'
+  pc: string; // e.g., 'Ctrl+1', 'Ctrl+Alt+arrows'
+  category: 'tabs' | 'terminal' | 'navigation' | 'app';
+}
+
+// User's custom key bindings - only stores overrides from defaults
+export type CustomKeyBindings = Record<string, { mac?: string; pc?: string }>;
+
+// Parse a key string like "⌘ + Shift + K" or "Ctrl + Alt + T" into normalized form
+export const parseKeyCombo = (keyStr: string): { modifiers: string[]; key: string } | null => {
+  if (!keyStr || keyStr === 'Disabled') return null;
+  const parts = keyStr.split('+').map(p => p.trim());
+  const key = parts.pop() || '';
+  return { modifiers: parts, key };
+};
+
+// Convert keyboard event to a key string
+export const keyEventToString = (e: KeyboardEvent, isMac: boolean): string => {
+  const parts: string[] = [];
+  
+  if (isMac) {
+    if (e.metaKey) parts.push('⌘');
+    if (e.ctrlKey) parts.push('⌃');
+    if (e.altKey) parts.push('⌥');
+    if (e.shiftKey) parts.push('Shift');
+  } else {
+    if (e.ctrlKey) parts.push('Ctrl');
+    if (e.altKey) parts.push('Alt');
+    if (e.shiftKey) parts.push('Shift');
+    if (e.metaKey) parts.push('Win');
+  }
+  
+  // Get the key name
+  let keyName = e.key;
+  // Normalize special keys
+  if (keyName === ' ') keyName = 'Space';
+  else if (keyName === 'ArrowUp') keyName = '↑';
+  else if (keyName === 'ArrowDown') keyName = '↓';
+  else if (keyName === 'ArrowLeft') keyName = '←';
+  else if (keyName === 'ArrowRight') keyName = '→';
+  else if (keyName === 'Escape') keyName = 'Esc';
+  else if (keyName === 'Backspace') keyName = '⌫';
+  else if (keyName === 'Delete') keyName = 'Del';
+  else if (keyName === 'Enter') keyName = '↵';
+  else if (keyName === 'Tab') keyName = '⇥';
+  else if (keyName.length === 1) keyName = keyName.toUpperCase();
+  
+  // Don't include modifier keys themselves
+  if (['Meta', 'Control', 'Alt', 'Shift'].includes(e.key)) {
+    return parts.join(' + ');
+  }
+  
+  parts.push(keyName);
+  return parts.join(' + ');
+};
+
+// Check if a keyboard event matches a key binding string
+export const matchesKeyBinding = (e: KeyboardEvent, keyStr: string, isMac: boolean): boolean => {
+  if (!keyStr || keyStr === 'Disabled') return false;
+  
+  // Handle range patterns like "[1...9]"
+  if (keyStr.includes('[1...9]')) {
+    const basePattern = keyStr.replace('[1...9]', '');
+    const key = e.key;
+    if (!/^[1-9]$/.test(key)) return false;
+    // Check modifiers match the base pattern
+    const testStr = basePattern + key;
+    return matchesKeyBinding(e, testStr.trim(), isMac);
+  }
+  
+  const parsed = parseKeyCombo(keyStr);
+  if (!parsed) return false;
+  
+  const { modifiers, key } = parsed;
+  
+  // Check modifiers
+  if (isMac) {
+    const needMeta = modifiers.includes('⌘');
+    const needCtrl = modifiers.includes('⌃');
+    const needAlt = modifiers.includes('⌥');
+    const needShift = modifiers.includes('Shift');
+    
+    if (e.metaKey !== needMeta) return false;
+    if (e.ctrlKey !== needCtrl) return false;
+    if (e.altKey !== needAlt) return false;
+    if (e.shiftKey !== needShift) return false;
+  } else {
+    const needCtrl = modifiers.includes('Ctrl');
+    const needAlt = modifiers.includes('Alt');
+    const needShift = modifiers.includes('Shift');
+    const needMeta = modifiers.includes('Win');
+    
+    if (e.ctrlKey !== needCtrl) return false;
+    if (e.altKey !== needAlt) return false;
+    if (e.shiftKey !== needShift) return false;
+    if (e.metaKey !== needMeta) return false;
+  }
+  
+  // Check key
+  let eventKey = e.key;
+  if (eventKey === ' ') eventKey = 'Space';
+  else if (eventKey === 'ArrowUp') eventKey = '↑';
+  else if (eventKey === 'ArrowDown') eventKey = '↓';
+  else if (eventKey === 'ArrowLeft') eventKey = '←';
+  else if (eventKey === 'ArrowRight') eventKey = '→';
+  else if (eventKey === 'Escape') eventKey = 'Esc';
+  else if (eventKey === '[') eventKey = '[';
+  else if (eventKey === ']') eventKey = ']';
+  
+  return eventKey.toLowerCase() === key.toLowerCase();
+};
+
+export const DEFAULT_KEY_BINDINGS: KeyBinding[] = [
+  // Tab Management
+  { id: 'switch-tab-1-9', action: 'switchToTab', label: 'Switch to Tab [1...9]', mac: '⌘ + [1...9]', pc: 'Ctrl + [1...9]', category: 'tabs' },
+  { id: 'next-tab', action: 'nextTab', label: 'Next Tab', mac: '⌘ + Shift + ]', pc: 'Ctrl + Tab', category: 'tabs' },
+  { id: 'prev-tab', action: 'prevTab', label: 'Previous Tab', mac: '⌘ + Shift + [', pc: 'Ctrl + Shift + Tab', category: 'tabs' },
+  { id: 'close-tab', action: 'closeTab', label: 'Close Tab', mac: '⌘ + W', pc: 'Ctrl + W', category: 'tabs' },
+  { id: 'new-tab', action: 'newTab', label: 'New Local Tab', mac: '⌘ + T', pc: 'Ctrl + T', category: 'tabs' },
+
+  // Terminal Operations
+  { id: 'copy', action: 'copy', label: 'Copy from Terminal', mac: '⌘ + C', pc: 'Ctrl + Shift + C', category: 'terminal' },
+  { id: 'paste', action: 'paste', label: 'Paste to Terminal', mac: '⌘ + V', pc: 'Ctrl + Shift + V', category: 'terminal' },
+  { id: 'select-all', action: 'selectAll', label: 'Select All in Terminal', mac: '⌘ + A', pc: 'Ctrl + Shift + A', category: 'terminal' },
+  { id: 'clear-buffer', action: 'clearBuffer', label: 'Clear Terminal Buffer', mac: '⌘ + K', pc: 'Ctrl + L', category: 'terminal' },
+  { id: 'search-terminal', action: 'searchTerminal', label: 'Open Terminal Search', mac: '⌘ + F', pc: 'Ctrl + Shift + F', category: 'terminal' },
+
+  // Navigation / Split View
+  { id: 'move-focus', action: 'moveFocus', label: 'Move focus between Split View panes', mac: '⌘ + ⌥ + arrows', pc: 'Ctrl + Alt + arrows', category: 'navigation' },
+  { id: 'split-horizontal', action: 'splitHorizontal', label: 'Split Horizontal', mac: '⌘ + D', pc: 'Ctrl + Shift + D', category: 'navigation' },
+  { id: 'split-vertical', action: 'splitVertical', label: 'Split Vertical', mac: '⌘ + Shift + D', pc: 'Ctrl + Shift + E', category: 'navigation' },
+
+  // App Features
+  { id: 'open-hosts', action: 'openHosts', label: 'Open Hosts Page', mac: 'Disabled', pc: 'Disabled', category: 'app' },
+  { id: 'open-local', action: 'openLocal', label: 'Open Local Terminal', mac: '⌘ + L', pc: 'Ctrl + L', category: 'app' },
+  { id: 'open-sftp', action: 'openSftp', label: 'Open SFTP', mac: '⌘ + Shift + S', pc: 'Ctrl + Shift + S', category: 'app' },
+  { id: 'port-forwarding', action: 'portForwarding', label: 'Open Port Forwarding', mac: '⌘ + P', pc: 'Ctrl + P', category: 'app' },
+  { id: 'command-palette', action: 'commandPalette', label: 'Open Command Palette', mac: '⌘ + K', pc: 'Ctrl + K', category: 'app' },
+  { id: 'quick-switch', action: 'quickSwitch', label: 'Quick Switch', mac: '⌘ + J', pc: 'Ctrl + J', category: 'app' },
+  { id: 'snippets', action: 'snippets', label: 'Open Snippets', mac: '⌘ + Shift + S', pc: 'Ctrl + Alt + S', category: 'app' },
+  { id: 'broadcast', action: 'broadcast', label: 'Switch the Broadcast Mode', mac: '⌘ + B', pc: 'Ctrl + B', category: 'app' },
+  { id: 'side-panel', action: 'sidePanel', label: 'Show Terminal Side-panel', mac: '⌘ + S', pc: 'Ctrl + S', category: 'app' },
+];
+
 // Terminal appearance settings
 export type CursorShape = 'block' | 'bar' | 'underline';
 export type RightClickBehavior = 'context-menu' | 'paste' | 'select-word';

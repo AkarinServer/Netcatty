@@ -518,7 +518,7 @@ const VaultViewInner: React.FC<VaultViewProps> = ({
             className={cn(
               "w-full justify-start gap-3 h-10",
               currentSection === "hosts" &&
-              "bg-black/5 dark:bg-white/10 text-foreground hover:bg-black/10 dark:hover:bg-white/15 dark:border-white/10",
+              "bg-foreground/5 text-foreground hover:bg-foreground/10 border-border/40",
             )}
             onClick={() => {
               setCurrentSection("hosts");
@@ -532,7 +532,7 @@ const VaultViewInner: React.FC<VaultViewProps> = ({
             className={cn(
               "w-full justify-start gap-3 h-10",
               currentSection === "keys" &&
-              "bg-black/5 dark:bg-white/10 text-foreground hover:bg-black/10 dark:hover:bg-white/15 dark:border-white/10",
+              "bg-foreground/5 text-foreground hover:bg-foreground/10 border-border/40",
             )}
             onClick={() => {
               setCurrentSection("keys");
@@ -545,7 +545,7 @@ const VaultViewInner: React.FC<VaultViewProps> = ({
             className={cn(
               "w-full justify-start gap-3 h-10",
               currentSection === "port" &&
-              "bg-black/5 dark:bg-white/10 text-foreground hover:bg-black/10 dark:hover:bg-white/15 dark:border-white/10",
+              "bg-foreground/5 text-foreground hover:bg-foreground/10 border-border/40",
             )}
             onClick={() => setCurrentSection("port")}
           >
@@ -556,7 +556,7 @@ const VaultViewInner: React.FC<VaultViewProps> = ({
             className={cn(
               "w-full justify-start gap-3 h-10",
               currentSection === "snippets" &&
-              "bg-black/5 dark:bg-white/10 text-foreground hover:bg-black/10 dark:hover:bg-white/15 dark:border-white/10",
+              "bg-foreground/5 text-foreground hover:bg-foreground/10 border-border/40",
             )}
             onClick={() => {
               setCurrentSection("snippets");
@@ -569,7 +569,7 @@ const VaultViewInner: React.FC<VaultViewProps> = ({
             className={cn(
               "w-full justify-start gap-3 h-10",
               currentSection === "knownhosts" &&
-              "bg-black/5 dark:bg-white/10 text-foreground hover:bg-black/10 dark:hover:bg-white/15 dark:border-white/10",
+              "bg-foreground/5 text-foreground hover:bg-foreground/10 border-border/40",
             )}
             onClick={() => setCurrentSection("knownhosts")}
           >

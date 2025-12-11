@@ -4,6 +4,9 @@
    Tailwind CSS v4 Theme Configuration
    ============================================ */
 @theme {
+  /* Default border color - ensures 'border' class uses theme color instead of currentColor */
+  --default-border-color: var(--color-border);
+
   /* Colors - mapped from CSS variables */
   --color-border: hsl(var(--border));
   --color-input: hsl(var(--input));
@@ -81,6 +84,13 @@
   color-scheme: light;
 }
 
+/* Global default border color - ensures 'border' class always uses theme color */
+*,
+*::before,
+*::after {
+  border-color: hsl(var(--border));
+}
+
 body {
   min-height: 100vh;
   background:
@@ -131,13 +141,13 @@ body {
   background: hsl(var(--secondary) / 0.95);
   border: 1px solid hsl(var(--border) / 0.8);
   backdrop-filter: blur(12px);
-  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.24);
+  box-shadow: 0 14px 40px hsl(var(--foreground) / 0.12);
 }
 
 .soft-card {
   background: hsl(var(--card));
   border: 1px solid hsl(var(--border) / 0.8);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02), 0 4px 12px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 4px 12px hsl(var(--foreground) / 0.06);
 }
 
 .card-highlight {

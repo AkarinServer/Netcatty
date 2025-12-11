@@ -2,6 +2,7 @@ import { Circle, LayoutGrid, Server } from 'lucide-react';
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useActiveTabId } from '../application/state/activeTabStore';
 import { collectSessionIds } from '../domain/workspace';
+import { KeyBinding } from '../domain/models';
 import { cn } from '../lib/utils';
 import { Host, KnownHost, SSHKey, Snippet, TerminalSession, TerminalTheme, Workspace, WorkspaceNode } from '../types';
 import { DistroAvatar } from './DistroAvatar';
@@ -37,6 +38,8 @@ interface TerminalLayerProps {
   draggingSessionId: string | null;
   terminalTheme: TerminalTheme;
   fontSize?: number;
+  hotkeyScheme?: 'disabled' | 'mac' | 'pc';
+  keyBindings?: KeyBinding[];
   onCloseSession: (sessionId: string, e?: React.MouseEvent) => void;
   onUpdateSessionStatus: (sessionId: string, status: TerminalSession['status']) => void;
   onUpdateHostDistro: (hostId: string, distro: string) => void;
@@ -61,6 +64,8 @@ const TerminalLayerInner: React.FC<TerminalLayerProps> = ({
   draggingSessionId,
   terminalTheme,
   fontSize = 14,
+  hotkeyScheme = 'disabled',
+  keyBindings = [],
   onCloseSession,
   onUpdateSessionStatus,
   onUpdateHostDistro,
@@ -557,6 +562,8 @@ const TerminalLayerInner: React.FC<TerminalLayerProps> = ({
                 terminalTheme={terminalTheme}
                 sessionId={session.id}
                 startupCommand={session.startupCommand}
+                hotkeyScheme={hotkeyScheme}
+                keyBindings={keyBindings}
                 onCloseSession={handleCloseSession}
                 onStatusChange={handleStatusChange}
                 onSessionExit={handleSessionExit}

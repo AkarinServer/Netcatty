@@ -3,15 +3,18 @@ import {
   Cloud,
   Download,
   Github,
+  Keyboard,
   Loader2,
   Moon,
   Palette,
+  RotateCcw,
   Sun,
   TerminalSquare,
   Upload,
+  X,
 } from "lucide-react";
-import React, { useState } from "react";
-import { Host, SSHKey, Snippet, TerminalSettings, CursorShape, RightClickBehavior, LinkModifier, DEFAULT_TERMINAL_SETTINGS } from "../domain/models";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { Host, SSHKey, Snippet, TerminalSettings, CursorShape, RightClickBehavior, LinkModifier, DEFAULT_TERMINAL_SETTINGS, HotkeyScheme, KeyBinding, keyEventToString } from "../domain/models";
 import { TERMINAL_THEMES } from "../infrastructure/config/terminalThemes";
 import { TERMINAL_FONTS, MIN_FONT_SIZE, MAX_FONT_SIZE } from "../infrastructure/config/fonts";
 import {
@@ -53,6 +56,12 @@ interface SettingsDialogProps {
   onTerminalFontSizeChange?: (size: number) => void;
   terminalSettings?: TerminalSettings;
   onTerminalSettingsChange?: <K extends keyof TerminalSettings>(key: K, value: TerminalSettings[K]) => void;
+  hotkeyScheme?: HotkeyScheme;
+  onHotkeySchemeChange?: (scheme: HotkeyScheme) => void;
+  keyBindings?: KeyBinding[];
+  onUpdateKeyBinding?: (bindingId: string, scheme: 'mac' | 'pc', newKey: string) => void;
+  onResetKeyBinding?: (bindingId: string, scheme?: 'mac' | 'pc') => void;
+  onResetAllKeyBindings?: () => void;
 }
 
 const COLORS = [
@@ -138,8 +147,8 @@ function Select<T extends string | number>({ value, options, onChange, className
     <select
       value={value}
       onChange={(e) => {
-        const val = typeof value === 'number' 
-          ? parseInt(e.target.value) as T 
+        const val = typeof value === 'number'
+          ? parseInt(e.target.value) as T
           : e.target.value as T;
         onChange(val);
       }}
@@ -166,6 +175,41 @@ const SectionHeader: React.FC<{ title: string }> = ({ title }) => (
 // Divider component
 const Divider: React.FC = () => <div className="h-px bg-border my-2" />;
 
+// Tab title mapping
+const TAB_TITLES: Record<string, string> = {
+  appearance: "Appearance",
+  terminal: "Terminal",
+  shortcuts: "Shortcuts",
+  sync: "Sync & Cloud",
+  data: "Data",
+};
+
+// Settings Tab Content wrapper with fixed header
+interface SettingsTabContentProps {
+  value: string;
+  children: React.ReactNode;
+  className?: string;
+}
+
+const SettingsTabContent: React.FC<SettingsTabContentProps> = ({
+  value,
+  children,
+  className,
+}) => (
+  <TabsContent value={value} className="mt-0 border-0 h-full flex flex-col data-[state=inactive]:hidden">
+    {/* Fixed Header */}
+    <div className="shrink-0 h-14 px-6 flex items-center justify-between border-b border-border/60 bg-background">
+      <h2 className="text-lg font-semibold">{TAB_TITLES[value] || value}</h2>
+    </div>
+    {/* Scrollable Content */}
+    <ScrollArea className="flex-1">
+      <div className={cn("p-6", className)}>
+        {children}
+      </div>
+    </ScrollArea>
+  </TabsContent>
+);
+
 const SettingsDialog: React.FC<SettingsDialogProps> = ({
   isOpen,
   onClose,
@@ -185,8 +229,17 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
   onTerminalFontSizeChange,
   terminalSettings = DEFAULT_TERMINAL_SETTINGS,
   onTerminalSettingsChange,
+  hotkeyScheme = "mac",
+  onHotkeySchemeChange,
+  keyBindings = [],
+  onUpdateKeyBinding,
+  onResetKeyBinding,
+  onResetAllKeyBindings,
 }) => {
   const [importText, setImportText] = useState("");
+  const [editingBindingId, setEditingBindingId] = useState<string | null>(null);
+  const [recordedKey, setRecordedKey] = useState<string>("");
+  const keyRecordRef = useRef<HTMLDivElement>(null);
 
   // Sync State
   const [githubToken, setGithubToken] = useState(syncConfig?.githubToken || "");
@@ -195,6 +248,85 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
   const [syncStatus, setSyncStatus] = useState<"idle" | "success" | "error">(
     "idle",
   );
+
+  const isMac = hotkeyScheme === 'mac';
+
+  // Handle key recording for shortcut editing
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    if (!editingBindingId) return;
+    
+    e.preventDefault();
+    e.stopPropagation();
+    
+    const keyStr = keyEventToString(e, isMac);
+    
+    // If it's just modifier keys, keep waiting
+    if (['Meta', 'Control', 'Alt', 'Shift'].includes(e.key)) {
+      setRecordedKey(keyStr);
+      return;
+    }
+    
+    // Complete key combination recorded
+    setRecordedKey(keyStr);
+  }, [editingBindingId, isMac]);
+
+  const handleKeyUp = useCallback((e: KeyboardEvent) => {
+    if (!editingBindingId || !recordedKey) return;
+    
+    // If we have a complete key combo (not just modifiers), save it
+    if (!['Meta', 'Control', 'Alt', 'Shift'].includes(e.key)) {
+      // Recorded key is complete, will be saved on blur or confirm
+    }
+  }, [editingBindingId, recordedKey]);
+
+  // Start editing a binding
+  const startEditing = useCallback((bindingId: string) => {
+    setEditingBindingId(bindingId);
+    setRecordedKey('');
+    // Focus will trigger key listening
+    setTimeout(() => {
+      keyRecordRef.current?.focus();
+    }, 0);
+  }, []);
+
+  // Save the recorded key
+  const saveRecordedKey = useCallback(() => {
+    if (editingBindingId && recordedKey && onUpdateKeyBinding) {
+      const scheme = hotkeyScheme === 'mac' ? 'mac' : 'pc';
+      onUpdateKeyBinding(editingBindingId, scheme, recordedKey);
+    }
+    setEditingBindingId(null);
+    setRecordedKey('');
+  }, [editingBindingId, recordedKey, hotkeyScheme, onUpdateKeyBinding]);
+
+  // Cancel editing
+  const cancelEditing = useCallback(() => {
+    setEditingBindingId(null);
+    setRecordedKey('');
+  }, []);
+
+  // Disable this binding
+  const disableBinding = useCallback((bindingId?: string) => {
+    const targetId = bindingId || editingBindingId;
+    if (targetId && onUpdateKeyBinding) {
+      const scheme = hotkeyScheme === 'mac' ? 'mac' : 'pc';
+      onUpdateKeyBinding(targetId, scheme, 'Disabled');
+    }
+    setEditingBindingId(null);
+    setRecordedKey('');
+  }, [editingBindingId, hotkeyScheme, onUpdateKeyBinding]);
+
+  // Listen for keydown when editing
+  useEffect(() => {
+    if (editingBindingId) {
+      window.addEventListener('keydown', handleKeyDown, true);
+      window.addEventListener('keyup', handleKeyUp, true);
+      return () => {
+        window.removeEventListener('keydown', handleKeyDown, true);
+        window.removeEventListener('keyup', handleKeyUp, true);
+      };
+    }
+  }, [editingBindingId, handleKeyDown, handleKeyUp]);
 
   const handleManualExport = () => {
     const dataStr =
@@ -289,8 +421,6 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
 
   const getHslStyle = (hsl: string) => ({ backgroundColor: `hsl(${hsl})` });
 
-  const currentTerminalTheme = TERMINAL_THEMES.find(t => t.id === terminalThemeId) || TERMINAL_THEMES[0];
-
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-4xl p-0 h-[700px] gap-0 overflow-hidden flex flex-row">
@@ -322,6 +452,12 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
                 <TerminalSquare size={16} /> Terminal
               </TabsTrigger>
               <TabsTrigger
+                value="shortcuts"
+                className="w-full justify-start gap-3 px-3 py-2 data-[state=active]:bg-background"
+              >
+                <Keyboard size={16} /> Shortcuts
+              </TabsTrigger>
+              <TabsTrigger
                 value="sync"
                 className="w-full justify-start gap-3 px-3 py-2 data-[state=active]:bg-background"
               >
@@ -337,10 +473,9 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
           </div>
 
           {/* Content Area */}
-          <ScrollArea className="flex-1 h-full">
-            <div className="p-6">
+          <div className="flex-1 h-full flex flex-col min-h-0">
               {/* Appearance Tab */}
-              <TabsContent value="appearance" className="mt-0 border-0">
+              <SettingsTabContent value="appearance">
                 <SectionHeader title="UI Theme" />
                 <div className="grid grid-cols-2 gap-4 max-w-sm">
                   <ThemeCard
@@ -381,43 +516,21 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
                     </button>
                   ))}
                 </div>
-              </TabsContent>
+              </SettingsTabContent>
 
               {/* Terminal Tab - Redesigned */}
-              <TabsContent value="terminal" className="mt-0 border-0">
+              <SettingsTabContent value="terminal">
                 {/* Color Scheme Section */}
-                <SectionHeader title="Color Scheme" />
-                <div className="space-y-2">
-                  <div className="flex items-center gap-3 p-3 rounded-lg border bg-card">
-                    {/* Mini Terminal Preview */}
-                    <div
-                      className="w-20 h-14 rounded border flex flex-col p-1.5 gap-0.5 shrink-0 shadow-sm"
-                      style={{
-                        backgroundColor: currentTerminalTheme.colors.background,
-                        borderColor: currentTerminalTheme.colors.selection,
-                      }}
-                    >
-                      <div className="flex gap-1">
-                        <div className="w-4 h-1 rounded-full" style={{ backgroundColor: currentTerminalTheme.colors.green }} />
-                        <div className="w-6 h-1 rounded-full" style={{ backgroundColor: currentTerminalTheme.colors.foreground, opacity: 0.5 }} />
-                      </div>
-                      <div className="flex gap-1">
-                        <div className="w-3 h-1 rounded-full" style={{ backgroundColor: currentTerminalTheme.colors.blue }} />
-                        <div className="w-5 h-1 rounded-full" style={{ backgroundColor: currentTerminalTheme.colors.cyan }} />
-                      </div>
-                      <div className="w-2 h-2 mt-auto rounded-sm" style={{ backgroundColor: currentTerminalTheme.colors.cursor }} />
-                    </div>
-                    <div className="flex-1">
-                      <div className="font-medium">{currentTerminalTheme.name}</div>
-                      <div className="text-xs text-muted-foreground capitalize">{currentTerminalTheme.type} Theme</div>
-                    </div>
-                    <Select
-                      value={terminalThemeId}
-                      options={TERMINAL_THEMES.map(t => ({ value: t.id, label: t.name }))}
-                      onChange={onTerminalThemeChange}
-                      className="w-48"
+                <SectionHeader title="Terminal Theme" />
+                <div className="grid grid-cols-2 gap-3">
+                  {TERMINAL_THEMES.map((t) => (
+                    <TerminalThemeCard
+                      key={t.id}
+                      theme={t}
+                      active={terminalThemeId === t.id}
+                      onClick={() => onTerminalThemeChange(t.id)}
                     />
-                  </div>
+                  ))}
                 </div>
 
                 {/* Font Section */}
@@ -450,7 +563,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
                     </div>
                   </SettingRow>
 
-                  <SettingRow 
+                  <SettingRow
                     label="Enable font ligatures"
                     description="Display programming ligatures like => and !="
                   >
@@ -478,7 +591,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
                     />
                   </SettingRow>
 
-                  <SettingRow 
+                  <SettingRow
                     label="Line padding"
                     description="Additional space between lines"
                   >
@@ -492,7 +605,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
                     />
                   </SettingRow>
 
-                  <SettingRow 
+                  <SettingRow
                     label="Fallback font"
                     description="Secondary font for missing characters"
                   >
@@ -542,7 +655,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
                 {/* Rendering Section */}
                 <SectionHeader title="Rendering" />
                 <div className="space-y-0 divide-y divide-border rounded-lg border bg-card px-4">
-                  <SettingRow 
+                  <SettingRow
                     label="Scrollback"
                     description="Number of lines kept in buffer"
                   >
@@ -557,7 +670,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
                     />
                   </SettingRow>
 
-                  <SettingRow 
+                  <SettingRow
                     label="Draw bold text in bright colors"
                   >
                     <Toggle
@@ -566,7 +679,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
                     />
                   </SettingRow>
 
-                  <SettingRow 
+                  <SettingRow
                     label="Minimum contrast ratio"
                     description="Adjust for accessibility (1-21)"
                   >
@@ -584,7 +697,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
                 {/* Keyboard Section */}
                 <SectionHeader title="Keyboard" />
                 <div className="space-y-0 divide-y divide-border rounded-lg border bg-card px-4">
-                  <SettingRow 
+                  <SettingRow
                     label="Use ⌥ as the Meta key"
                     description="Lets the shell handle Meta key instead of OS"
                   >
@@ -594,7 +707,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
                     />
                   </SettingRow>
 
-                  <SettingRow 
+                  <SettingRow
                     label="Scroll on input"
                     description="Scrolls the terminal to bottom on user input"
                   >
@@ -628,7 +741,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
                     />
                   </SettingRow>
 
-                  <SettingRow 
+                  <SettingRow
                     label="Word separators"
                     description="Double-click selection stops at these characters"
                   >
@@ -640,7 +753,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
                     />
                   </SettingRow>
 
-                  <SettingRow 
+                  <SettingRow
                     label="Require a key to click links"
                     description="Links are only clickable while holding this key"
                   >
@@ -659,13 +772,144 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
                 </div>
 
                 <div className="h-6" /> {/* Bottom padding */}
-              </TabsContent>
+              </SettingsTabContent>
+
+              {/* Shortcuts Tab */}
+              <SettingsTabContent value="shortcuts">
+                {/* Hotkey Scheme Selector */}
+                <div className="flex items-center justify-between mb-6">
+                  <Select
+                    value={hotkeyScheme}
+                    options={[
+                      { value: 'disabled' as HotkeyScheme, label: 'Disabled' },
+                      { value: 'mac' as HotkeyScheme, label: 'Mac hotkeys' },
+                      { value: 'pc' as HotkeyScheme, label: 'PC hotkeys' },
+                    ]}
+                    onChange={(v) => onHotkeySchemeChange?.(v)}
+                    className="w-44"
+                  />
+                  {hotkeyScheme !== 'disabled' && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={onResetAllKeyBindings}
+                      className="text-muted-foreground hover:text-foreground"
+                    >
+                      <RotateCcw size={14} className="mr-1.5" />
+                      Reset All
+                    </Button>
+                  )}
+                </div>
+
+                {hotkeyScheme !== 'disabled' && (
+                  <>
+                    {/* Shortcuts Table Header */}
+                    <div className="grid grid-cols-[180px_1fr] gap-4 pb-2 border-b border-border mb-2">
+                      <div className="text-sm font-semibold text-foreground">Shortcut</div>
+                      <div className="text-sm font-semibold text-foreground">Action</div>
+                    </div>
+
+                    {/* Shortcuts List */}
+                    <div className="space-y-0">
+                      {keyBindings.map((binding) => {
+                        const shortcut = hotkeyScheme === 'mac' ? binding.mac : binding.pc;
+                        const isDisabled = shortcut === 'Disabled';
+                        const isEditing = editingBindingId === binding.id;
+                        
+                        return (
+                          <div
+                            key={binding.id}
+                            className={cn(
+                              "grid grid-cols-[180px_1fr] gap-4 py-2.5 border-b border-border/50 last:border-0 group",
+                              isEditing && "bg-primary/5"
+                            )}
+                          >
+                            <div className="flex items-center gap-2">
+                              {isEditing ? (
+                                <div className="flex items-center gap-2 w-full">
+                                  <div
+                                    ref={keyRecordRef}
+                                    tabIndex={0}
+                                    className="flex-1 h-8 px-2 rounded border-2 border-primary bg-background flex items-center justify-center text-sm font-medium animate-pulse focus:outline-none"
+                                  >
+                                    {recordedKey || 'Press keys...'}
+                                  </div>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-7 w-7"
+                                    onClick={saveRecordedKey}
+                                    disabled={!recordedKey}
+                                  >
+                                    <Check size={14} className="text-green-500" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-7 w-7"
+                                    onClick={cancelEditing}
+                                  >
+                                    <X size={14} className="text-muted-foreground" />
+                                  </Button>
+                                </div>
+                              ) : (
+                                <div
+                                  className="cursor-pointer hover:opacity-80 flex items-center gap-2"
+                                  onClick={() => startEditing(binding.id)}
+                                >
+                                  {isDisabled ? (
+                                    <span className="text-sm text-muted-foreground italic">Disabled</span>
+                                  ) : (
+                                    <KeyCombo keys={shortcut} />
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm text-muted-foreground">
+                                {binding.label}
+                              </span>
+                              {!isEditing && (
+                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-6 px-2 text-xs text-muted-foreground"
+                                    onClick={() => disableBinding(binding.id)}
+                                    disabled={isDisabled}
+                                  >
+                                    Disable
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-6 w-6"
+                                    onClick={() => onResetKeyBinding?.(binding.id, hotkeyScheme === 'mac' ? 'mac' : 'pc')}
+                                    title="Reset to default"
+                                  >
+                                    <RotateCcw size={12} />
+                                  </Button>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
+
+                {hotkeyScheme === 'disabled' && (
+                  <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+                    <Keyboard size={48} className="mb-4 opacity-40" />
+                    <p className="text-sm">Keyboard shortcuts are disabled</p>
+                    <p className="text-xs mt-1">Select a hotkey scheme above to enable</p>
+                  </div>
+                )}
+              </SettingsTabContent>
 
               {/* Sync Tab */}
-              <TabsContent
-                value="sync"
-                className="space-y-6 max-w-lg mt-0 border-0"
-              >
+              <SettingsTabContent value="sync" className="space-y-6 max-w-lg">
                 <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-4 text-sm text-blue-500 flex gap-3">
                   <Github className="shrink-0 mt-0.5" size={18} />
                   <div>
@@ -747,13 +991,10 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
                     )}
                   </>
                 )}
-              </TabsContent>
+              </SettingsTabContent>
 
               {/* Data Tab */}
-              <TabsContent
-                value="data"
-                className="space-y-6 max-w-lg mt-0 border-0"
-              >
+              <SettingsTabContent value="data" className="space-y-6 max-w-lg">
                 <div className="p-5 border rounded-lg bg-card hover:bg-muted/20 transition-colors">
                   <h4 className="font-medium mb-2 flex items-center gap-2">
                     <Download size={16} /> Export Data
@@ -793,9 +1034,8 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
                     Import JSON
                   </Button>
                 </div>
-              </TabsContent>
-            </div>
-          </ScrollArea>
+              </SettingsTabContent>
+          </div>
         </Tabs>
       </DialogContent>
     </Dialog>
@@ -827,5 +1067,67 @@ const ThemeCard = ({ active, onClick, icon, label }: ThemeCardProps) => (
     <span className="text-sm font-semibold">{label}</span>
   </div>
 );
+
+// Terminal theme card with preview
+interface TerminalThemeCardProps {
+  theme: typeof TERMINAL_THEMES[0];
+  active: boolean;
+  onClick: () => void;
+}
+
+const TerminalThemeCard: React.FC<TerminalThemeCardProps> = ({ theme, active, onClick }) => (
+  <div
+    onClick={onClick}
+    className={cn(
+      "cursor-pointer rounded-lg border-2 p-2 flex items-center gap-3 transition-all duration-200",
+      active
+        ? "border-primary bg-primary/5 ring-1 ring-primary/20"
+        : "border-border hover:border-primary/50",
+    )}
+  >
+    {/* Terminal Preview */}
+    <div
+      className="w-16 h-11 rounded flex flex-col p-1.5 gap-0.5 shrink-0"
+      style={{ backgroundColor: theme.colors.background }}
+    >
+      <div className="flex gap-0.5">
+        <div className="w-3 h-0.5 rounded-full" style={{ backgroundColor: theme.colors.green }} />
+        <div className="w-4 h-0.5 rounded-full" style={{ backgroundColor: theme.colors.foreground, opacity: 0.5 }} />
+      </div>
+      <div className="flex gap-0.5">
+        <div className="w-2 h-0.5 rounded-full" style={{ backgroundColor: theme.colors.blue }} />
+        <div className="w-3 h-0.5 rounded-full" style={{ backgroundColor: theme.colors.cyan }} />
+      </div>
+      <div className="flex gap-0.5 mt-auto">
+        <div className="w-2 h-0.5 rounded-full" style={{ backgroundColor: theme.colors.yellow }} />
+        <div className="w-4 h-0.5 rounded-full" style={{ backgroundColor: theme.colors.magenta }} />
+      </div>
+      <div className="w-1.5 h-1.5 rounded-sm" style={{ backgroundColor: theme.colors.cursor }} />
+    </div>
+    {/* Theme Info */}
+    <div className="flex-1 min-w-0">
+      <div className="text-sm font-medium truncate">{theme.name}</div>
+    </div>
+  </div>
+);
+
+// Key combo display component
+const KeyCombo: React.FC<{ keys: string }> = ({ keys }) => {
+  // Parse key combo like "⌘ + Shift + ]" or "Ctrl + Alt + arrows"
+  const parts = keys.split(/\s*\+\s*/);
+  
+  return (
+    <div className="flex items-center gap-1">
+      {parts.map((part, i) => (
+        <React.Fragment key={i}>
+          {i > 0 && <span className="text-muted-foreground text-xs mx-0.5">+</span>}
+          <kbd className="inline-flex items-center justify-center min-w-[24px] h-6 px-1.5 text-xs font-medium bg-muted border border-border rounded">
+            {part.trim()}
+          </kbd>
+        </React.Fragment>
+      ))}
+    </div>
+  );
+};
 
 export default SettingsDialog;

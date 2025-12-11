@@ -34,7 +34,7 @@ const sessionStatusDot = (status: TerminalSession['status']) => {
     : status === 'connecting'
       ? "bg-amber-400"
       : "bg-rose-500";
-  return <span className={cn("inline-block h-2 w-2 rounded-full shadow-[0_0_0_2px_rgba(0,0,0,0.35)]", tone)} />;
+  return <span className={cn("inline-block h-2 w-2 rounded-full ring-2 ring-background/60", tone)} />;
 };
 
 // Custom window controls for Windows/Linux (frameless window)

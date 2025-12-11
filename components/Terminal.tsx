@@ -13,7 +13,9 @@ import {
   Snippet,
   TerminalSession,
   TerminalTheme,
+  KeyBinding,
 } from "../types";
+import { checkAppShortcut, getAppLevelActions, getTerminalPassthroughActions } from "../application/state/useGlobalHotkeys";
 import KnownHostConfirmDialog, { HostKeyInfo } from "./KnownHostConfirmDialog";
 import SFTPModal from "./SFTPModal";
 import { Button } from "./ui/button";
@@ -43,6 +45,9 @@ interface TerminalProps {
   terminalTheme: TerminalTheme;
   sessionId: string;
   startupCommand?: string; // Command to run after connection (for snippet runner)
+  // Hotkey configuration
+  hotkeyScheme?: 'disabled' | 'mac' | 'pc';
+  keyBindings?: KeyBinding[];
   onStatusChange?: (
     sessionId: string,
     status: TerminalSession["status"],
@@ -77,6 +82,8 @@ const TerminalComponent: React.FC<TerminalProps> = ({
   terminalTheme,
   sessionId,
   startupCommand,
+  hotkeyScheme = 'disabled',
+  keyBindings = [],
   onStatusChange,
   onSessionExit,
   onOsDetected,
@@ -371,6 +378,68 @@ const TerminalComponent: React.FC<TerminalProps> = ({
           scopedWindow.__xtermRendererPreference = performanceConfig.preferCanvasRenderer ? "canvas" : "webgl";
 
           logRenderer();
+
+          // Attach custom key event handler to intercept app-level shortcuts
+          // This allows keyboard shortcuts to work even when terminal is focused
+          if (hotkeyScheme !== 'disabled' && keyBindings.length > 0) {
+            const isMac = hotkeyScheme === 'mac';
+            const appLevelActions = getAppLevelActions();
+            const terminalActions = getTerminalPassthroughActions();
+
+            term.attachCustomKeyEventHandler((e: KeyboardEvent) => {
+              // Check if this matches any of our shortcuts
+              const matched = checkAppShortcut(e, keyBindings, isMac);
+              if (!matched) return true; // Let xterm handle it
+
+              const { action } = matched;
+
+              // App-level actions: return false to prevent xterm from handling
+              // The event will bubble up to our global handler
+              if (appLevelActions.has(action)) {
+                return false;
+              }
+
+              // Terminal-level actions: handle here
+              if (terminalActions.has(action)) {
+                e.preventDefault();
+                switch (action) {
+                  case 'copy': {
+                    const selection = term.getSelection();
+                    if (selection) {
+                      navigator.clipboard.writeText(selection);
+                    }
+                    break;
+                  }
+                  case 'paste': {
+                    navigator.clipboard.readText().then((text) => {
+                      const id = sessionRef.current;
+                      if (id && window.netcatty?.writeToSession) {
+                        window.netcatty.writeToSession(id, text);
+                      }
+                    });
+                    break;
+                  }
+                  case 'selectAll': {
+                    term.selectAll();
+                    break;
+                  }
+                  case 'clearBuffer': {
+                    term.clear();
+                    break;
+                  }
+                  case 'searchTerminal': {
+                    // TODO: Open search UI - for now just log
+                    console.log('[Terminal] Search requested');
+                    // Could trigger a search UI component here
+                    break;
+                  }
+                }
+                return false;
+              }
+
+              return true; // Let xterm handle other keys
+            });
+          }
 
           fitAddon.fit();
           term.focus();
