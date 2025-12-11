@@ -146,10 +146,11 @@ export function Combobox({
                 </div>
             </PopoverTrigger>
             <PopoverContent
-                className={cn("p-0 w-[--radix-popover-trigger-width]", className)}
+                className={cn("p-0 border-border/60", className)}
                 align="start"
                 sideOffset={4}
                 onOpenAutoFocus={(e) => e.preventDefault()}
+                style={{ width: 'var(--radix-popover-trigger-width)' }}
             >
                 {/* Options List */}
                 <ScrollArea className="max-h-[280px]">
@@ -351,10 +352,11 @@ export function MultiCombobox({
                 </div>
             </PopoverTrigger>
             <PopoverContent
-                className={cn("p-0 w-[--radix-popover-trigger-width]", className)}
+                className={cn("p-0 border-border/60", className)}
                 align="start"
                 sideOffset={4}
                 onOpenAutoFocus={(e) => e.preventDefault()}
+                style={{ width: 'var(--radix-popover-trigger-width)' }}
             >
                 {/* Options List */}
                 <ScrollArea className="max-h-[280px]">
