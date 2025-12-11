@@ -1,18 +1,18 @@
-import { Check,ChevronDown,Clock,Copy,Edit2,FileCode,FolderPlus,LayoutGrid,List as ListIcon,Loader2,Package,Play,Plus,Search,Trash2 } from 'lucide-react';
-import React,{ useCallback,useEffect,useMemo,useRef,useState } from 'react';
+import { Check, ChevronDown, Clock, Copy, Edit2, FileCode, FolderPlus, LayoutGrid, List as ListIcon, Loader2, Package, Play, Plus, Search, Trash2 } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { cn } from '../lib/utils';
-import { Host,ShellHistoryEntry,Snippet,SSHKey } from '../types';
+import { Host, ShellHistoryEntry, Snippet, SSHKey } from '../types';
 import { DistroAvatar } from './DistroAvatar';
 import SelectHostPanel from './SelectHostPanel';
-import { AsidePanel,AsidePanelContent } from './ui/aside-panel';
+import { AsidePanel, AsidePanelContent } from './ui/aside-panel';
 import { Button } from './ui/button';
 import { Card } from './ui/card';
-import { Combobox,ComboboxOption } from './ui/combobox';
-import { ContextMenu,ContextMenuContent,ContextMenuItem,ContextMenuSeparator,ContextMenuTrigger } from './ui/context-menu';
-import { Dropdown,DropdownContent,DropdownTrigger } from './ui/dropdown';
+import { Combobox, ComboboxOption } from './ui/combobox';
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from './ui/context-menu';
+import { Dropdown, DropdownContent, DropdownTrigger } from './ui/dropdown';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
-import { SortDropdown,SortMode } from './ui/sort-dropdown';
+import { SortDropdown, SortMode } from './ui/sort-dropdown';
 import { Textarea } from './ui/textarea';
 
 interface SnippetsManagerProps {
@@ -480,70 +480,70 @@ const SnippetsManager: React.FC<SnippetsManagerProps> = ({
       <div className="flex-1 flex flex-col min-h-0">
         <header className="border-b border-border/50 bg-secondary/80 backdrop-blur">
           <div className="h-14 px-4 py-2 flex items-center gap-2">
-          {/* Search box */}
-          <div className="relative w-64">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Search snippets..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="h-10 pl-9 bg-secondary border-border/60 text-sm"
-            />
-          </div>
-          <Button onClick={() => handleEdit()} size="sm" className="h-10">
-            <Plus size={14} className="mr-2" /> New Snippet
-          </Button>
-          <Button
-            onClick={() => {
-              setNewPackageName('');
-              setIsPackageDialogOpen(true);
-            }}
-            size="sm"
-            variant="secondary"
-            className="h-10 gap-2"
-          >
-            <FolderPlus size={14} className="mr-1" /> New Package
-          </Button>
-          <Button
-            variant={rightPanelMode === 'history' ? 'secondary' : 'ghost'}
-            size="sm"
-            className="h-10 gap-2"
-            onClick={() => setRightPanelMode(rightPanelMode === 'history' ? 'none' : 'history')}
-          >
-            <Clock size={14} /> Shell History
-          </Button>
-          {/* View mode and sort controls */}
-          <div className="flex items-center gap-1 ml-auto">
-            <Dropdown>
-              <DropdownTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-10 w-10">
-                  {viewMode === 'grid' ? <LayoutGrid size={16} /> : <ListIcon size={16} />}
-                  <ChevronDown size={10} className="ml-0.5" />
-                </Button>
-              </DropdownTrigger>
-              <DropdownContent className="w-32" align="end">
-                <Button
-                  variant={viewMode === 'grid' ? 'secondary' : 'ghost'}
-                  className="w-full justify-start gap-2 h-9"
-                  onClick={() => setViewMode('grid')}
-                >
-                  <LayoutGrid size={14} /> Grid
-                </Button>
-                <Button
-                  variant={viewMode === 'list' ? 'secondary' : 'ghost'}
-                  className="w-full justify-start gap-2 h-9"
-                  onClick={() => setViewMode('list')}
-                >
-                  <ListIcon size={14} /> List
-                </Button>
-              </DropdownContent>
-            </Dropdown>
-            <SortDropdown
-              value={sortMode}
-              onChange={setSortMode}
-              className="h-10 w-10"
-            />
-          </div>
+            {/* Search box */}
+            <div className="relative w-64">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Search snippets..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="h-10 pl-9 bg-secondary border-border/60 text-sm"
+              />
+            </div>
+            <Button onClick={() => handleEdit()} size="sm" className="h-10">
+              <Plus size={14} className="mr-2" /> New Snippet
+            </Button>
+            <Button
+              onClick={() => {
+                setNewPackageName('');
+                setIsPackageDialogOpen(true);
+              }}
+              size="sm"
+              variant="secondary"
+              className="h-10 gap-2"
+            >
+              <FolderPlus size={14} className="mr-1" /> New Package
+            </Button>
+            <Button
+              variant={rightPanelMode === 'history' ? 'secondary' : 'ghost'}
+              size="sm"
+              className="h-10 gap-2"
+              onClick={() => setRightPanelMode(rightPanelMode === 'history' ? 'none' : 'history')}
+            >
+              <Clock size={14} /> Shell History
+            </Button>
+            {/* View mode and sort controls */}
+            <div className="flex items-center gap-1 ml-auto">
+              <Dropdown>
+                <DropdownTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-10 w-10">
+                    {viewMode === 'grid' ? <LayoutGrid size={16} /> : <ListIcon size={16} />}
+                    <ChevronDown size={10} className="ml-0.5" />
+                  </Button>
+                </DropdownTrigger>
+                <DropdownContent className="w-32" align="end">
+                  <Button
+                    variant={viewMode === 'grid' ? 'secondary' : 'ghost'}
+                    className="w-full justify-start gap-2 h-9"
+                    onClick={() => setViewMode('grid')}
+                  >
+                    <LayoutGrid size={14} /> Grid
+                  </Button>
+                  <Button
+                    variant={viewMode === 'list' ? 'secondary' : 'ghost'}
+                    className="w-full justify-start gap-2 h-9"
+                    onClick={() => setViewMode('list')}
+                  >
+                    <ListIcon size={14} /> List
+                  </Button>
+                </DropdownContent>
+              </Dropdown>
+              <SortDropdown
+                value={sortMode}
+                onChange={setSortMode}
+                className="h-10 w-10"
+              />
+            </div>
           </div>
         </header>
         <div className="flex items-center gap-2 text-sm font-semibold px-4 py-2">
