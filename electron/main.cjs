@@ -56,6 +56,11 @@ const windowManager = require("./bridges/windowManager.cjs");
 
 // GPU settings
 app.commandLine.appendSwitch("no-sandbox");
+// Force hardware acceleration even on blocklisted GPUs (macs sometimes fall back to software)
+app.commandLine.appendSwitch("ignore-gpu-blocklist");
+app.commandLine.appendSwitch("ignore-gpu-blacklist"); // Some Chromium builds use this alias; keep both for safety
+app.commandLine.appendSwitch("enable-gpu-rasterization");
+app.commandLine.appendSwitch("enable-zero-copy");
 
 // Silence noisy DevTools Autofill CDP errors (Electron's backend doesn't expose this domain)
 app.on("web-contents-created", (_event, contents) => {

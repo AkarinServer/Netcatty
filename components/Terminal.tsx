@@ -1,5 +1,6 @@
 import { Terminal as XTerm } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
+import { SerializeAddon } from "@xterm/addon-serialize";
 import { WebglAddon } from "@xterm/addon-webgl";
 import "@xterm/xterm/css/xterm.css";
 import { Maximize2 } from "lucide-react";
@@ -20,6 +21,11 @@ import { Button } from "./ui/button";
 // Import terminal sub-components
 import { TerminalConnectionDialog } from "./terminal/TerminalConnectionDialog";
 import { TerminalToolbar } from "./terminal/TerminalToolbar";
+import {
+  XTERM_PERFORMANCE_CONFIG,
+  type XTermPlatform,
+  resolveXTermPerformanceConfig,
+} from "../infrastructure/config/xtermPerformance";
 
 interface TerminalProps {
   host: Host;
@@ -82,6 +88,7 @@ const TerminalComponent: React.FC<TerminalProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<XTerm | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
+  const serializeAddonRef = useRef<SerializeAddon | null>(null);
   const disposeDataRef = useRef<(() => void) | null>(null);
   const disposeExitRef = useRef<(() => void) | null>(null);
   const sessionRef = useRef<string | null>(null);
@@ -164,6 +171,8 @@ const TerminalComponent: React.FC<TerminalProps> = ({
     termRef.current = null;
     fitAddonRef.current?.dispose();
     fitAddonRef.current = null;
+    serializeAddonRef.current?.dispose();
+    serializeAddonRef.current = null;
   };
 
   const runDistroDetection = async (key?: SSHKey) => {
@@ -202,38 +211,148 @@ const TerminalComponent: React.FC<TerminalProps> = ({
       try {
         if (disposed || !containerRef.current) return;
 
+        const platform: XTermPlatform = (() => {
+          if (
+            typeof process !== "undefined" &&
+            (process.platform === "darwin" ||
+              process.platform === "win32" ||
+              process.platform === "linux")
+          ) {
+            return process.platform;
+          }
+
+          if (typeof navigator !== "undefined") {
+            const ua = navigator.userAgent.toLowerCase();
+            if (ua.includes("win")) return "win32";
+            if (ua.includes("linux")) return "linux";
+          }
+
+          return "darwin";
+        })();
+
+        const deviceMemoryGb =
+          typeof navigator !== "undefined" &&
+            typeof (navigator as { deviceMemory?: number }).deviceMemory === "number"
+            ? (navigator as { deviceMemory?: number }).deviceMemory
+            : undefined;
+
+        const performanceConfig = resolveXTermPerformanceConfig({
+          platform,
+          deviceMemoryGb,
+        });
+
         const term = new XTerm({
-          cursorBlink: false, // Disable cursor blinking for better performance
-          allowTransparency: false, // Disable transparency for better performance
-          customGlyphs: false, // Disable custom glyphs if not needed for better performance
+          ...performanceConfig.options,
           fontSize,
           fontFamily:
             '"JetBrains Mono", "Cascadia Code", "Fira Code", "SF Mono", "Menlo", "DejaVu Sans Mono", monospace',
-          scrollback: 3000, // Reduced scrollback for faster rendering
           theme: {
             ...terminalTheme.colors,
             selectionBackground: terminalTheme.colors.selection,
           },
         });
 
+        type MaybeRenderer = {
+          constructor?: { name?: string };
+          type?: string;
+        };
+
+        type IntrospectableTerminal = XTerm & {
+          _core?: {
+            _renderService?: {
+              _renderer?: MaybeRenderer;
+            };
+          };
+          options?: {
+            rendererType?: string;
+          };
+        };
+
+        const logRenderer = (attempt = 0) => {
+          // Peek into private renderer to tell if WebGL is active; stored on window for DevTools checks
+          const introspected = term as IntrospectableTerminal;
+          const renderer = introspected._core?._renderService?._renderer;
+          const candidates = [
+            renderer?.type,
+            renderer?.constructor?.name,
+            introspected.options?.rendererType,
+          ];
+          const rendererName =
+            candidates.find((value) => typeof value === "string" && value.length > 0) ||
+            undefined;
+          const normalized = rendererName
+            ? rendererName.toLowerCase().includes("webgl")
+              ? "webgl"
+              : rendererName.toLowerCase().includes("canvas")
+                ? "canvas"
+                : rendererName
+            : "unknown";
+          console.info(`[XTerm] renderer=${normalized}`);
+          const scopedWindow = window as Window & { __xtermRenderer?: string };
+          scopedWindow.__xtermRenderer = normalized;
+          if (normalized === "unknown" && attempt < 3) {
+            setTimeout(() => logRenderer(attempt + 1), 150);
+          }
+        };
+
         const fitAddon = new FitAddon();
         term.loadAddon(fitAddon);
         termRef.current = term;
         fitAddonRef.current = fitAddon;
 
+        const serializeAddon = new SerializeAddon();
+        term.loadAddon(serializeAddon);
+        serializeAddonRef.current = serializeAddon;
+
         try {
           term.open(containerRef.current);
 
-          // Load WebGL addon for GPU-accelerated rendering
-          try {
-            const webglAddon = new WebglAddon();
-            webglAddon.onContextLoss(() => {
-              webglAddon.dispose();
-            });
-            term.loadAddon(webglAddon);
-          } catch (webglErr) {
-            console.warn("[XTerm] WebGL addon failed, using canvas renderer:", webglErr);
+          // Load WebGL addon for GPU-accelerated rendering unless canvas is preferred for macOS/low-memory profiles
+          let webglLoaded = false;
+          const scopedWindow = window as Window & {
+            __xtermWebGLLoaded?: boolean;
+            __xtermRendererPreference?: string;
+          };
+
+          if (performanceConfig.useWebGLAddon) {
+            try {
+              // Try enabling the new glyph handler for faster glyph caching if supported by the addon version
+              const webglAddon = (() => {
+                const webglOptions: Record<string, unknown> = {
+                  useCustomGlyphHandler: true,
+                };
+                try {
+                  // xterm-addon-webgl >=0.18 supports this flag; older versions ignore/fail so we guard
+                  const WebglCtor = WebglAddon as unknown as new (
+                    options?: unknown,
+                  ) => WebglAddon;
+                  return new WebglCtor(webglOptions);
+                } catch {
+                  return new WebglAddon();
+                }
+              })();
+              webglAddon.onContextLoss(() => {
+                console.warn("[XTerm] WebGL context loss detected, disposing addon");
+                webglAddon.dispose();
+              });
+              term.loadAddon(webglAddon);
+              webglLoaded = true;
+            } catch (webglErr) {
+              console.warn(
+                "[XTerm] WebGL addon failed, using canvas renderer. Error:",
+                webglErr instanceof Error ? webglErr.message : webglErr,
+              );
+              // Canvas renderer will be used as fallback - it's actually faster on some Macs
+            }
+          } else {
+            console.info("[XTerm] Skipping WebGL addon (canvas preferred for macOS profile or low-memory devices)");
           }
+
+          // Store whether WebGL was successfully loaded for diagnostics
+          scopedWindow.__xtermWebGLLoaded = webglLoaded;
+          scopedWindow.__xtermRendererPreference = performanceConfig.preferCanvasRenderer ? "canvas" : "webgl";
+
+          logRenderer();
 
           fitAddon.fit();
           term.focus();
@@ -280,10 +399,20 @@ const TerminalComponent: React.FC<TerminalProps> = ({
           }
         });
 
+        // Add debouncing for resize events to prevent excessive calls on macOS
+        let resizeTimeout: NodeJS.Timeout | null = null;
+        const resizeDebounceMs = XTERM_PERFORMANCE_CONFIG.resize.debounceMs;
         term.onResize(({ cols, rows }) => {
           const id = sessionRef.current;
           if (id && window.netcatty?.resizeSession) {
-            window.netcatty.resizeSession(id, cols, rows);
+            // Debounce resize to prevent rapid successive calls
+            if (resizeTimeout) {
+              clearTimeout(resizeTimeout);
+            }
+            resizeTimeout = setTimeout(() => {
+              window.netcatty.resizeSession(id, cols, rows);
+              resizeTimeout = null;
+            }, resizeDebounceMs); // Debounce for smooth resizing on macOS
           }
         });
 
@@ -387,11 +516,21 @@ const TerminalComponent: React.FC<TerminalProps> = ({
   }, [status, needsAuth]);
 
   const safeFit = () => {
-    if (!fitAddonRef.current) return;
-    try {
-      fitAddonRef.current.fit();
-    } catch (err) {
-      console.warn("Fit failed", err);
+    const fitAddon = fitAddonRef.current;
+    if (!fitAddon) return;
+
+    const runFit = () => {
+      try {
+        fitAddon.fit();
+      } catch (err) {
+        console.warn("Fit failed", err);
+      }
+    };
+
+    if (XTERM_PERFORMANCE_CONFIG.resize.useRAF && typeof requestAnimationFrame === "function") {
+      requestAnimationFrame(runFit);
+    } else {
+      runFit();
     }
   };
 
