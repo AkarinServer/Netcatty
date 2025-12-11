@@ -502,8 +502,8 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
             <SettingsTabContent value="appearance">
               <SectionHeader title="UI Theme" />
               <div className="space-y-0 divide-y divide-border rounded-lg border bg-card px-4">
-                <SettingRow 
-                  label="Dark Mode" 
+                <SettingRow
+                  label="Dark Mode"
                   description="Toggle between light and dark theme"
                 >
                   <div className="flex items-center gap-2">
