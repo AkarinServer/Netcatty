@@ -32,7 +32,7 @@ import { Label } from './ui/label';
 import { Textarea } from './ui/textarea';
 import { ScrollArea } from './ui/scroll-area';
 import { cn } from '../lib/utils';
-import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
+import { Dropdown, DropdownTrigger, DropdownContent } from './ui/dropdown';
 import {
     ContextMenu,
     ContextMenuContent,
@@ -828,8 +828,8 @@ echo $3 >> "$FILE"`);
                                 <Key size={14} />
                                 KEY
                             </Button>
-                            <Popover>
-                                <PopoverTrigger asChild>
+                            <Dropdown>
+                                <DropdownTrigger asChild>
                                     <Button
                                         size="sm"
                                         variant="ghost"
@@ -840,8 +840,8 @@ echo $3 >> "$FILE"`);
                                     >
                                         <ChevronDown size={12} />
                                     </Button>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-44 p-1">
+                                </DropdownTrigger>
+                                <DropdownContent className="w-44" align="start" alignToParent>
                                     <Button
                                         variant="ghost"
                                         className="w-full justify-start gap-2"
@@ -865,8 +865,8 @@ echo $3 >> "$FILE"`);
                                             <UserPlus size={14} /> New Identity
                                         </Button>
                                     )}
-                                </PopoverContent>
-                            </Popover>
+                                </DropdownContent>
+                            </Dropdown>
                         </div>
 
                         {/* CERTIFICATE button with split interaction */}
@@ -891,8 +891,8 @@ echo $3 >> "$FILE"`);
                                     {keys.filter(k => k.certificate).length}
                                 </span>
                             </Button>
-                            <Popover>
-                                <PopoverTrigger asChild>
+                            <Dropdown>
+                                <DropdownTrigger asChild>
                                     <Button
                                         size="sm"
                                         variant="ghost"
@@ -903,8 +903,8 @@ echo $3 >> "$FILE"`);
                                     >
                                         <ChevronDown size={12} />
                                     </Button>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-44 p-1">
+                                </DropdownTrigger>
+                                <DropdownContent className="w-44" align="start" alignToParent>
                                     <Button
                                         variant="ghost"
                                         className="w-full justify-start gap-2"
@@ -912,8 +912,8 @@ echo $3 >> "$FILE"`);
                                     >
                                         <Upload size={14} /> Import Certificate
                                     </Button>
-                                </PopoverContent>
-                            </Popover>
+                                </DropdownContent>
+                            </Dropdown>
                         </div>
 
                         <Button
@@ -956,14 +956,14 @@ echo $3 >> "$FILE"`);
                                 />
                             </div>
                         )}
-                        <Popover>
-                            <PopoverTrigger asChild>
+                        <Dropdown>
+                            <DropdownTrigger asChild>
                                 <Button variant="ghost" size="icon" className="h-9 w-9 flex-shrink-0">
                                     {viewMode === 'grid' ? <LayoutGrid size={16} /> : <ListIcon size={16} />}
                                     <ChevronDown size={10} className="ml-0.5" />
                                 </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-32 p-1 z-50" align="end">
+                            </DropdownTrigger>
+                            <DropdownContent className="w-32" align="end">
                                 <Button
                                     variant={viewMode === 'grid' ? 'secondary' : 'ghost'}
                                     className="w-full justify-start gap-2 h-9"
@@ -978,8 +978,8 @@ echo $3 >> "$FILE"`);
                                 >
                                     <ListIcon size={14} /> List
                                 </Button>
-                            </PopoverContent>
-                        </Popover>
+                            </DropdownContent>
+                        </Dropdown>
                     </div>
                 </div>
 
@@ -1627,8 +1627,8 @@ echo $3 >> "$FILE"`);
 
                                 <div className="space-y-2">
                                     <Label>Authentication Method</Label>
-                                    <Popover>
-                                        <PopoverTrigger asChild>
+                                    <Dropdown>
+                                        <DropdownTrigger asChild>
                                             <Button variant="secondary" className="w-full justify-between h-10">
                                                 <span className="flex items-center gap-2">
                                                     {draftIdentity.authMethod === 'key' && <><Key size={14} /> Key</>}
@@ -1638,8 +1638,8 @@ echo $3 >> "$FILE"`);
                                                 </span>
                                                 <ChevronDown size={14} />
                                             </Button>
-                                        </PopoverTrigger>
-                                        <PopoverContent className="w-56 p-1">
+                                        </DropdownTrigger>
+                                        <DropdownContent className="w-56" align="start">
                                             <Button
                                                 variant="ghost"
                                                 className="w-full justify-start gap-2"
@@ -1661,8 +1661,8 @@ echo $3 >> "$FILE"`);
                                             >
                                                 <Shield size={14} /> FIDO2
                                             </Button>
-                                        </PopoverContent>
-                                    </Popover>
+                                        </DropdownContent>
+                                    </Dropdown>
                                 </div>
 
                                 {(draftIdentity.authMethod === 'key' || draftIdentity.authMethod === 'certificate') && (
