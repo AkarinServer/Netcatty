@@ -1123,31 +1123,6 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
   );
 };
 
-interface ThemeCardProps {
-  active: boolean;
-  onClick: () => void;
-  icon: React.ReactNode;
-  label: string;
-}
-
-const ThemeCard = ({ active, onClick, icon, label }: ThemeCardProps) => (
-  <div
-    onClick={onClick}
-    className={cn(
-      "cursor-pointer rounded-xl border-2 p-6 flex flex-col items-center gap-4 transition-all duration-200 bg-card",
-      active
-        ? "border-primary bg-primary/5 ring-1 ring-primary/20"
-        : "border-muted hover:border-primary/50",
-    )}
-  >
-    <div
-      className={cn("p-3 rounded-full bg-background", active && "shadow-sm")}
-    >
-      {icon}
-    </div>
-    <span className="text-sm font-semibold">{label}</span>
-  </div>
-);
 
 // Terminal theme card with preview
 interface TerminalThemeCardProps {

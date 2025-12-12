@@ -6,7 +6,7 @@ import {
   Terminal,
   TerminalSquare,
 } from "lucide-react";
-import React, { memo, useEffect, useMemo, useRef, useState } from "react";
+import React, { memo, useEffect, useRef, useState } from "react";
 import { Host, TerminalSession, Workspace } from "../types";
 import { KeyBinding } from "../domain/models";
 
@@ -395,8 +395,8 @@ const QuickSwitcherInner: React.FC<QuickSwitcherProps> = ({
                 {onCreateLocalTerminal && (
                   <div
                     className={`flex items-center gap-3 px-4 py-2.5 cursor-pointer transition-colors ${getItemIndex("action", "local-terminal") === selectedIndex
-                        ? "bg-primary/15"
-                        : "hover:bg-muted/50"
+                      ? "bg-primary/15"
+                      : "hover:bg-muted/50"
                       }`}
                     onClick={() => {
                       onCreateLocalTerminal();

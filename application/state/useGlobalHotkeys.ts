@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { KeyBinding, matchesKeyBinding } from '../../domain/models';
-import { activeTabStore } from './activeTabStore';
 
 export interface HotkeyActions {
   // Tab management
@@ -138,7 +137,7 @@ export const useGlobalHotkeys = ({
     e.stopPropagation();
 
     const currentActions = actionsRef.current;
-    const tabs = orderedTabsRef.current;
+    const _tabs = orderedTabsRef.current;
 
     switch (action) {
       case 'switchToTab': {
