@@ -254,7 +254,7 @@ function App() {
           break;
         }
         lastMoveFocusTimeRef.current = now;
-        
+
         // Move focus between split panes
         console.log('[App] moveFocus action triggered, key:', e.key);
         const direction = e.key === 'ArrowUp' ? 'up'

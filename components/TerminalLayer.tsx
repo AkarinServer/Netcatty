@@ -384,23 +384,23 @@ const TerminalLayerInner: React.FC<TerminalLayerProps> = ({
   // Check if active workspace is in focus mode
   const isFocusMode = activeWorkspace?.viewMode === 'focus';
   const focusedSessionId = activeWorkspace?.focusedSessionId;
-  
+
   // Debug log for focus tracking
   console.log('[TerminalLayer] focusedSessionId:', focusedSessionId?.slice(0, 8), 'isFocusMode:', isFocusMode);
 
   // Track previous focusedSessionId to detect changes
   const prevFocusedSessionIdRef = useRef<string | undefined>(undefined);
-  
+
   // When focusedSessionId changes in split view, focus the corresponding terminal
   useEffect(() => {
     // Only handle split view mode (not focus mode)
     if (isFocusMode || !focusedSessionId || !activeWorkspace) return;
-    
+
     // Only trigger when focusedSessionId actually changes
     if (prevFocusedSessionIdRef.current === focusedSessionId) return;
     const prevFocusedId = prevFocusedSessionIdRef.current;
     prevFocusedSessionIdRef.current = focusedSessionId;
-    
+
     // First, blur the currently focused terminal immediately
     if (prevFocusedId) {
       const prevPane = document.querySelector(`[data-session-id="${prevFocusedId}"]`);
@@ -411,7 +411,7 @@ const TerminalLayerInner: React.FC<TerminalLayerProps> = ({
         }
       }
     }
-    
+
     // Focus the new terminal multiple times to fight against xterm's focus restoration
     const focusTarget = () => {
       const targetPane = document.querySelector(`[data-session-id="${focusedSessionId}"]`);
@@ -423,15 +423,15 @@ const TerminalLayerInner: React.FC<TerminalLayerProps> = ({
         }
       }
     };
-    
+
     // Focus immediately
     focusTarget();
-    
+
     // Focus again after short delays to override any competing focus attempts
     const timer1 = setTimeout(focusTarget, 10);
     const timer2 = setTimeout(focusTarget, 50);
     const timer3 = setTimeout(focusTarget, 100);
-    
+
     return () => {
       clearTimeout(timer1);
       clearTimeout(timer2);

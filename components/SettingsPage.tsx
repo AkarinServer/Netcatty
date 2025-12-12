@@ -314,7 +314,7 @@ export default function SettingsPage() {
                 // For special bindings, we only record modifier keys
                 // Wait for a non-modifier key press to confirm the modifiers
                 if (['Meta', 'Control', 'Alt', 'Shift'].includes(e.key)) return;
-                
+
                 // Build modifiers string
                 const parts: string[] = [];
                 if (recordingScheme === 'mac') {
@@ -328,11 +328,11 @@ export default function SettingsPage() {
                     if (e.shiftKey) parts.push('Shift');
                     if (e.metaKey) parts.push('Win');
                 }
-                
+
                 // Combine modifiers with the special suffix
                 const modifierString = parts.length > 0 ? parts.join(' + ') + ' + ' : '';
                 const fullKeyString = modifierString + specialSuffix;
-                
+
                 updateKeyBinding?.(recordingBindingId, recordingScheme, fullKeyString);
                 cancelRecording();
             } else {
@@ -763,21 +763,21 @@ export default function SettingsPage() {
                                                         // Get the shortcut for the current scheme
                                                         const currentKey = hotkeyScheme === 'mac' ? binding.mac : binding.pc;
                                                         // Check if this is a special binding (with patterns like [1...9] or arrows)
-                                                        const specialSuffix = currentKey.includes('[1...9]') 
-                                                            ? '[1...9]' 
-                                                            : currentKey.includes('arrows') 
-                                                                ? 'arrows' 
+                                                        const specialSuffix = currentKey.includes('[1...9]')
+                                                            ? '[1...9]'
+                                                            : currentKey.includes('arrows')
+                                                                ? 'arrows'
                                                                 : null;
                                                         const isSpecialBinding = !!specialSuffix;
-                                                        
+
                                                         // For special bindings, extract the modifier prefix
-                                                        const modifierPrefix = isSpecialBinding 
+                                                        const modifierPrefix = isSpecialBinding
                                                             ? currentKey.replace(specialSuffix, '').trim().replace(/\+\s*$/, '').trim()
                                                             : null;
-                                                        
+
                                                         // Check if we're recording this special binding
                                                         const isRecordingThis = recordingBindingId === binding.id;
-                                                        
+
                                                         return (
                                                             <div
                                                                 key={binding.id}
