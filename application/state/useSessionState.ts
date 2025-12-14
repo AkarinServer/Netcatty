@@ -24,6 +24,8 @@ export const useSessionState = () => {
   const [workspaceRenameValue, setWorkspaceRenameValue] = useState('');
   // Tab order: stores ordered list of tab IDs (orphan session IDs and workspace IDs)
   const [tabOrder, setTabOrder] = useState<string[]>([]);
+  // Broadcast mode: stores workspace IDs that have broadcast enabled
+  const [broadcastWorkspaceIds, setBroadcastWorkspaceIds] = useState<Set<string>>(new Set());
 
   const createLocalTerminal = useCallback(() => {
     const sessionId = crypto.randomUUID();
@@ -419,6 +421,24 @@ export const useSessionState = () => {
 
   const orphanSessions = useMemo(() => sessions.filter(s => !s.workspaceId), [sessions]);
 
+  // Toggle broadcast mode for a workspace
+  const toggleBroadcast = useCallback((workspaceId: string) => {
+    setBroadcastWorkspaceIds(prev => {
+      const next = new Set(prev);
+      if (next.has(workspaceId)) {
+        next.delete(workspaceId);
+      } else {
+        next.add(workspaceId);
+      }
+      return next;
+    });
+  }, []);
+
+  // Check if a workspace has broadcast enabled
+  const isBroadcastEnabled = useCallback((workspaceId: string) => {
+    return broadcastWorkspaceIds.has(workspaceId);
+  }, [broadcastWorkspaceIds]);
+
   // Get ordered tabs: combines orphan sessions and workspaces in the custom order
   const orderedTabs = useMemo(() => {
     const allTabIds = [
@@ -498,6 +518,9 @@ export const useSessionState = () => {
     moveFocusInWorkspace,
     runSnippet,
     orphanSessions,
+    // Broadcast mode
+    toggleBroadcast,
+    isBroadcastEnabled,
     orderedTabs,
     reorderTabs,
   };

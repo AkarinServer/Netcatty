@@ -304,7 +304,6 @@ export const DEFAULT_KEY_BINDINGS: KeyBinding[] = [
   { id: 'quick-switch', action: 'quickSwitch', label: 'Quick Switch', mac: '⌘ + J', pc: 'Ctrl + J', category: 'app' },
   { id: 'snippets', action: 'snippets', label: 'Open Snippets', mac: '⌘ + Shift + S', pc: 'Ctrl + Alt + S', category: 'app' },
   { id: 'broadcast', action: 'broadcast', label: 'Switch the Broadcast Mode', mac: '⌘ + B', pc: 'Ctrl + B', category: 'app' },
-  { id: 'side-panel', action: 'sidePanel', label: 'Show Terminal Side-panel', mac: '⌘ + S', pc: 'Ctrl + S', category: 'app' },
 ];
 
 // Terminal appearance settings

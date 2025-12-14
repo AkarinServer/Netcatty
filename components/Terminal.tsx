@@ -5,7 +5,7 @@ import { SearchAddon } from "@xterm/addon-search";
 import { WebglAddon } from "@xterm/addon-webgl";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import "@xterm/xterm/css/xterm.css";
-import { Maximize2 } from "lucide-react";
+import { Maximize2, Radio } from "lucide-react";
 import React, { memo, useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { logger } from "../lib/logger";
 import { cn } from "../lib/utils";
@@ -80,6 +80,10 @@ interface TerminalProps {
   // Split actions
   onSplitHorizontal?: () => void;
   onSplitVertical?: () => void;
+  // Broadcast mode
+  isBroadcastEnabled?: boolean;
+  onToggleBroadcast?: () => void;
+  onBroadcastInput?: (data: string, sourceSessionId: string) => void;
 }
 
 // xterm.js doesn't need async initialization like ghostty-web
@@ -113,6 +117,9 @@ const TerminalComponent: React.FC<TerminalProps> = ({
   onCommandExecuted,
   onSplitHorizontal,
   onSplitVertical,
+  isBroadcastEnabled,
+  onToggleBroadcast,
+  onBroadcastInput,
 }) => {
   const CONNECTION_TIMEOUT = 12000;
   const containerRef = useRef<HTMLDivElement>(null);
@@ -149,6 +156,12 @@ const TerminalComponent: React.FC<TerminalProps> = ({
   hotkeySchemeRef.current = hotkeyScheme;
   keyBindingsRef.current = keyBindings;
   onHotkeyActionRef.current = onHotkeyAction;
+
+  // Refs for broadcast mode (to avoid stale closures)
+  const isBroadcastEnabledRef = useRef(isBroadcastEnabled);
+  const onBroadcastInputRef = useRef(onBroadcastInput);
+  isBroadcastEnabledRef.current = isBroadcastEnabled;
+  onBroadcastInputRef.current = onBroadcastInput;
 
   const terminalBackend = useTerminalBackend();
   const { resizeSession } = terminalBackend;
@@ -629,6 +642,11 @@ const TerminalComponent: React.FC<TerminalProps> = ({
           const id = sessionRef.current;
           if (id) {
             terminalBackend.writeToSession(id, data);
+
+            // Broadcast input to other terminals in the same workspace
+            if (isBroadcastEnabledRef.current && onBroadcastInputRef.current) {
+              onBroadcastInputRef.current(data, sessionId);
+            }
 
             // Track command input for shell history
             if (status === "connected" && onCommandExecuted) {
@@ -1839,6 +1857,23 @@ const TerminalComponent: React.FC<TerminalProps> = ({
               />
             </div>
             <div className="flex items-center gap-0.5 flex-shrink-0">
+              {/* Broadcast button - only show in workspace mode */}
+              {inWorkspace && onToggleBroadcast && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className={cn(
+                    "h-6 w-6 p-0 hover:bg-white/10",
+                    isBroadcastEnabled 
+                      ? "text-emerald-400 hover:text-emerald-300" 
+                      : "text-white/70 hover:text-white"
+                  )}
+                  onClick={onToggleBroadcast}
+                  title={isBroadcastEnabled ? "Disable Broadcast Mode" : "Enable Broadcast Mode"}
+                >
+                  <Radio size={12} />
+                </Button>
+              )}
               {/* Expand to focus mode button - only show in workspace split view mode */}
               {inWorkspace && !isFocusMode && onExpandToFocus && (
                 <Button

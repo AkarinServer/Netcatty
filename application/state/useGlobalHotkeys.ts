@@ -31,7 +31,6 @@ export interface HotkeyActions {
   
   // App features
   broadcast: () => void;
-  sidePanel: () => void;
   openLocal: () => void;
 }
 
@@ -69,7 +68,6 @@ export const getAppLevelActions = (): Set<string> => {
     'splitVertical',
     'moveFocus',
     'broadcast',
-    'sidePanel',
     'openLocal',
   ]);
 };
@@ -197,9 +195,6 @@ export const useGlobalHotkeys = ({
       }
       case 'broadcast':
         currentActions.broadcast?.();
-        break;
-      case 'sidePanel':
-        currentActions.sidePanel?.();
         break;
     }
   }, [hotkeyScheme, keyBindings, isSettingsOpen]);

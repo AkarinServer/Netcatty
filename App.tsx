@@ -16,7 +16,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { Input } from './components/ui/input';
 import { Label } from './components/ui/label';
 import { ToastProvider } from './components/ui/toast';
-import { VaultView } from './components/VaultView';
+import { VaultView, VaultSection } from './components/VaultView';
 import { cn } from './lib/utils';
 import { Host, HostProtocol } from './types';
 
@@ -42,6 +42,8 @@ function App() {
   const [quickSearch, setQuickSearch] = useState('');
   // Protocol selection dialog state for QuickSwitcher
   const [protocolSelectHost, setProtocolSelectHost] = useState<Host | null>(null);
+  // Navigation state for VaultView sections
+  const [navigateToSection, setNavigateToSection] = useState<VaultSection | null>(null);
 
   const {
     theme,
@@ -121,6 +123,8 @@ function App() {
     orphanSessions,
     orderedTabs,
     reorderTabs,
+    toggleBroadcast,
+    isBroadcastEnabled,
   } = useSessionState();
 
   // isMacClient is used for window controls styling
@@ -137,8 +141,8 @@ function App() {
         // Get the number key pressed (1-9)
         const num = parseInt(e.key, 10);
         if (num >= 1 && num <= 9) {
-          // Build complete tab list: vault + sessions/workspaces
-          const allTabs = ['vault', ...orderedTabs];
+          // Build complete tab list: vault + sftp + sessions/workspaces
+          const allTabs = ['vault', 'sftp', ...orderedTabs];
           if (num <= allTabs.length) {
             setActiveTabId(allTabs[num - 1]);
           }
@@ -146,8 +150,8 @@ function App() {
         break;
       }
       case 'nextTab': {
-        // Build complete tab list: vault + sessions/workspaces
-        const allTabs = ['vault', ...orderedTabs];
+        // Build complete tab list: vault + sftp + sessions/workspaces
+        const allTabs = ['vault', 'sftp', ...orderedTabs];
         const currentId = activeTabStore.getActiveTabId();
         const currentIdx = allTabs.indexOf(currentId);
         if (currentIdx !== -1 && allTabs.length > 0) {
@@ -159,8 +163,8 @@ function App() {
         break;
       }
       case 'prevTab': {
-        // Build complete tab list: vault + sessions/workspaces
-        const allTabs = ['vault', ...orderedTabs];
+        // Build complete tab list: vault + sftp + sessions/workspaces
+        const allTabs = ['vault', 'sftp', ...orderedTabs];
         const currentId = activeTabStore.getActiveTabId();
         const currentIdx = allTabs.indexOf(currentId);
         if (currentIdx !== -1 && allTabs.length > 0) {
@@ -202,21 +206,24 @@ function App() {
         setIsQuickSwitcherOpen(true);
         break;
       case 'portForwarding':
-        // Navigate to vault and could open port forwarding section
+        // Navigate to vault and open port forwarding section
         setActiveTabId('vault');
+        setNavigateToSection('port');
         break;
       case 'snippets':
-        // Navigate to vault 
+        // Navigate to vault and open snippets section
         setActiveTabId('vault');
+        setNavigateToSection('snippets');
         break;
-      case 'broadcast':
-        // TODO: Implement broadcast mode toggle
-        console.log('[Hotkey] Broadcast mode toggle requested');
+      case 'broadcast': {
+        // Toggle broadcast mode for the active workspace
+        const currentId = activeTabStore.getActiveTabId();
+        const activeWs = workspaces.find(w => w.id === currentId);
+        if (activeWs) {
+          toggleBroadcast(activeWs.id);
+        }
         break;
-      case 'sidePanel':
-        // TODO: Implement side panel toggle
-        console.log('[Hotkey] Side panel toggle requested');
-        break;
+      }
       case 'splitHorizontal': {
         // Split current terminal horizontally (top/bottom)
         const currentId = activeTabStore.getActiveTabId();
@@ -280,7 +287,7 @@ function App() {
         break;
       }
     }
-  }, [orderedTabs, sessions, workspaces, setActiveTabId, closeSession, closeWorkspace, createLocalTerminal, splitSession, moveFocusInWorkspace]);
+  }, [orderedTabs, sessions, workspaces, setActiveTabId, closeSession, closeWorkspace, createLocalTerminal, splitSession, moveFocusInWorkspace, toggleBroadcast]);
 
   // Callback for terminal to invoke app-level hotkey actions
   const handleHotkeyAction = useCallback((action: string, e: KeyboardEvent) => {
@@ -464,6 +471,8 @@ function App() {
             onUpdateKnownHosts={updateKnownHosts}
             onConvertKnownHost={convertKnownHostToHost}
             onRunSnippet={runSnippet}
+            navigateToSection={navigateToSection}
+            onNavigateToSectionHandled={() => setNavigateToSection(null)}
           />
         </VaultViewContainer>
 
@@ -498,6 +507,8 @@ function App() {
           onToggleWorkspaceViewMode={toggleWorkspaceViewMode}
           onSetWorkspaceFocusedSession={setWorkspaceFocusedSession}
           onSplitSession={splitSession}
+          isBroadcastEnabled={isBroadcastEnabled}
+          onToggleBroadcast={toggleBroadcast}
         />
       </div>
 

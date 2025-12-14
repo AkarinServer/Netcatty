@@ -18,7 +18,7 @@ import {
   Upload,
   Zap,
 } from "lucide-react";
-import React, { memo, useCallback, useMemo, useState } from "react";
+import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { sanitizeHost } from "../domain/host";
 import { cn } from "../lib/utils";
 import {
@@ -64,7 +64,7 @@ import { Label } from "./ui/label";
 import { SortDropdown, SortMode } from "./ui/sort-dropdown";
 import { TagFilterDropdown } from "./ui/tag-filter-dropdown";
 
-type VaultSection = "hosts" | "keys" | "snippets" | "port" | "knownhosts";
+export type VaultSection = "hosts" | "keys" | "snippets" | "port" | "knownhosts";
 
 // Props without isActive - it's now subscribed internally
 interface VaultViewProps {
@@ -89,6 +89,9 @@ interface VaultViewProps {
   onUpdateKnownHosts: (knownHosts: KnownHost[]) => void;
   onConvertKnownHost: (knownHost: KnownHost) => void;
   onRunSnippet?: (snippet: Snippet, targetHosts: Host[]) => void;
+  // Optional: navigate to a specific section on mount or when changed
+  navigateToSection?: VaultSection | null;
+  onNavigateToSectionHandled?: () => void;
 }
 
 const VaultViewInner: React.FC<VaultViewProps> = ({
@@ -113,6 +116,8 @@ const VaultViewInner: React.FC<VaultViewProps> = ({
   onUpdateKnownHosts,
   onConvertKnownHost,
   onRunSnippet,
+  navigateToSection,
+  onNavigateToSectionHandled,
 }) => {
   const [currentSection, setCurrentSection] = useState<VaultSection>("hosts");
   const [search, setSearch] = useState("");
@@ -122,6 +127,14 @@ const VaultViewInner: React.FC<VaultViewProps> = ({
   const [isNewFolderOpen, setIsNewFolderOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
   const [targetParentPath, setTargetParentPath] = useState<string | null>(null);
+
+  // Handle external navigation requests
+  useEffect(() => {
+    if (navigateToSection) {
+      setCurrentSection(navigateToSection);
+      onNavigateToSectionHandled?.();
+    }
+  }, [navigateToSection, onNavigateToSectionHandled]);
 
   // View mode, sorting, and tag filter state
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");

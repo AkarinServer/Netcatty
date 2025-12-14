@@ -1,6 +1,7 @@
 import { Circle, LayoutGrid, Server } from 'lucide-react';
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useActiveTabId } from '../application/state/activeTabStore';
+import { useTerminalBackend } from '../application/state/useTerminalBackend';
 import { collectSessionIds } from '../domain/workspace';
 import { SplitDirection } from '../domain/workspace';
 import { KeyBinding, TerminalSettings } from '../domain/models';
@@ -56,6 +57,9 @@ interface TerminalLayerProps {
   onToggleWorkspaceViewMode?: (workspaceId: string) => void;
   onSetWorkspaceFocusedSession?: (workspaceId: string, sessionId: string) => void;
   onSplitSession?: (sessionId: string, direction: SplitDirection) => void;
+  // Broadcast mode
+  isBroadcastEnabled?: (workspaceId: string) => boolean;
+  onToggleBroadcast?: (workspaceId: string) => void;
 }
 
 const TerminalLayerInner: React.FC<TerminalLayerProps> = ({
@@ -85,6 +89,8 @@ const TerminalLayerInner: React.FC<TerminalLayerProps> = ({
   onToggleWorkspaceViewMode,
   onSetWorkspaceFocusedSession,
   onSplitSession,
+  isBroadcastEnabled,
+  onToggleBroadcast,
 }) => {
   // Subscribe to activeTabId from external store
   const activeTabId = useActiveTabId();
@@ -121,6 +127,9 @@ const TerminalLayerInner: React.FC<TerminalLayerProps> = ({
     onCommandExecuted?.(command, hostId, hostLabel, sessionId);
   }, [onCommandExecuted]);
 
+  // Terminal backend for broadcast writes
+  const terminalBackend = useTerminalBackend();
+
   const [workspaceArea, setWorkspaceArea] = useState<{ width: number; height: number }>({ width: 0, height: 0 });
   const workspaceOuterRef = useRef<HTMLDivElement>(null);
   const workspaceInnerRef = useRef<HTMLDivElement>(null);
@@ -138,6 +147,21 @@ const TerminalLayerInner: React.FC<TerminalLayerProps> = ({
 
   const activeWorkspace = useMemo(() => workspaces.find(w => w.id === activeTabId), [workspaces, activeTabId]);
   const activeSession = useMemo(() => sessions.find(s => s.id === activeTabId), [sessions, activeTabId]);
+
+  // Handle broadcast input - write to all other sessions in the same workspace
+  const handleBroadcastInput = useCallback((data: string, sourceSessionId: string) => {
+    if (!activeWorkspace) return;
+    
+    // Get all session IDs in this workspace
+    const workspaceSessionIds = sessions
+      .filter(s => s.workspaceId === activeWorkspace.id && s.id !== sourceSessionId)
+      .map(s => s.id);
+    
+    // Write to all other sessions
+    for (const targetSessionId of workspaceSessionIds) {
+      terminalBackend.writeToSession(targetSessionId, data);
+    }
+  }, [activeWorkspace, sessions, terminalBackend]);
 
   // Pre-compute host lookup map for O(1) access
   const hostMap = useMemo(() => {
@@ -645,6 +669,9 @@ const TerminalLayerInner: React.FC<TerminalLayerProps> = ({
                 onExpandToFocus={inActiveWorkspace && !isFocusMode && activeWorkspace ? () => onToggleWorkspaceViewMode?.(activeWorkspace.id) : undefined}
                 onSplitHorizontal={onSplitSession ? () => onSplitSession(session.id, 'horizontal') : undefined}
                 onSplitVertical={onSplitSession ? () => onSplitSession(session.id, 'vertical') : undefined}
+                isBroadcastEnabled={inActiveWorkspace && activeWorkspace ? isBroadcastEnabled?.(activeWorkspace.id) : false}
+                onToggleBroadcast={inActiveWorkspace && activeWorkspace ? () => onToggleBroadcast?.(activeWorkspace.id) : undefined}
+                onBroadcastInput={inActiveWorkspace && activeWorkspace && isBroadcastEnabled?.(activeWorkspace.id) ? handleBroadcastInput : undefined}
               />
             </div>
           );
