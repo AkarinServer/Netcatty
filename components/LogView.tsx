@@ -2,13 +2,13 @@ import { Terminal as XTerm } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebglAddon } from "@xterm/addon-webgl";
 import "@xterm/xterm/css/xterm.css";
-import { ChevronDown, FileText, Minus, Plus, X } from "lucide-react";
+import { FileText, Palette, X } from "lucide-react";
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "../lib/utils";
 import { ConnectionLog, TerminalTheme } from "../types";
 import { TERMINAL_THEMES } from "../infrastructure/config/terminalThemes";
 import { Button } from "./ui/button";
-import { Dropdown, DropdownContent, DropdownTrigger } from "./ui/dropdown";
+import ThemeCustomizeModal from "./terminal/ThemeCustomizeModal";
 
 interface LogViewProps {
     log: ConnectionLog;
@@ -31,7 +31,7 @@ const LogViewComponent: React.FC<LogViewProps> = ({
     const termRef = useRef<XTerm | null>(null);
     const fitAddonRef = useRef<FitAddon | null>(null);
     const [isReady, setIsReady] = useState(false);
-    const [themeDropdownOpen, setThemeDropdownOpen] = useState(false);
+    const [themeModalOpen, setThemeModalOpen] = useState(false);
 
     // Use log's saved theme/fontSize or fall back to defaults
     const currentTheme = useMemo(() => {
@@ -58,14 +58,12 @@ const LogViewComponent: React.FC<LogViewProps> = ({
     // Handle theme change
     const handleThemeChange = useCallback((themeId: string) => {
         onUpdateLog(log.id, { themeId });
-        setThemeDropdownOpen(false);
     }, [log.id, onUpdateLog]);
 
     // Handle font size change
-    const handleFontSizeChange = useCallback((delta: number) => {
-        const newSize = Math.max(8, Math.min(24, currentFontSize + delta));
-        onUpdateLog(log.id, { fontSize: newSize });
-    }, [log.id, currentFontSize, onUpdateLog]);
+    const handleFontSizeChange = useCallback((fontSize: number) => {
+        onUpdateLog(log.id, { fontSize });
+    }, [log.id, onUpdateLog]);
 
     // Initialize terminal
     useEffect(() => {
@@ -216,60 +214,17 @@ const LogViewComponent: React.FC<LogViewProps> = ({
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
-                    {/* Theme selector */}
-                    <Dropdown open={themeDropdownOpen} onOpenChange={setThemeDropdownOpen}>
-                        <DropdownTrigger asChild>
-                            <Button variant="ghost" size="sm" className="gap-1 h-8 px-2">
-                                <div
-                                    className="w-4 h-4 rounded border border-border/50"
-                                    style={{ backgroundColor: currentTheme.colors.background }}
-                                />
-                                <span className="text-xs max-w-20 truncate">{currentTheme.name}</span>
-                                <ChevronDown size={12} />
-                            </Button>
-                        </DropdownTrigger>
-                        <DropdownContent className="w-48 max-h-64 overflow-y-auto" align="end">
-                            {TERMINAL_THEMES.map(theme => (
-                                <button
-                                    key={theme.id}
-                                    className={cn(
-                                        "w-full flex items-center gap-2 px-2 py-1.5 text-left text-sm rounded hover:bg-secondary/80 transition-colors",
-                                        currentTheme.id === theme.id && "bg-secondary"
-                                    )}
-                                    onClick={() => handleThemeChange(theme.id)}
-                                >
-                                    <div
-                                        className="w-5 h-5 rounded border border-border/50 flex-shrink-0"
-                                        style={{ backgroundColor: theme.colors.background }}
-                                    />
-                                    <span className="truncate">{theme.name}</span>
-                                </button>
-                            ))}
-                        </DropdownContent>
-                    </Dropdown>
-
-                    {/* Font size controls */}
-                    <div className="flex items-center gap-0.5 bg-secondary/50 rounded px-1">
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 w-7 p-0"
-                            onClick={() => handleFontSizeChange(-1)}
-                            disabled={currentFontSize <= 8}
-                        >
-                            <Minus size={12} />
-                        </Button>
-                        <span className="text-xs w-6 text-center">{currentFontSize}</span>
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 w-7 p-0"
-                            onClick={() => handleFontSizeChange(1)}
-                            disabled={currentFontSize >= 24}
-                        >
-                            <Plus size={12} />
-                        </Button>
-                    </div>
+                    {/* Theme & font customization button */}
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        className="gap-1.5 h-8 px-2"
+                        onClick={() => setThemeModalOpen(true)}
+                        title="Customize appearance"
+                    >
+                        <Palette size={14} />
+                        <span className="text-xs">Appearance</span>
+                    </Button>
 
                     <span className="text-xs text-muted-foreground bg-secondary px-2 py-1 rounded">
                         Read-only
@@ -287,6 +242,16 @@ const LogViewComponent: React.FC<LogViewProps> = ({
             >
                 <div ref={containerRef} className="h-full w-full" />
             </div>
+
+            {/* Theme Customize Modal */}
+            <ThemeCustomizeModal
+                open={themeModalOpen}
+                onClose={() => setThemeModalOpen(false)}
+                currentThemeId={currentTheme.id}
+                currentFontSize={currentFontSize}
+                onThemeChange={handleThemeChange}
+                onFontSizeChange={handleFontSizeChange}
+            />
         </div>
     );
 };
