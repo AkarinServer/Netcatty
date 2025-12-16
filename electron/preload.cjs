@@ -340,6 +340,9 @@ const api = {
   
   // Open URL in default browser
   openExternal: (url) => ipcRenderer.invoke("netcatty:openExternal", url),
+
+  // App info
+  getAppInfo: () => ipcRenderer.invoke("netcatty:app:getInfo"),
   
   // Port Forwarding API
   startPortForward: async (options) => {

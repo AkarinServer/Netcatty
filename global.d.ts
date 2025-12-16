@@ -249,6 +249,9 @@ interface NetcattyBridge {
   // Open URL in default browser
   openExternal?(url: string): Promise<void>;
 
+  // App info (name/version/platform) for About screens
+  getAppInfo?(): Promise<{ name: string; version: string; platform: string }>;
+
   // Chain progress listener for jump host connections
   // Callback receives: (currentHop: number, totalHops: number, hostLabel: string, status: string)
   onChainProgress?(cb: (hop: number, total: number, label: string, status: string) => void): () => void;

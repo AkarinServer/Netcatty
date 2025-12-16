@@ -10,7 +10,6 @@ import { netcattyBridge } from './infrastructure/services/netcattyBridge';
 import LogView from './components/LogView.tsx';
 import ProtocolSelectDialog from './components/ProtocolSelectDialog';
 import { QuickSwitcher } from './components/QuickSwitcher';
-import SettingsDialog from './components/SettingsDialog';
 import { SftpView } from './components/SftpView';
 import { TerminalLayer } from './components/TerminalLayer';
 import { TopTabs } from './components/TopTabs';
@@ -18,7 +17,7 @@ import { Button } from './components/ui/button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from './components/ui/dialog';
 import { Input } from './components/ui/input';
 import { Label } from './components/ui/label';
-import { ToastProvider } from './components/ui/toast';
+import { ToastProvider, toast } from './components/ui/toast';
 import { VaultView, VaultSection } from './components/VaultView';
 import { cn } from './lib/utils';
 import { ConnectionLog, Host, HostProtocol, TerminalTheme } from './types';
@@ -73,7 +72,6 @@ const LogViewWrapper: React.FC<LogViewWrapperProps> = ({ logView, defaultTermina
 function App() {
   console.log('[App] render');
 
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isQuickSwitcherOpen, setIsQuickSwitcherOpen] = useState(false);
   const [quickSearch, setQuickSearch] = useState('');
   // Protocol selection dialog state for QuickSwitcher
@@ -84,27 +82,11 @@ function App() {
   const {
     theme,
     setTheme,
-    primaryColor,
-    setPrimaryColor,
-    syncConfig,
-    updateSyncConfig,
-    terminalThemeId,
-    setTerminalThemeId,
     currentTerminalTheme,
-    terminalFontFamilyId,
-    setTerminalFontFamilyId,
     terminalFontSize,
-    setTerminalFontSize,
     terminalSettings,
-    updateTerminalSetting,
     hotkeyScheme,
-    setHotkeyScheme,
     keyBindings,
-    updateKeyBinding,
-    resetKeyBinding,
-    resetAllKeyBindings,
-    customCSS,
-    setCustomCSS,
   } = useSettingsState();
 
   // Debug: log hotkeyScheme and keyBindings on every render
@@ -133,7 +115,6 @@ function App() {
     clearUnsavedConnectionLogs,
     updateHostDistro,
     convertKnownHostToHost,
-    exportData,
     importDataFromString,
   } = useVaultState();
 
@@ -593,10 +574,9 @@ function App() {
   const { openSettingsWindow } = useWindowControls();
 
   const handleOpenSettings = useCallback(() => {
-    // Try to open in a separate window, fallback to modal dialog
     void (async () => {
       const opened = await openSettingsWindow();
-      if (!opened) setIsSettingsOpen(true);
+      if (!opened) toast.error('Settings window is unavailable on this platform.', 'Settings');
     })();
   }, [openSettingsWindow]);
 
@@ -770,35 +750,6 @@ function App() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      <SettingsDialog
-        isOpen={isSettingsOpen}
-        onClose={() => setIsSettingsOpen(false)}
-        onImport={importDataFromString}
-        exportData={exportData}
-        theme={theme}
-        onThemeChange={setTheme}
-        primaryColor={primaryColor}
-        onPrimaryColorChange={setPrimaryColor}
-        syncConfig={syncConfig}
-        onSyncConfigChange={updateSyncConfig}
-        terminalThemeId={terminalThemeId}
-        onTerminalThemeChange={setTerminalThemeId}
-        terminalFontFamilyId={terminalFontFamilyId}
-        onTerminalFontFamilyChange={setTerminalFontFamilyId}
-        terminalFontSize={terminalFontSize}
-        onTerminalFontSizeChange={setTerminalFontSize}
-        terminalSettings={terminalSettings}
-        onTerminalSettingsChange={updateTerminalSetting}
-        hotkeyScheme={hotkeyScheme}
-        onHotkeySchemeChange={setHotkeyScheme}
-        keyBindings={keyBindings}
-        onUpdateKeyBinding={updateKeyBinding}
-        onResetKeyBinding={resetKeyBinding}
-        onResetAllKeyBindings={resetAllKeyBindings}
-        customCSS={customCSS}
-        onCustomCSSChange={setCustomCSS}
-      />
 
       {/* Protocol Select Dialog for QuickSwitcher */}
       {protocolSelectHost && (

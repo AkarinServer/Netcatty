@@ -309,6 +309,15 @@ const registerBridges = (win) => {
     }
   });
 
+  // App information for About/Application screens
+  ipcMain.handle("netcatty:app:getInfo", async () => {
+    return {
+      name: app.getName(),
+      version: app.getVersion(),
+      platform: process.platform,
+    };
+  });
+
   console.log('[Main] All bridges registered successfully');
 };
 
