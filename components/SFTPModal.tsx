@@ -271,8 +271,15 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
     writeSftp,
     deleteSftp,
     mkdirSftp,
+    listLocalDir,
+    readLocalFile,
+    writeLocalFile,
+    deleteLocalFile,
+    mkdirLocal,
+    getHomeDir,
   } = useSftpBackend();
   const { t, resolvedLocale } = useI18n();
+  const isLocalSession = host.protocol === "local";
   const [currentPath, setCurrentPath] = useState("/");
   const [files, setFiles] = useState<RemoteFile[]>([]);
   const [loading, setLoading] = useState(false);
@@ -285,6 +292,7 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
   const initializedRef = useRef(false);
   const navigatingRef = useRef(false);
   const lastSelectedIndexRef = useRef<number | null>(null);
+  const localHomeRef = useRef<string | null>(null);
 
   // Directory listing cache + load sequence to avoid stale updates
   const DIR_CACHE_TTL_MS = 10_000;
@@ -315,7 +323,115 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
   const [editingPathValue, setEditingPathValue] = useState("");
   const pathInputRef = useRef<HTMLInputElement>(null);
 
+  const isWindowsPath = useCallback((path: string): boolean => {
+    return /^[A-Za-z]:/.test(path);
+  }, []);
+
+  const normalizeWindowsRoot = useCallback((path: string): string => {
+    const normalized = path.replace(/\//g, "\\");
+    if (/^[A-Za-z]:\\$/.test(normalized)) return normalized;
+    if (/^[A-Za-z]:$/.test(normalized)) return `${normalized}\\`;
+    return normalized;
+  }, []);
+
+  const joinPath = useCallback(
+    (base: string, name: string): string => {
+      if (isLocalSession && isWindowsPath(base)) {
+        const normalizedBase = normalizeWindowsRoot(base).replace(/[\\/]+$/, "");
+        return `${normalizedBase}\\${name}`;
+      }
+      if (!isLocalSession) {
+        if (base === "/") return `/${name}`;
+        return `${base}/${name}`;
+      }
+      // Local unix-like path
+      if (base === "/") return `/${name}`;
+      return `${base}/${name}`;
+    },
+    [isLocalSession, isWindowsPath, normalizeWindowsRoot],
+  );
+
+  const isRootPath = useCallback(
+    (path: string): boolean => {
+      if (isLocalSession && isWindowsPath(path)) {
+        return /^[A-Za-z]:\\?$/.test(path.replace(/\//g, "\\"));
+      }
+      return path === "/";
+    },
+    [isLocalSession, isWindowsPath],
+  );
+
+  const getParentPath = useCallback(
+    (path: string): string => {
+      if (isLocalSession && isWindowsPath(path)) {
+        const normalized = normalizeWindowsRoot(path).replace(/[\\]+$/, "");
+        const drive = normalized.slice(0, 2);
+        if (/^[A-Za-z]:$/.test(normalized) || /^[A-Za-z]:\\$/.test(normalized)) {
+          return `${drive}\\`;
+        }
+        const rest = normalized.slice(2).replace(/^[\\]+/, "");
+        const parts = rest ? rest.split(/[\\]+/).filter(Boolean) : [];
+        if (parts.length <= 1) return `${drive}\\`;
+        parts.pop();
+        return `${drive}\\${parts.join("\\")}`;
+      }
+      if (path === "/") return "/";
+      const parts = path.split("/").filter(Boolean);
+      parts.pop();
+      return parts.length ? `/${parts.join("/")}` : "/";
+    },
+    [isLocalSession, isWindowsPath, normalizeWindowsRoot],
+  );
+
+  const getRootPath = useCallback(
+    (path: string): string => {
+      if (isLocalSession && isWindowsPath(path)) {
+        const drive = path.replace(/\//g, "\\").slice(0, 2);
+        return `${drive}\\`;
+      }
+      return "/";
+    },
+    [isLocalSession, isWindowsPath],
+  );
+
+  const getWindowsDrive = useCallback(
+    (path: string): string | null => {
+      if (!isWindowsPath(path)) return null;
+      const normalized = path.replace(/\//g, "\\");
+      return /^[A-Za-z]:/.test(normalized) ? normalized.slice(0, 2) : null;
+    },
+    [isWindowsPath],
+  );
+
+  const getBreadcrumbs = useCallback(
+    (path: string): string[] => {
+      if (isLocalSession && isWindowsPath(path)) {
+        const normalized = normalizeWindowsRoot(path).replace(/[\\]+$/, "");
+        const rest = normalized.slice(2).replace(/^[\\]+/, "");
+        const parts = rest ? rest.split(/[\\]+/).filter(Boolean) : [];
+        return parts;
+      }
+      return path === "/" ? [] : path.split("/").filter(Boolean);
+    },
+    [isLocalSession, isWindowsPath, normalizeWindowsRoot],
+  );
+
+  const breadcrumbPathAt = useCallback(
+    (breadcrumbs: string[], idx: number): string => {
+      if (isLocalSession) {
+        const drive = getWindowsDrive(currentPath);
+        if (drive) {
+          const rest = breadcrumbs.slice(0, idx + 1).join("\\");
+          return rest ? `${drive}\\${rest}` : `${drive}\\`;
+        }
+      }
+      return "/" + breadcrumbs.slice(0, idx + 1).join("/");
+    },
+    [currentPath, getWindowsDrive, isLocalSession],
+  );
+
   const ensureSftp = useCallback(async () => {
+    if (isLocalSession) throw new Error("Local session does not use SFTP");
     if (sftpIdRef.current) return sftpIdRef.current;
     const sftpId = await openSftp({
       sessionId: `sftp-modal-${host.id}`,
@@ -333,6 +449,7 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
     sftpIdRef.current = sftpId;
     return sftpId;
   }, [
+    isLocalSession,
     host.id,
     credentials.hostname,
     credentials.username,
@@ -368,8 +485,9 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
 
       try {
         setLoading(true);
-        const sftpId = await ensureSftp();
-        const list = await listSftp(sftpId, path);
+        const list = isLocalSession
+          ? await listLocalDir(path)
+          : await listSftp(await ensureSftp(), path);
         if (loadSeqRef.current !== requestId) return;
         dirCacheRef.current.set(cacheKey, {
           files: list,
@@ -391,11 +509,11 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
         }
       }
     },
-    [ensureSftp, host.id, listSftp, t],
+    [ensureSftp, host.id, isLocalSession, listLocalDir, listSftp, t],
   );
 
   const closeSftpSession = useCallback(async () => {
-    if (sftpIdRef.current) {
+    if (!isLocalSession && sftpIdRef.current) {
       try {
         await closeSftpBackend(sftpIdRef.current);
       } catch {
@@ -403,7 +521,7 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
       }
     }
     sftpIdRef.current = null;
-  }, [closeSftpBackend]);
+  }, [closeSftpBackend, isLocalSession]);
 
   useEffect(() => {
     return () => {
@@ -416,7 +534,23 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
     if (open) {
       if (!initializedRef.current) {
         initializedRef.current = true;
-        setCurrentPath("/");
+        if (isLocalSession) {
+          void (async () => {
+            let home = localHomeRef.current;
+            if (!home) {
+              const fetchedHome = await getHomeDir();
+              home = fetchedHome ?? null;
+              localHomeRef.current = home;
+            }
+            const startPath =
+              home ??
+              (navigator.platform.toLowerCase().includes("win") ? "C:\\" : "/");
+            setCurrentPath(startPath);
+          })();
+        } else {
+          setCurrentPath("/");
+        }
+        return;
       }
       loadFiles(currentPath);
     } else {
@@ -425,7 +559,7 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
       void closeSftpSession();
       initializedRef.current = false;
     }
-  }, [open, currentPath, loadFiles, closeSftpSession]);
+  }, [open, currentPath, loadFiles, closeSftpSession, getHomeDir, isLocalSession]);
 
   const handleNavigate = useCallback((path: string) => {
     // Prevent double navigation (e.g., from double-click race condition)
@@ -439,19 +573,18 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
   }, []);
 
   const handleUp = () => {
-    if (currentPath === "/") return;
-    const parent = currentPath.split("/").slice(0, -1).join("/") || "/";
-    setCurrentPath(parent);
+    if (isRootPath(currentPath)) return;
+    setCurrentPath(getParentPath(currentPath));
   };
 
   const handleDownload = useCallback(
     async (file: RemoteFile) => {
       try {
-        const sftpId = await ensureSftp();
-        const fullPath =
-          currentPath === "/" ? `/${file.name}` : `${currentPath}/${file.name}`;
+        const fullPath = joinPath(currentPath, file.name);
         setLoading(true);
-        const content = await readSftp(sftpId, fullPath);
+        const content = isLocalSession
+          ? await readLocalFile(fullPath)
+          : await readSftp(await ensureSftp(), fullPath);
         const blob = new Blob([content], { type: "application/octet-stream" });
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
@@ -470,14 +603,13 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
         setLoading(false);
       }
     },
-    [currentPath, ensureSftp, readSftp, t],
+    [currentPath, ensureSftp, isLocalSession, joinPath, readLocalFile, readSftp, t],
   );
 
   const handleUploadFile = async (
     file: File,
     taskId: string,
   ): Promise<boolean> => {
-    const sftpId = await ensureSftp();
     const startTime = Date.now();
 
     // Update task to uploading with start time
@@ -497,8 +629,29 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
 
     try {
       const arrayBuffer = await file.arrayBuffer();
-      const fullPath =
-        currentPath === "/" ? `/${file.name}` : `${currentPath}/${file.name}`;
+      const fullPath = joinPath(currentPath, file.name);
+
+      if (isLocalSession) {
+        await writeLocalFile(fullPath, arrayBuffer);
+        const totalTime = (Date.now() - startTime) / 1000;
+        const finalSpeed = totalTime > 0 ? file.size / totalTime : 0;
+        setUploadTasks((prev) =>
+          prev.map((t) =>
+            t.id === taskId
+              ? {
+                ...t,
+                status: "completed" as const,
+                progress: 100,
+                transferredBytes: file.size,
+                speed: finalSpeed,
+              }
+              : t,
+          ),
+        );
+        return true;
+      }
+
+      const sftpId = await ensureSftp();
 
       // Use real-time progress API if available
       const progressResult = await writeSftpBinaryWithProgress(
@@ -637,11 +790,13 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
   const handleDelete = async (file: RemoteFile) => {
     if (!confirm(t("sftp.confirm.deleteOne", { name: file.name }))) return;
     try {
-      const sftpId = await ensureSftp();
-      const fullPath =
-        currentPath === "/" ? `/${file.name}` : `${currentPath}/${file.name}`;
-      // Use deleteSftp which handles both files and directories
-      await deleteSftp(sftpId, fullPath);
+      const fullPath = joinPath(currentPath, file.name);
+      if (isLocalSession) {
+        await deleteLocalFile(fullPath);
+      } else {
+        // Use deleteSftp which handles both files and directories
+        await deleteSftp(await ensureSftp(), fullPath);
+      }
       await loadFiles(currentPath, { force: true });
     } catch (e) {
       toast.error(
@@ -655,10 +810,12 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
     const folderName = prompt(t("sftp.prompt.newFolderName"));
     if (!folderName) return;
     try {
-      const sftpId = await ensureSftp();
-      const fullPath =
-        currentPath === "/" ? `/${folderName}` : `${currentPath}/${folderName}`;
-      await mkdirSftp(sftpId, fullPath);
+      const fullPath = joinPath(currentPath, folderName);
+      if (isLocalSession) {
+        await mkdirLocal(fullPath);
+      } else {
+        await mkdirSftp(await ensureSftp(), fullPath);
+      }
       await loadFiles(currentPath, { force: true });
     } catch (e) {
       toast.error(
@@ -785,10 +942,16 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
   };
 
   const handlePathSubmit = () => {
-    const newPath = editingPathValue.trim() || "/";
+    const fallbackPath =
+      (isLocalSession && localHomeRef.current) || getRootPath(currentPath);
+    const newPath = editingPathValue.trim() || fallbackPath;
     setIsEditingPath(false);
     if (newPath !== currentPath) {
-      handleNavigate(newPath.startsWith("/") ? newPath : `/${newPath}`);
+      if (isLocalSession) {
+        handleNavigate(newPath);
+      } else {
+        handleNavigate(newPath.startsWith("/") ? newPath : `/${newPath}`);
+      }
     }
   };
 
@@ -801,8 +964,7 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
   };
 
   // Breadcrumbs
-  const breadcrumbs =
-    currentPath === "/" ? [] : currentPath.split("/").filter(Boolean);
+  const breadcrumbs = getBreadcrumbs(currentPath);
 
   const handleFileClick = (
     file: RemoteFile,
@@ -867,9 +1029,7 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
 
   const handleFileDoubleClick = (file: RemoteFile) => {
     if (file.type === "directory") {
-      handleNavigate(
-        currentPath === "/" ? `/${file.name}` : `${currentPath}/${file.name}`,
-      );
+      handleNavigate(joinPath(currentPath, file.name));
     } else {
       handleDownload(file);
     }
@@ -881,11 +1041,13 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
     if (!confirm(t("sftp.deleteConfirm.title", { count: fileNames.length }))) return;
 
     try {
-      const sftpId = await ensureSftp();
       for (const fileName of fileNames) {
-        const fullPath =
-          currentPath === "/" ? `/${fileName}` : `${currentPath}/${fileName}`;
-        await deleteSftp(sftpId, fullPath);
+        const fullPath = joinPath(currentPath, fileName);
+        if (isLocalSession) {
+          await deleteLocalFile(fullPath);
+        } else {
+          await deleteSftp(await ensureSftp(), fullPath);
+        }
       }
       await loadFiles(currentPath, { force: true });
       setSelectedFiles(new Set());
@@ -937,7 +1099,7 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
             size="icon"
             className="h-7 w-7"
             onClick={handleUp}
-            disabled={currentPath === "/"}
+            disabled={isRootPath(currentPath)}
           >
             <ArrowUp size={14} />
           </Button>
@@ -945,7 +1107,11 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
             variant="ghost"
             size="icon"
             className="h-7 w-7"
-            onClick={() => setCurrentPath("/")}
+            onClick={() =>
+              setCurrentPath(
+                (isLocalSession && localHomeRef.current) || getRootPath(currentPath),
+              )
+            }
           >
             <Home size={14} />
           </Button>
@@ -978,9 +1144,11 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
               >
                 <button
                   className="text-muted-foreground hover:text-foreground px-1"
-                  onClick={() => setCurrentPath("/")}
+                  onClick={() => setCurrentPath(getRootPath(currentPath))}
                 >
-                  /
+                  {isLocalSession && isWindowsPath(currentPath)
+                    ? getWindowsDrive(currentPath) ?? "C:"
+                    : "/"}
                 </button>
                 {breadcrumbs.map((part, idx) => (
                   <React.Fragment key={idx}>
@@ -991,9 +1159,7 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
                     <button
                       className="text-muted-foreground hover:text-foreground truncate px-1"
                       onClick={() =>
-                        setCurrentPath(
-                          "/" + breadcrumbs.slice(0, idx + 1).join("/"),
-                        )
+                        setCurrentPath(breadcrumbPathAt(breadcrumbs, idx))
                       }
                     >
                       {part}
