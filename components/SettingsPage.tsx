@@ -7,6 +7,7 @@ import React, { useCallback } from "react";
 import { useSettingsState } from "../application/state/useSettingsState";
 import { useVaultState } from "../application/state/useVaultState";
 import { useWindowControls } from "../application/state/useWindowControls";
+import { I18nProvider, useI18n } from "../application/i18n/I18nProvider";
 import SettingsApplicationTab from "./SettingsApplicationTab";
 import SettingsAppearanceTab from "./settings/tabs/SettingsAppearanceTab";
 import SettingsShortcutsTab from "./settings/tabs/SettingsShortcutsTab";
@@ -17,28 +18,10 @@ import { Tabs, TabsList, TabsTrigger } from "./ui/tabs";
 const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
 
 export default function SettingsPage() {
-    const {
-        theme,
-        setTheme,
-        primaryColor,
-        setPrimaryColor,
-        terminalThemeId,
-        setTerminalThemeId,
-        terminalFontFamilyId,
-        setTerminalFontFamilyId,
-        terminalFontSize,
-        setTerminalFontSize,
-        terminalSettings,
-        updateTerminalSetting,
-        hotkeyScheme,
-        setHotkeyScheme,
-        keyBindings,
-        updateKeyBinding,
-        resetKeyBinding,
-        resetAllKeyBindings,
-        customCSS,
-        setCustomCSS,
-    } = useSettingsState();
+    const settings = useSettingsState();
+
+    const Inner = () => {
+        const { t } = useI18n();
 
     const { hosts, keys, snippets, importDataFromString } = useVaultState();
     const { closeSettingsWindow } = useWindowControls();
@@ -54,12 +37,12 @@ export default function SettingsPage() {
                     {isMac && <div className="h-6" />}
                 </div>
                 <div className="flex items-center justify-between px-4 py-2">
-                    <h1 className="text-lg font-semibold">Settings</h1>
+                    <h1 className="text-lg font-semibold">{t("settings.title")}</h1>
                     {!isMac && (
                         <button
                             onClick={handleClose}
                             className="app-no-drag w-8 h-8 flex items-center justify-center rounded-md hover:bg-destructive/20 hover:text-destructive transition-colors text-muted-foreground"
-                            title="Close"
+                            title={t("common.close")}
                         >
                             <X size={16} />
                         </button>
@@ -74,31 +57,31 @@ export default function SettingsPage() {
                             value="application"
                             className="w-full justify-start gap-2 px-3 py-2 text-sm data-[state=active]:bg-background hover:bg-background/60 rounded-md transition-colors"
                         >
-                            <AppWindow size={14} /> Application
+                            <AppWindow size={14} /> {t("settings.tab.application")}
                         </TabsTrigger>
                         <TabsTrigger
                             value="appearance"
                             className="w-full justify-start gap-2 px-3 py-2 text-sm data-[state=active]:bg-background hover:bg-background/60 rounded-md transition-colors"
                         >
-                            <Palette size={14} /> Appearance
+                            <Palette size={14} /> {t("settings.tab.appearance")}
                         </TabsTrigger>
                         <TabsTrigger
                             value="terminal"
                             className="w-full justify-start gap-2 px-3 py-2 text-sm data-[state=active]:bg-background hover:bg-background/60 rounded-md transition-colors"
                         >
-                            <TerminalSquare size={14} /> Terminal
+                            <TerminalSquare size={14} /> {t("settings.tab.terminal")}
                         </TabsTrigger>
                         <TabsTrigger
                             value="shortcuts"
                             className="w-full justify-start gap-2 px-3 py-2 text-sm data-[state=active]:bg-background hover:bg-background/60 rounded-md transition-colors"
                         >
-                            <Keyboard size={14} /> Shortcuts
+                            <Keyboard size={14} /> {t("settings.tab.shortcuts")}
                         </TabsTrigger>
                         <TabsTrigger
                             value="sync"
                             className="w-full justify-start gap-2 px-3 py-2 text-sm data-[state=active]:bg-background hover:bg-background/60 rounded-md transition-colors"
                         >
-                            <Cloud size={14} /> Sync & Cloud
+                            <Cloud size={14} /> {t("settings.tab.syncCloud")}
                         </TabsTrigger>
                     </TabsList>
                 </div>
@@ -107,32 +90,34 @@ export default function SettingsPage() {
                     <SettingsApplicationTab />
 
                     <SettingsAppearanceTab
-                        theme={theme}
-                        setTheme={setTheme}
-                        primaryColor={primaryColor}
-                        setPrimaryColor={setPrimaryColor}
-                        customCSS={customCSS}
-                        setCustomCSS={setCustomCSS}
+                        theme={settings.theme}
+                        setTheme={settings.setTheme}
+                        primaryColor={settings.primaryColor}
+                        setPrimaryColor={settings.setPrimaryColor}
+                        uiLanguage={settings.uiLanguage}
+                        setUiLanguage={settings.setUiLanguage}
+                        customCSS={settings.customCSS}
+                        setCustomCSS={settings.setCustomCSS}
                     />
 
                     <SettingsTerminalTab
-                        terminalThemeId={terminalThemeId}
-                        setTerminalThemeId={setTerminalThemeId}
-                        terminalFontFamilyId={terminalFontFamilyId}
-                        setTerminalFontFamilyId={setTerminalFontFamilyId}
-                        terminalFontSize={terminalFontSize}
-                        setTerminalFontSize={setTerminalFontSize}
-                        terminalSettings={terminalSettings}
-                        updateTerminalSetting={updateTerminalSetting}
+                        terminalThemeId={settings.terminalThemeId}
+                        setTerminalThemeId={settings.setTerminalThemeId}
+                        terminalFontFamilyId={settings.terminalFontFamilyId}
+                        setTerminalFontFamilyId={settings.setTerminalFontFamilyId}
+                        terminalFontSize={settings.terminalFontSize}
+                        setTerminalFontSize={settings.setTerminalFontSize}
+                        terminalSettings={settings.terminalSettings}
+                        updateTerminalSetting={settings.updateTerminalSetting}
                     />
 
                     <SettingsShortcutsTab
-                        hotkeyScheme={hotkeyScheme}
-                        setHotkeyScheme={setHotkeyScheme}
-                        keyBindings={keyBindings}
-                        updateKeyBinding={updateKeyBinding}
-                        resetKeyBinding={resetKeyBinding}
-                        resetAllKeyBindings={resetAllKeyBindings}
+                        hotkeyScheme={settings.hotkeyScheme}
+                        setHotkeyScheme={settings.setHotkeyScheme}
+                        keyBindings={settings.keyBindings}
+                        updateKeyBinding={settings.updateKeyBinding}
+                        resetKeyBinding={settings.resetKeyBinding}
+                        resetAllKeyBindings={settings.resetAllKeyBindings}
                     />
 
                     <SettingsSyncTab
@@ -145,5 +130,11 @@ export default function SettingsPage() {
             </Tabs>
         </div>
     );
-}
+    };
 
+    return (
+        <I18nProvider locale={settings.uiLanguage}>
+            <Inner />
+        </I18nProvider>
+    );
+}

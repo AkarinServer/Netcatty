@@ -7,6 +7,7 @@ import {
   TerminalSquare,
 } from "lucide-react";
 import React, { memo, useEffect, useRef, useState } from "react";
+import { useI18n } from "../application/i18n/I18nProvider";
 import { Host, TerminalSession, Workspace } from "../types";
 import { KeyBinding } from "../domain/models";
 
@@ -49,6 +50,7 @@ const QuickSwitcherInner: React.FC<QuickSwitcherProps> = ({
   onCreateWorkspace,
   keyBindings,
 }) => {
+  const { t } = useI18n();
   // Get hotkey display strings
   const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
   const getHotkeyLabel = (actionId: string) => {
@@ -219,7 +221,7 @@ const QuickSwitcherInner: React.FC<QuickSwitcherProps> = ({
             }}
             onFocus={() => setIsFocused(true)}
             onKeyDown={handleKeyDown}
-            placeholder="Search hosts or tabs"
+            placeholder={t("qs.search.placeholder")}
             className="flex-1 h-8 border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 px-0 text-sm"
           />
           {quickSwitchKey && (
@@ -235,7 +237,7 @@ const QuickSwitcherInner: React.FC<QuickSwitcherProps> = ({
             <div>
               <div className="px-4 py-2 flex items-center justify-between">
                 <span className="text-xs font-medium text-muted-foreground">
-                  Recent connections
+                  {t("qs.recentConnections")}
                 </span>
                 <div className="flex items-center gap-2">
                   <Button
@@ -244,7 +246,7 @@ const QuickSwitcherInner: React.FC<QuickSwitcherProps> = ({
                     className="h-6 px-2 text-[11px]"
                     onClick={() => onCreateWorkspace?.()}
                   >
-                    Create a workspace
+                    {t("qs.createWorkspace")}
                   </Button>
                   <Button
                     size="sm"
@@ -252,7 +254,7 @@ const QuickSwitcherInner: React.FC<QuickSwitcherProps> = ({
                     className="h-6 px-2 text-[11px]"
                     disabled
                   >
-                    Restore
+                    {t("qs.restore")}
                   </Button>
                 </div>
               </div>
@@ -271,7 +273,7 @@ const QuickSwitcherInner: React.FC<QuickSwitcherProps> = ({
             <div>
               {/* Jump To hint */}
               <div className="px-4 py-2 flex items-center gap-2">
-                <span className="text-xs text-muted-foreground">Jump To</span>
+                <span className="text-xs text-muted-foreground">{t("qs.jumpTo")}</span>
                 {quickSwitchKey && (
                   <kbd className="text-[10px] text-muted-foreground bg-muted px-1 py-0.5 rounded">
                     {quickSwitchKey.replace(/ \+ /g, '+')}
@@ -409,7 +411,7 @@ const QuickSwitcherInner: React.FC<QuickSwitcherProps> = ({
                     <div className="h-6 w-6 rounded flex items-center justify-center text-muted-foreground">
                       <Terminal size={16} />
                     </div>
-                    <span className="text-sm font-medium">Local Terminal</span>
+                    <span className="text-sm font-medium">{t("qs.localTerminal")}</span>
                   </div>
                 )}
 

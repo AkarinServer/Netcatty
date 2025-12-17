@@ -15,6 +15,7 @@
  */
 
 import React, { memo, useCallback, useMemo, useRef, useState } from "react";
+import { useI18n } from "../application/i18n/I18nProvider";
 import { useIsSftpActive } from "../application/state/activeTabStore";
 import { SftpPane, useSftpState } from "../application/state/useSftpState";
 import { cn } from "../lib/utils";
@@ -130,6 +131,7 @@ const SftpPaneViewInner: React.FC<SftpPaneViewProps> = ({
   onDragStart,
   onDragEnd,
 }) => {
+  const { t } = useI18n();
   // Dialog states
   const [showHostPicker, setShowHostPicker] = useState(false);
   const [hostSearch, setHostSearch] = useState("");
@@ -613,7 +615,7 @@ const SftpPaneViewInner: React.FC<SftpPaneViewProps> = ({
             size="icon"
             className="h-8 w-8"
             onClick={onRefresh}
-            title="Refresh"
+            title={t("common.refresh")}
           >
             <RefreshCw
               size={14}
@@ -632,7 +634,7 @@ const SftpPaneViewInner: React.FC<SftpPaneViewProps> = ({
           size="icon"
           className="h-7 w-7"
           onClick={onNavigateUp}
-          title="Go up"
+          title={t("sftp.goUp")}
         >
           <ChevronLeft size={14} />
         </Button>
@@ -692,7 +694,7 @@ const SftpPaneViewInner: React.FC<SftpPaneViewProps> = ({
           <div
             className="flex-1 cursor-text hover:bg-secondary/50 rounded px-1 transition-colors"
             onDoubleClick={handlePathDoubleClick}
-            title="Double-click to edit path"
+            title={t("sftp.path.doubleClickToEdit")}
           >
             <SftpBreadcrumb
               path={pane.connection.currentPath}
@@ -712,7 +714,7 @@ const SftpPaneViewInner: React.FC<SftpPaneViewProps> = ({
             className="h-7 px-2 text-xs"
             onClick={() => setShowNewFolderDialog(true)}
           >
-            <FolderPlus size={12} className="mr-1" /> New Folder
+            <FolderPlus size={12} className="mr-1" /> {t("sftp.newFolder")}
           </Button>
         </div>
       </div>
@@ -729,7 +731,7 @@ const SftpPaneViewInner: React.FC<SftpPaneViewProps> = ({
           className="flex items-center gap-1 cursor-pointer hover:text-foreground relative pr-2"
           onClick={() => handleSort("name")}
         >
-          <span>Name</span>
+          <span>{t("sftp.columns.name")}</span>
           {sortField === "name" && (
             <span className="text-primary">
               {sortOrder === "asc" ? "↑" : "↓"}
@@ -744,7 +746,7 @@ const SftpPaneViewInner: React.FC<SftpPaneViewProps> = ({
           className="flex items-center gap-1 cursor-pointer hover:text-foreground relative pr-2"
           onClick={() => handleSort("modified")}
         >
-          <span>Modified</span>
+          <span>{t("sftp.columns.modified")}</span>
           {sortField === "modified" && (
             <span className="text-primary">
               {sortOrder === "asc" ? "↑" : "↓"}
@@ -764,7 +766,7 @@ const SftpPaneViewInner: React.FC<SftpPaneViewProps> = ({
               {sortOrder === "asc" ? "↑" : "↓"}
             </span>
           )}
-          <span>Size</span>
+          <span>{t("sftp.columns.size")}</span>
           <div
             className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-primary/50 transition-colors"
             onMouseDown={(e) => handleResizeStart("size", e)}
@@ -779,7 +781,7 @@ const SftpPaneViewInner: React.FC<SftpPaneViewProps> = ({
               {sortOrder === "asc" ? "↑" : "↓"}
             </span>
           )}
-          <span>Kind</span>
+          <span>{t("sftp.columns.kind")}</span>
         </div>
       </div>
 
@@ -800,13 +802,13 @@ const SftpPaneViewInner: React.FC<SftpPaneViewProps> = ({
             <AlertCircle size={24} />
             <span className="text-sm">{pane.error}</span>
             <Button variant="outline" size="sm" onClick={onRefresh}>
-              Retry
+              {t("sftp.retry")}
             </Button>
           </div>
         ) : sortedDisplayFiles.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
             <Folder size={32} className="mb-2 opacity-50" />
-            <span className="text-sm">Empty directory</span>
+            <span className="text-sm">{t("sftp.emptyDirectory")}</span>
           </div>
         ) : (
           <div className="divide-y divide-border/30">
@@ -847,7 +849,9 @@ const SftpPaneViewInner: React.FC<SftpPaneViewProps> = ({
                 {entry.name !== ".." && (
                   <ContextMenuContent>
                     <ContextMenuItem onClick={() => onOpenEntry(entry)}>
-                      {entry.type === "directory" ? "Open" : "Download"}
+                      {entry.type === "directory"
+                        ? t("sftp.context.open")
+                        : t("sftp.context.download")}
                     </ContextMenuItem>
                     <ContextMenuSeparator />
                     <ContextMenuItem
@@ -867,13 +871,14 @@ const SftpPaneViewInner: React.FC<SftpPaneViewProps> = ({
                         onCopyToOtherPane(fileData);
                       }}
                     >
-                      <Copy size={14} className="mr-2" /> Copy to other pane
+                      <Copy size={14} className="mr-2" />{" "}
+                      {t("sftp.context.copyToOtherPane")}
                     </ContextMenuItem>
                     <ContextMenuSeparator />
                     <ContextMenuItem
                       onClick={() => openRenameDialog(entry.name)}
                     >
-                      <Pencil size={14} className="mr-2" /> Rename
+                      <Pencil size={14} className="mr-2" /> {t("common.rename")}
                     </ContextMenuItem>
                     {onEditPermissions &&
                       pane.connection &&
@@ -881,7 +886,8 @@ const SftpPaneViewInner: React.FC<SftpPaneViewProps> = ({
                         <ContextMenuItem
                           onClick={() => onEditPermissions(entry)}
                         >
-                          <Shield size={14} className="mr-2" /> Permissions
+                          <Shield size={14} className="mr-2" />{" "}
+                          {t("sftp.context.permissions")}
                         </ContextMenuItem>
                       )}
                     <ContextMenuItem
@@ -893,16 +899,17 @@ const SftpPaneViewInner: React.FC<SftpPaneViewProps> = ({
                         openDeleteConfirm(files);
                       }}
                     >
-                      <Trash2 size={14} className="mr-2" /> Delete
+                      <Trash2 size={14} className="mr-2" /> {t("action.delete")}
                     </ContextMenuItem>
                     <ContextMenuSeparator />
                     <ContextMenuItem onClick={onRefresh}>
-                      <RefreshCw size={14} className="mr-2" /> Refresh
+                      <RefreshCw size={14} className="mr-2" />{" "}
+                      {t("common.refresh")}
                     </ContextMenuItem>
                     <ContextMenuItem
                       onClick={() => setShowNewFolderDialog(true)}
                     >
-                      <FolderPlus size={14} className="mr-2" /> New Folder
+                      <FolderPlus size={14} className="mr-2" /> {t("sftp.newFolder")}
                     </ContextMenuItem>
                   </ContextMenuContent>
                 )}
@@ -916,7 +923,7 @@ const SftpPaneViewInner: React.FC<SftpPaneViewProps> = ({
           <div className="absolute inset-0 flex items-center justify-center bg-primary/5 pointer-events-none">
             <div className="flex flex-col items-center gap-2 text-primary">
               <ArrowDown size={32} />
-              <span className="text-sm font-medium">Drop files here</span>
+              <span className="text-sm font-medium">{t("sftp.dropFilesHere")}</span>
             </div>
           </div>
         )}
@@ -925,9 +932,11 @@ const SftpPaneViewInner: React.FC<SftpPaneViewProps> = ({
       {/* Footer */}
       <div className="h-9 shrink-0 px-4 flex items-center justify-between text-[11px] text-muted-foreground border-t border-border/40 bg-secondary/30">
         <span>
-          {sortedDisplayFiles.filter((f) => f.name !== "..").length} items
+          {t("sftp.itemsCount", {
+            count: sortedDisplayFiles.filter((f) => f.name !== "..").length,
+          })}
           {pane.selectedFiles.size > 0 &&
-            ` - ${pane.selectedFiles.size} selected`}
+            ` - ${t("sftp.selectedCount", { count: pane.selectedFiles.size })}`}
         </span>
         <span className="truncate max-w-[200px]">
           {pane.connection.currentPath}
@@ -938,15 +947,15 @@ const SftpPaneViewInner: React.FC<SftpPaneViewProps> = ({
       <Dialog open={showNewFolderDialog} onOpenChange={setShowNewFolderDialog}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>New Folder</DialogTitle>
+            <DialogTitle>{t("sftp.newFolder")}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label>Folder name</Label>
+              <Label>{t("sftp.folderName")}</Label>
               <Input
                 value={newFolderName}
                 onChange={(e) => setNewFolderName(e.target.value)}
-                placeholder="Enter folder name"
+                placeholder={t("sftp.folderName.placeholder")}
                 onKeyDown={(e) => e.key === "Enter" && handleCreateFolder()}
                 autoFocus
               />
@@ -957,13 +966,13 @@ const SftpPaneViewInner: React.FC<SftpPaneViewProps> = ({
               variant="outline"
               onClick={() => setShowNewFolderDialog(false)}
             >
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button
               onClick={handleCreateFolder}
               disabled={!newFolderName.trim()}
             >
-              Create
+              {t("common.create")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -972,15 +981,15 @@ const SftpPaneViewInner: React.FC<SftpPaneViewProps> = ({
       <Dialog open={showRenameDialog} onOpenChange={setShowRenameDialog}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>Rename</DialogTitle>
+            <DialogTitle>{t("sftp.rename.title")}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label>New name</Label>
+              <Label>{t("sftp.rename.newName")}</Label>
               <Input
                 value={renameName}
                 onChange={(e) => setRenameName(e.target.value)}
-                placeholder="Enter new name"
+                placeholder={t("sftp.rename.placeholder")}
                 onKeyDown={(e) => e.key === "Enter" && handleRename()}
                 autoFocus
               />
@@ -991,10 +1000,10 @@ const SftpPaneViewInner: React.FC<SftpPaneViewProps> = ({
               variant="outline"
               onClick={() => setShowRenameDialog(false)}
             >
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button onClick={handleRename} disabled={!renameName.trim()}>
-              Rename
+              {t("common.rename")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1004,11 +1013,10 @@ const SftpPaneViewInner: React.FC<SftpPaneViewProps> = ({
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>
-              Delete {deleteTargets.length} item
-              {deleteTargets.length > 1 ? "s" : ""}?
+              {t("sftp.deleteConfirm.title", { count: deleteTargets.length })}
             </DialogTitle>
             <DialogDescription>
-              This action cannot be undone. The following will be deleted:
+              {t("sftp.deleteConfirm.desc")}
             </DialogDescription>
           </DialogHeader>
           <div className="max-h-32 overflow-auto text-sm space-y-1">
@@ -1027,10 +1035,10 @@ const SftpPaneViewInner: React.FC<SftpPaneViewProps> = ({
               variant="outline"
               onClick={() => setShowDeleteConfirm(false)}
             >
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button variant="destructive" onClick={handleDelete}>
-              Delete
+              {t("action.delete")}
             </Button>
           </DialogFooter>
         </DialogContent>

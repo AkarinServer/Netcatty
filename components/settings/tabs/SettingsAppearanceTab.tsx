@@ -1,7 +1,9 @@
 import React, { useCallback } from "react";
 import { Check, Moon, Palette, Sun } from "lucide-react";
+import { useI18n } from "../../../application/i18n/I18nProvider";
+import { SUPPORTED_UI_LOCALES } from "../../../infrastructure/config/i18n";
 import { cn } from "../../../lib/utils";
-import { SectionHeader, SettingsTabContent, SettingRow, Toggle } from "../settings-ui";
+import { SectionHeader, SettingsTabContent, SettingRow, Toggle, Select } from "../settings-ui";
 
 // More comprehensive color palette
 const COLORS = [
@@ -36,10 +38,13 @@ export default function SettingsAppearanceTab(props: {
   setTheme: (theme: "dark" | "light") => void;
   primaryColor: string;
   setPrimaryColor: (color: string) => void;
+  uiLanguage: string;
+  setUiLanguage: (language: string) => void;
   customCSS: string;
   setCustomCSS: (css: string) => void;
 }) {
-  const { theme, setTheme, primaryColor, setPrimaryColor, customCSS, setCustomCSS } = props;
+  const { t } = useI18n();
+  const { theme, setTheme, primaryColor, setPrimaryColor, uiLanguage, setUiLanguage, customCSS, setCustomCSS } = props;
 
   const getHslStyle = useCallback((hsl: string) => ({ backgroundColor: `hsl(${hsl})` }), []);
 
@@ -72,9 +77,27 @@ export default function SettingsAppearanceTab(props: {
 
   return (
     <SettingsTabContent value="appearance">
-      <SectionHeader title="UI Theme" />
+      <SectionHeader title={t("settings.appearance.language")} />
       <div className="space-y-0 divide-y divide-border rounded-lg border bg-card px-4">
-        <SettingRow label="Dark Mode" description="Toggle between light and dark theme">
+        <SettingRow
+          label={t("settings.appearance.language")}
+          description={t("settings.appearance.language.desc")}
+        >
+          <Select
+            value={uiLanguage}
+            options={SUPPORTED_UI_LOCALES.map((l) => ({ value: l.id, label: l.label }))}
+            onChange={(v) => setUiLanguage(v)}
+            className="w-40"
+          />
+        </SettingRow>
+      </div>
+
+      <SectionHeader title={t("settings.appearance.uiTheme")} />
+      <div className="space-y-0 divide-y divide-border rounded-lg border bg-card px-4">
+        <SettingRow
+          label={t("settings.appearance.darkMode")}
+          description={t("settings.appearance.darkMode.desc")}
+        >
           <div className="flex items-center gap-2">
             <Sun size={14} className="text-muted-foreground" />
             <Toggle checked={theme === "dark"} onChange={(v) => setTheme(v ? "dark" : "light")} />
@@ -83,7 +106,7 @@ export default function SettingsAppearanceTab(props: {
         </SettingRow>
       </div>
 
-      <SectionHeader title="Accent Color" />
+      <SectionHeader title={t("settings.appearance.accentColor")} />
       <div className="flex flex-wrap gap-2">
         {COLORS.map((c) => (
           <button
@@ -109,7 +132,7 @@ export default function SettingsAppearanceTab(props: {
               ? "ring-2 ring-offset-2 ring-foreground scale-110"
               : "hover:scale-105",
           )}
-          title="Custom color"
+          title={t("settings.appearance.customColor")}
         >
           <input
             type="color"
@@ -124,15 +147,15 @@ export default function SettingsAppearanceTab(props: {
         </label>
       </div>
 
-      <SectionHeader title="Custom CSS" />
+      <SectionHeader title={t("settings.appearance.customCss")} />
       <div className="space-y-2">
         <p className="text-xs text-muted-foreground">
-          Add custom CSS to personalize the app appearance. Changes apply immediately.
+          {t("settings.appearance.customCss.desc")}
         </p>
         <textarea
           value={customCSS}
           onChange={(e) => setCustomCSS(e.target.value)}
-          placeholder={`/* Example: */\n.terminal { background: #1a1a2e !important; }\n:root { --radius: 0.25rem; }`}
+          placeholder={t("settings.appearance.customCss.placeholder")}
           className="w-full h-32 px-3 py-2 text-xs font-mono bg-muted/50 border border-border rounded-lg resize-y focus:outline-none focus:ring-2 focus:ring-primary/50"
           spellCheck={false}
         />
@@ -140,4 +163,3 @@ export default function SettingsAppearanceTab(props: {
     </SettingsTabContent>
   );
 }
-

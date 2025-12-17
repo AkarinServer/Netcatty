@@ -1,5 +1,6 @@
 import { Key, Lock, Plus, Save, Server, X } from "lucide-react";
 import React, { useEffect, useState } from "react";
+import { useI18n } from "../application/i18n/I18nProvider";
 import { cn } from "../lib/utils";
 import { Host, SSHKey } from "../types";
 import { Button } from "./ui/button";
@@ -36,6 +37,7 @@ const HostForm: React.FC<HostFormProps> = ({
   onSave,
   onCancel,
 }) => {
+  const { t } = useI18n();
   const [formData, setFormData] = useState<Partial<Host>>(
     initialData || {
       label: "",
@@ -113,21 +115,19 @@ const HostForm: React.FC<HostFormProps> = ({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Server className="h-5 w-5 text-primary" />
-            {initialData ? "Edit Host" : "New Host"}
+            {initialData ? t("hostForm.title.edit") : t("hostForm.title.new")}
           </DialogTitle>
           <DialogDescription className="sr-only">
-            {initialData
-              ? "Update connection details for this host"
-              : "Create a new SSH host entry"}
+            {initialData ? t("hostForm.desc.edit") : t("hostForm.desc.new")}
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="grid gap-4 py-4">
           <div className="grid gap-2">
-            <Label htmlFor="label">Label</Label>
+            <Label htmlFor="label">{t("hostForm.field.label")}</Label>
             <Input
               id="label"
-              placeholder="My Production Server"
+              placeholder={t("hostForm.placeholder.label")}
               value={formData.label}
               onChange={(e) =>
                 setFormData({ ...formData, label: e.target.value })
@@ -138,10 +138,10 @@ const HostForm: React.FC<HostFormProps> = ({
 
           <div className="grid grid-cols-3 gap-4">
             <div className="col-span-2 grid gap-2">
-              <Label htmlFor="hostname">Hostname / IP</Label>
+              <Label htmlFor="hostname">{t("hostForm.field.hostname")}</Label>
               <Input
                 id="hostname"
-                placeholder="192.168.1.1"
+                placeholder={t("hostForm.placeholder.hostname")}
                 value={formData.hostname}
                 onChange={(e) =>
                   setFormData({ ...formData, hostname: e.target.value })
@@ -150,7 +150,7 @@ const HostForm: React.FC<HostFormProps> = ({
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="port">Port</Label>
+              <Label htmlFor="port">{t("hostForm.field.port")}</Label>
               <Input
                 id="port"
                 type="number"
@@ -165,7 +165,7 @@ const HostForm: React.FC<HostFormProps> = ({
 
           <div className="grid grid-cols-2 gap-4">
             <div className="grid gap-2">
-              <Label htmlFor="username">Username</Label>
+              <Label htmlFor="username">{t("hostForm.field.username")}</Label>
               <Input
                 id="username"
                 value={formData.username}
@@ -176,7 +176,7 @@ const HostForm: React.FC<HostFormProps> = ({
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="os">OS Type</Label>
+              <Label htmlFor="os">{t("hostForm.field.osType")}</Label>
               <Select
                 value={formData.os}
                 onValueChange={(val: "linux" | "windows" | "macos") =>
@@ -184,7 +184,7 @@ const HostForm: React.FC<HostFormProps> = ({
                 }
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Select OS" />
+                  <SelectValue placeholder={t("hostForm.placeholder.selectOs")} />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="linux">Linux</SelectItem>
@@ -196,10 +196,10 @@ const HostForm: React.FC<HostFormProps> = ({
           </div>
 
           <div className="grid gap-2">
-            <Label htmlFor="group">Group</Label>
+            <Label htmlFor="group">{t("hostForm.field.group")}</Label>
             <Input
               id="group"
-              placeholder="e.g. AWS, DigitalOcean"
+              placeholder={t("hostForm.placeholder.group")}
               value={formData.group}
               onChange={(e) =>
                 setFormData({ ...formData, group: e.target.value })
@@ -215,11 +215,11 @@ const HostForm: React.FC<HostFormProps> = ({
           </div>
 
           <div className="grid gap-2">
-            <Label htmlFor="tags">Tags</Label>
+            <Label htmlFor="tags">{t("hostForm.field.tags")}</Label>
             <div className="flex gap-2">
               <Input
                 id="tags"
-                placeholder="Add a tag..."
+                placeholder={t("hostForm.placeholder.addTag")}
                 value={tagInput}
                 onChange={(e) => setTagInput(e.target.value)}
                 onKeyDown={handleTagKeyDown}
@@ -257,7 +257,7 @@ const HostForm: React.FC<HostFormProps> = ({
           </div>
 
           <div className="space-y-3 pt-2">
-            <Label>Authentication Method</Label>
+            <Label>{t("hostForm.auth.method")}</Label>
             <div className="grid grid-cols-2 gap-4">
               <div
                 className={cn(
@@ -269,7 +269,7 @@ const HostForm: React.FC<HostFormProps> = ({
                 onClick={() => setAuthType("password")}
               >
                 <Lock size={20} />
-                <span className="text-xs font-medium">Password</span>
+                <span className="text-xs font-medium">{t("hostForm.auth.password")}</span>
               </div>
               <div
                 className={cn(
@@ -281,7 +281,7 @@ const HostForm: React.FC<HostFormProps> = ({
                 onClick={() => setAuthType("key")}
               >
                 <Key size={20} />
-                <span className="text-xs font-medium">SSH Key</span>
+                <span className="text-xs font-medium">{t("hostForm.auth.sshKey")}</span>
               </div>
             </div>
 
@@ -294,7 +294,7 @@ const HostForm: React.FC<HostFormProps> = ({
                   }
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select an SSH Key" />
+                    <SelectValue placeholder={t("hostForm.auth.selectKey")} />
                   </SelectTrigger>
                   <SelectContent>
                     {availableKeys.map((key) => (
@@ -304,14 +304,14 @@ const HostForm: React.FC<HostFormProps> = ({
                     ))}
                     {availableKeys.length === 0 && (
                       <SelectItem value="none" disabled>
-                        No keys available
+                        {t("hostForm.auth.noKeys")}
                       </SelectItem>
                     )}
                   </SelectContent>
                 </Select>
                 {availableKeys.length === 0 && (
                   <p className="text-[10px] text-destructive mt-1">
-                    No SSH keys found in Keychain. Please create one first.
+                    {t("hostForm.auth.noKeysHint")}
                   </p>
                 )}
               </div>
@@ -320,10 +320,10 @@ const HostForm: React.FC<HostFormProps> = ({
 
           <DialogFooter>
             <Button type="button" variant="ghost" onClick={onCancel}>
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button type="submit">
-              <Save className="mr-2 h-4 w-4" /> Save Host
+              <Save className="mr-2 h-4 w-4" /> {t("hostForm.saveHost")}
             </Button>
           </DialogFooter>
         </form>

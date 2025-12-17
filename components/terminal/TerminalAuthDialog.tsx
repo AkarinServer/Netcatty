@@ -4,6 +4,7 @@
  */
 import { AlertCircle, BadgeCheck, ChevronDown, Eye, EyeOff, Key, Lock } from 'lucide-react';
 import React from 'react';
+import { useI18n } from '../../application/i18n/I18nProvider';
 import { cn } from '../../lib/utils';
 import { SSHKey } from '../../types';
 import { Button } from '../ui/button';
@@ -58,6 +59,7 @@ export const TerminalAuthDialog: React.FC<TerminalAuthDialogProps> = ({
     onCancel,
     isValid,
 }) => {
+    const { t } = useI18n();
     const handleKeyDown = (e: React.KeyboardEvent) => {
         if (e.key === 'Enter' && isValid) {
             onSubmit();
@@ -88,7 +90,7 @@ export const TerminalAuthDialog: React.FC<TerminalAuthDialogProps> = ({
                     onClick={() => setAuthMethod('password')}
                 >
                     <Lock size={14} />
-                    Password
+                    {t("terminal.auth.password")}
                 </button>
                 <button
                     className={cn(
@@ -100,7 +102,7 @@ export const TerminalAuthDialog: React.FC<TerminalAuthDialogProps> = ({
                     onClick={() => setAuthMethod('key')}
                 >
                     <Key size={14} />
-                    SSH Key
+                    {t("terminal.auth.sshKey")}
                 </button>
             </div>
 
@@ -114,25 +116,25 @@ export const TerminalAuthDialog: React.FC<TerminalAuthDialogProps> = ({
 
             <div className="space-y-3">
                 <div className="space-y-2">
-                    <Label htmlFor="auth-username">Username</Label>
+                    <Label htmlFor="auth-username">{t("terminal.auth.username")}</Label>
                     <Input
                         id="auth-username"
                         value={authUsername}
                         onChange={(e) => setAuthUsername(e.target.value)}
-                        placeholder="root"
+                        placeholder={t("terminal.auth.username.placeholder")}
                     />
                 </div>
 
                 {authMethod === 'password' ? (
                     <div className="space-y-2">
-                        <Label htmlFor="auth-password">Password</Label>
+                        <Label htmlFor="auth-password">{t("terminal.auth.passwordLabel")}</Label>
                         <div className="relative">
                             <Input
                                 id="auth-password"
                                 type={showAuthPassword ? 'text' : 'password'}
                                 value={authPassword}
                                 onChange={(e) => setAuthPassword(e.target.value)}
-                                placeholder="Enter password"
+                                placeholder={t("terminal.auth.password.placeholder")}
                                 className={cn("pr-10", authRetryMessage && "border-destructive/50")}
                                 autoFocus={!!authRetryMessage}
                                 onKeyDown={handleKeyDown}
@@ -149,10 +151,10 @@ export const TerminalAuthDialog: React.FC<TerminalAuthDialogProps> = ({
                 ) : (
                     <>
                         <div className="space-y-2">
-                            <Label>Select Key</Label>
+                            <Label>{t("terminal.auth.selectKey")}</Label>
                             {selectableKeys.length === 0 ? (
                                 <div className="text-sm text-muted-foreground p-3 border border-dashed border-border/60 rounded-lg text-center">
-                                    No keys available. Add keys in the Keychain section.
+                                    {t("terminal.auth.noKeysHint")}
                                 </div>
                             ) : (
                                 <Popover open={keyDropdownOpen} onOpenChange={setKeyDropdownOpen}>
@@ -180,12 +182,12 @@ export const TerminalAuthDialog: React.FC<TerminalAuthDialogProps> = ({
                                                     <div className="flex-1 min-w-0">
                                                         <div className="text-sm font-medium truncate">{selectedKey.label}</div>
                                                         <div className="text-xs text-muted-foreground">
-                                                            {selectedKey.certificate?.trim() ? 'Certificate' : selectedKey.type}
+                                                            {selectedKey.certificate?.trim() ? t("terminal.auth.certificate") : selectedKey.type}
                                                         </div>
                                                     </div>
                                                 </>
                                             ) : (
-                                                <span className="text-sm text-muted-foreground">Select a key...</span>
+                                                <span className="text-sm text-muted-foreground">{t("hostForm.auth.selectKey")}</span>
                                             )}
                                             <ChevronDown size={16} className="text-muted-foreground shrink-0 ml-auto" />
                                         </button>
@@ -221,7 +223,7 @@ export const TerminalAuthDialog: React.FC<TerminalAuthDialogProps> = ({
                                                     <div className="flex-1 min-w-0">
                                                         <div className="text-sm font-medium truncate">{key.label}</div>
                                                         <div className="text-xs text-muted-foreground">
-                                                            {key.certificate?.trim() ? 'Certificate' : key.type}
+                                                            {key.certificate?.trim() ? t("terminal.auth.certificate") : key.type}
                                                         </div>
                                                     </div>
                                                 </button>
@@ -233,14 +235,14 @@ export const TerminalAuthDialog: React.FC<TerminalAuthDialogProps> = ({
                         </div>
 
                         <div className="space-y-2">
-                            <Label htmlFor="auth-passphrase">Passphrase</Label>
+                            <Label htmlFor="auth-passphrase">{t("terminal.auth.passphrase")}</Label>
                             <div className="relative">
                                 <Input
                                     id="auth-passphrase"
                                     type={showAuthPassphrase ? 'text' : 'password'}
                                     value={authPassphrase}
                                     onChange={(e) => setAuthPassphrase(e.target.value)}
-                                    placeholder="Optional passphrase for the selected private key"
+                                    placeholder={t("terminal.auth.passphrase.placeholder")}
                                     className="pr-10"
                                     disabled={!selectedKey}
                                     onKeyDown={handleKeyDown}
@@ -261,13 +263,13 @@ export const TerminalAuthDialog: React.FC<TerminalAuthDialogProps> = ({
 
             <div className="flex items-center justify-between pt-2">
                 <Button variant="secondary" onClick={onCancel}>
-                    Close
+                    {t("common.close")}
                 </Button>
                 <div className="flex items-center gap-2">
                     <Popover>
                         <PopoverTrigger asChild>
                             <Button disabled={!isValid} onClick={onSubmit}>
-                                Continue & Save
+                                {t("terminal.auth.continueSave")}
                                 <ChevronDown size={14} className="ml-2" />
                             </Button>
                         </PopoverTrigger>
@@ -277,7 +279,7 @@ export const TerminalAuthDialog: React.FC<TerminalAuthDialogProps> = ({
                                 onClick={onSubmitWithoutSave ?? onSubmit}
                                 disabled={!isValid}
                             >
-                                Continue
+                                {t("common.continue")}
                             </button>
                         </PopoverContent>
                     </Popover>

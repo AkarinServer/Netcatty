@@ -7,6 +7,7 @@ import {
     User,
 } from "lucide-react";
 import React, { memo, useCallback, useMemo } from "react";
+import { useI18n } from "../application/i18n/I18nProvider";
 import { cn } from "../lib/utils";
 import { ConnectionLog, Host } from "../types";
 import { ScrollArea } from "./ui/scroll-area";
@@ -21,9 +22,9 @@ interface ConnectionLogsManagerProps {
 }
 
 // Format date for display
-const formatDate = (timestamp: number) => {
+const formatDate = (timestamp: number, locale: string) => {
     const date = new Date(timestamp);
-    return date.toLocaleDateString("en-US", {
+    return date.toLocaleDateString(locale || undefined, {
         year: "numeric",
         month: "short",
         day: "numeric",
@@ -31,19 +32,19 @@ const formatDate = (timestamp: number) => {
 };
 
 // Format time range
-const formatTimeRange = (start: number, end?: number) => {
+const formatTimeRange = (start: number, end: number | undefined, locale: string, ongoingLabel: string) => {
     const startDate = new Date(start);
-    const startTime = startDate.toLocaleTimeString("en-US", {
+    const startTime = startDate.toLocaleTimeString(locale || undefined, {
         hour: "2-digit",
         minute: "2-digit",
     });
 
     if (!end) {
-        return `${startTime} - ongoing`;
+        return `${startTime} - ${ongoingLabel}`;
     }
 
     const endDate = new Date(end);
-    const endTime = endDate.toLocaleTimeString("en-US", {
+    const endTime = endDate.toLocaleTimeString(locale || undefined, {
         hour: "2-digit",
         minute: "2-digit",
     });
@@ -60,6 +61,7 @@ interface LogItemProps {
 }
 
 const LogItem = memo<LogItemProps>(({ log, onToggleSaved, onDelete, onClick }) => {
+    const { t, resolvedLocale } = useI18n();
     const isLocal = log.protocol === "local" || log.hostname === "localhost";
 
     return (
@@ -69,9 +71,9 @@ const LogItem = memo<LogItemProps>(({ log, onToggleSaved, onDelete, onClick }) =
         >
             {/* Date column */}
             <div className="w-32 shrink-0">
-                <div className="text-sm font-medium">{formatDate(log.startTime)}</div>
+                <div className="text-sm font-medium">{formatDate(log.startTime, resolvedLocale)}</div>
                 <div className="text-xs text-muted-foreground">
-                    {formatTimeRange(log.startTime, log.endTime)}
+                    {formatTimeRange(log.startTime, log.endTime, resolvedLocale, t("logs.ongoing"))}
                 </div>
             </div>
 
@@ -95,7 +97,7 @@ const LogItem = memo<LogItemProps>(({ log, onToggleSaved, onDelete, onClick }) =
                     {isLocal ? <Terminal size={14} /> : <Server size={14} />}
                 </div>
                 <div className="min-w-0">
-                    <div className="text-sm font-medium truncate">{isLocal ? "Local Terminal" : log.hostLabel}</div>
+                    <div className="text-sm font-medium truncate">{isLocal ? t("logs.localTerminal") : log.hostLabel}</div>
                     <div className="text-xs text-muted-foreground truncate">
                         {isLocal ? "local" : `${log.protocol}, ${log.username}`}
                     </div>
@@ -115,7 +117,7 @@ const LogItem = memo<LogItemProps>(({ log, onToggleSaved, onDelete, onClick }) =
                             ? "text-primary bg-primary/10"
                             : "text-muted-foreground hover:text-primary hover:bg-primary/10"
                     )}
-                    title={log.saved ? "Unsave" : "Save"}
+                    title={log.saved ? t("logs.action.unsave") : t("logs.action.save")}
                 >
                     <Bookmark size={16} fill={log.saved ? "currentColor" : "none"} />
                 </button>
@@ -125,7 +127,7 @@ const LogItem = memo<LogItemProps>(({ log, onToggleSaved, onDelete, onClick }) =
                         onDelete(log.id);
                     }}
                     className="p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors opacity-0 group-hover:opacity-100"
-                    title="Delete"
+                    title={t("logs.action.delete")}
                 >
                     <Trash2 size={16} />
                 </button>
@@ -144,6 +146,7 @@ const ConnectionLogsManager: React.FC<ConnectionLogsManagerProps> = ({
     onClearUnsaved: _onClearUnsaved,
     onOpenLogView,
 }) => {
+    const { t } = useI18n();
     const RENDER_LIMIT = 100;
 
     // Sort logs by newest first
@@ -186,13 +189,13 @@ const ConnectionLogsManager: React.FC<ConnectionLogsManagerProps> = ({
             {displayedLogs.length > 0 && (
                 <div className="flex items-center gap-4 px-4 py-2 text-xs font-medium text-muted-foreground border-b border-border/30 bg-secondary/30">
                     <div className="w-32 shrink-0 flex items-center gap-1">
-                        Date
+                        {t("logs.table.date")}
                         <ChevronDown size={12} />
                     </div>
-                    <div className="w-56 shrink-0">User</div>
-                    <div className="flex-1">Host</div>
+                    <div className="w-56 shrink-0">{t("logs.table.user")}</div>
+                    <div className="flex-1">{t("logs.table.host")}</div>
                     <div className="w-20 shrink-0 flex items-center gap-1">
-                        Saved
+                        {t("logs.table.saved")}
                         <Bookmark size={12} />
                     </div>
                 </div>
@@ -207,10 +210,10 @@ const ConnectionLogsManager: React.FC<ConnectionLogsManagerProps> = ({
                                 <Terminal size={32} className="opacity-60" />
                             </div>
                             <h3 className="text-lg font-semibold text-foreground mb-2">
-                                No Connection Logs
+                                {t("logs.empty.title")}
                             </h3>
                             <p className="text-sm text-center max-w-sm">
-                                Your connection history will appear here when you connect to hosts or open local terminals.
+                                {t("logs.empty.desc")}
                             </p>
                         </div>
                     ) : (
@@ -218,7 +221,7 @@ const ConnectionLogsManager: React.FC<ConnectionLogsManagerProps> = ({
                             {renderedItems}
                             {hasMore && (
                                 <div className="text-center py-4 text-sm text-muted-foreground">
-                                    Showing {RENDER_LIMIT} of {filteredLogs.length} logs.
+                                    {t("logs.showing", { limit: RENDER_LIMIT, total: filteredLogs.length })}
                                 </div>
                             )}
                         </>

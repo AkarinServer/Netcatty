@@ -221,6 +221,7 @@ interface NetcattyBridge {
   getSystemInfo?(): Promise<{ username: string; hostname: string }>;
   
   setTheme?(theme: 'light' | 'dark'): Promise<boolean>;
+  setLanguage?(language: string): Promise<boolean>;
   // Window controls for custom title bar (Windows/Linux)
   windowMinimize?(): Promise<void>;
   windowMaximize?(): Promise<boolean>;
@@ -251,6 +252,8 @@ interface NetcattyBridge {
 
   // App info (name/version/platform) for About screens
   getAppInfo?(): Promise<{ name: string; version: string; platform: string }>;
+
+  onLanguageChanged?(cb: (language: string) => void): () => void;
 
   // Chain progress listener for jump host connections
   // Callback receives: (currentHop: number, totalHops: number, hostLabel: string, status: string)

@@ -12,6 +12,7 @@ import {
   X,
 } from "lucide-react";
 import React, { useEffect, useMemo, useState, useCallback } from "react";
+import { useI18n } from "../application/i18n/I18nProvider";
 import { TERMINAL_THEMES } from "../infrastructure/config/terminalThemes";
 import { MIN_FONT_SIZE, MAX_FONT_SIZE } from "../infrastructure/config/fonts";
 import { cn } from "../lib/utils";
@@ -71,6 +72,7 @@ const HostDetailsPanel: React.FC<HostDetailsPanelProps> = ({
   onCreateGroup,
   onCreateTag,
 }) => {
+  const { t } = useI18n();
   const [form, setForm] = useState<Host>(
     () =>
       initialData ||
@@ -402,7 +404,9 @@ const HostDetailsPanel: React.FC<HostDetailsPanelProps> = ({
     <AsidePanel
       open={true}
       onClose={onCancel}
-      title={initialData ? "Host Details" : "New Host"}
+      title={
+        initialData ? t("hostDetails.title.details") : t("hostDetails.title.new")
+      }
       actions={
         <Button
           variant="ghost"
@@ -410,7 +414,7 @@ const HostDetailsPanel: React.FC<HostDetailsPanelProps> = ({
           className="h-8 w-8"
           onClick={handleSubmit}
           disabled={!form.hostname || !form.label}
-          aria-label="Save"
+          aria-label={t("hostDetails.saveAria")}
         >
           <Check size={16} />
         </Button>
@@ -418,7 +422,9 @@ const HostDetailsPanel: React.FC<HostDetailsPanelProps> = ({
     >
       <AsidePanelContent>
         <Card className="p-3 space-y-2 bg-card border-border/80">
-          <p className="text-xs font-semibold">Address</p>
+          <p className="text-xs font-semibold">
+            {t("hostDetails.section.address")}
+          </p>
           <div className="flex items-center gap-2">
             <DistroAvatar
               host={form as Host}
@@ -430,7 +436,7 @@ const HostDetailsPanel: React.FC<HostDetailsPanelProps> = ({
               className="h-10 w-10"
             />
             <Input
-              placeholder="IP or Hostname"
+              placeholder={t("hostDetails.hostname.placeholder")}
               value={form.hostname}
               onChange={(e) => update("hostname", e.target.value)}
               className="h-10 flex-1"
@@ -439,9 +445,11 @@ const HostDetailsPanel: React.FC<HostDetailsPanelProps> = ({
         </Card>
 
         <Card className="p-3 space-y-3 bg-card border-border/80">
-          <p className="text-xs font-semibold">General</p>
+          <p className="text-xs font-semibold">
+            {t("hostDetails.section.general")}
+          </p>
           <Input
-            placeholder="Label (e.g., Production Server)"
+            placeholder={t("hostDetails.label.placeholder")}
             value={form.label}
             onChange={(e) => update("label", e.target.value)}
             className="h-10"
@@ -456,7 +464,7 @@ const HostDetailsPanel: React.FC<HostDetailsPanelProps> = ({
               options={groupOptions}
               value={form.group || ""}
               onValueChange={(val) => update("group", val)}
-              placeholder="Parent Group"
+              placeholder={t("hostDetails.group.placeholder")}
               allowCreate={true}
               onCreateNew={(val) => {
                 onCreateGroup?.(val);
@@ -592,16 +600,18 @@ const HostDetailsPanel: React.FC<HostDetailsPanelProps> = ({
         </Card>
 
         <Card className="p-3 space-y-3 bg-card border-border/80">
-          <p className="text-xs font-semibold">Credentials</p>
+          <p className="text-xs font-semibold">
+            {t("hostDetails.section.credentials")}
+          </p>
           <div className="grid gap-2">
             <Input
-              placeholder="Username"
+              placeholder={t("hostDetails.username.placeholder")}
               value={form.username}
               onChange={(e) => update("username", e.target.value)}
               className="h-10"
             />
             <Input
-              placeholder="Password"
+              placeholder={t("hostDetails.password.placeholder")}
               type="password"
               value={form.password || ""}
               onChange={(e) => update("password", e.target.value)}
@@ -648,7 +658,7 @@ const HostDetailsPanel: React.FC<HostDetailsPanelProps> = ({
                       className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors py-1"
                     >
                       <Plus size={12} />
-                      <span>Key, Certificate</span>
+                      <span>{t("hostDetails.credential.keyCertificate")}</span>
                     </button>
                   </PopoverTrigger>
                   <PopoverContent
@@ -666,7 +676,9 @@ const HostDetailsPanel: React.FC<HostDetailsPanelProps> = ({
                         }}
                       >
                         <Key size={16} className="text-muted-foreground" />
-                        <span className="text-sm font-medium">Key</span>
+                        <span className="text-sm font-medium">
+                          {t("hostDetails.credential.key")}
+                        </span>
                       </button>
 
                       <button
@@ -678,7 +690,9 @@ const HostDetailsPanel: React.FC<HostDetailsPanelProps> = ({
                         }}
                       >
                         <Shield size={16} className="text-muted-foreground" />
-                        <span className="text-sm font-medium">Certificate</span>
+                        <span className="text-sm font-medium">
+                          {t("hostDetails.credential.certificate")}
+                        </span>
                       </button>
                     </div>
                   </PopoverContent>
@@ -701,8 +715,8 @@ const HostDetailsPanel: React.FC<HostDetailsPanelProps> = ({
                     update("authMethod", "key");
                     setSelectedCredentialType(null);
                   }}
-                  placeholder="Search keys..."
-                  emptyText="No keys available"
+                  placeholder={t("hostDetails.keys.search")}
+                  emptyText={t("hostDetails.keys.empty")}
                   icon={<Key size={14} className="text-muted-foreground" />}
                   className="flex-1"
                 />
@@ -735,8 +749,8 @@ const HostDetailsPanel: React.FC<HostDetailsPanelProps> = ({
                       update("authMethod", "certificate");
                       setSelectedCredentialType(null);
                     }}
-                    placeholder="Search certificates..."
-                    emptyText="No certificates available"
+                    placeholder={t("hostDetails.certs.search")}
+                    emptyText={t("hostDetails.certs.empty")}
                     icon={
                       <Shield size={14} className="text-muted-foreground" />
                     }
@@ -757,7 +771,7 @@ const HostDetailsPanel: React.FC<HostDetailsPanelProps> = ({
 
         <Card className="p-3 space-y-2 bg-card border-border/80">
           <ToggleRow
-            label="Agent Forwarding"
+            label={t("hostDetails.agentForwarding")}
             enabled={!!form.agentForwarding}
             onToggle={() => update("agentForwarding", !form.agentForwarding)}
           />
@@ -769,18 +783,20 @@ const HostDetailsPanel: React.FC<HostDetailsPanelProps> = ({
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Link2 size={14} className="text-muted-foreground" />
-                <p className="text-xs font-semibold">Jump Hosts</p>
+                <p className="text-xs font-semibold">
+                  {t("hostDetails.jumpHosts")}
+                </p>
               </div>
               {chainedHosts.length > 0 ? (
                 <Badge variant="secondary" className="text-xs">
-                  {chainedHosts.length} hop{chainedHosts.length > 1 ? "s" : ""}
+                  {t("hostDetails.jumpHosts.hops", { count: chainedHosts.length })}
                 </Badge>
               ) : (
                 <Badge
                   variant="outline"
                   className="text-xs text-muted-foreground"
                 >
-                  Direct
+                  {t("hostDetails.jumpHosts.direct")}
                 </Badge>
               )}
             </div>
@@ -817,7 +833,7 @@ const HostDetailsPanel: React.FC<HostDetailsPanelProps> = ({
                 onClick={() => setActiveSubPanel("chain")}
               >
                 <Plus size={14} />
-                Configure Jump Hosts
+                {t("hostDetails.jumpHosts.configure")}
               </Button>
             )}
           </Card>
@@ -828,7 +844,7 @@ const HostDetailsPanel: React.FC<HostDetailsPanelProps> = ({
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Globe size={14} className="text-muted-foreground" />
-              <p className="text-xs font-semibold">Proxy</p>
+              <p className="text-xs font-semibold">{t("hostDetails.proxy")}</p>
             </div>
             {form.proxyConfig?.host ? (
               <Badge variant="secondary" className="text-xs">
@@ -840,7 +856,7 @@ const HostDetailsPanel: React.FC<HostDetailsPanelProps> = ({
                 variant="outline"
                 className="text-xs text-muted-foreground"
               >
-                None
+                {t("hostDetails.proxy.none")}
               </Badge>
             )}
           </div>
@@ -850,7 +866,9 @@ const HostDetailsPanel: React.FC<HostDetailsPanelProps> = ({
             onClick={() => setActiveSubPanel("proxy")}
           >
             <Plus size={14} />
-            {form.proxyConfig?.host ? "Edit Proxy" : "Configure Proxy"}
+            {form.proxyConfig?.host
+              ? t("hostDetails.proxy.edit")
+              : t("hostDetails.proxy.configure")}
           </Button>
         </Card>
 
@@ -859,7 +877,7 @@ const HostDetailsPanel: React.FC<HostDetailsPanelProps> = ({
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Variable size={14} className="text-muted-foreground" />
-              <p className="text-xs font-semibold">Environment Variable</p>
+              <p className="text-xs font-semibold">{t("hostDetails.envVars")}</p>
             </div>
           </div>
           {(form.environmentVariables?.length || 0) > 0 ? (
@@ -890,7 +908,7 @@ const HostDetailsPanel: React.FC<HostDetailsPanelProps> = ({
               onClick={() => setActiveSubPanel("env-vars")}
             >
               <Plus size={14} />
-              Add Environment Variable
+              {t("hostDetails.envVars.add")}
             </Button>
           )}
         </Card>
@@ -899,24 +917,23 @@ const HostDetailsPanel: React.FC<HostDetailsPanelProps> = ({
         <Card className="p-3 space-y-2 bg-card border-border/80">
           <div className="flex items-center gap-2">
             <TerminalSquare size={14} className="text-muted-foreground" />
-            <p className="text-xs font-semibold">Startup Command</p>
+            <p className="text-xs font-semibold">{t("hostDetails.startupCommand")}</p>
           </div>
           <Input
-            placeholder="Command to run on connect (e.g., cd /app && ls)"
+            placeholder={t("hostDetails.startupCommand.placeholder")}
             value={form.startupCommand || ""}
             onChange={(e) => update("startupCommand", e.target.value)}
             className="h-9"
           />
           <p className="text-xs text-muted-foreground">
-            This command will be executed automatically after SSH connection is
-            established.
+            {t("hostDetails.startupCommand.help")}
           </p>
         </Card>
 
         {/* Telnet Protocol Section - Separator and Configuration */}
         <div className="flex items-center gap-3 py-2">
           <div className="flex-1 h-px bg-border/60" />
-          <span className="text-xs text-muted-foreground">Other Protocols</span>
+          <span className="text-xs text-muted-foreground">{t("hostDetails.otherProtocols")}</span>
           <div className="flex-1 h-px bg-border/60" />
         </div>
 
@@ -925,14 +942,14 @@ const HostDetailsPanel: React.FC<HostDetailsPanelProps> = ({
           <Card className="p-3 space-y-3 bg-card border-border/80">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 bg-secondary/70 border border-border/70 rounded-md px-2 py-1">
-                <span className="text-xs text-muted-foreground">Telnet on</span>
+                <span className="text-xs text-muted-foreground">{t("hostDetails.telnetOn")}</span>
                 <Input
                   type="number"
                   value={form.telnetPort || 23}
                   onChange={(e) => update("telnetPort", Number(e.target.value))}
                   className="h-8 w-16 text-center"
                 />
-                <span className="text-xs text-muted-foreground">port</span>
+                <span className="text-xs text-muted-foreground">{t("hostDetails.port")}</span>
               </div>
               <Button
                 variant="ghost"
@@ -945,9 +962,9 @@ const HostDetailsPanel: React.FC<HostDetailsPanelProps> = ({
             </div>
 
             {/* Telnet Credentials */}
-            <p className="text-xs font-semibold">Credentials</p>
+            <p className="text-xs font-semibold">{t("hostDetails.telnet.credentials")}</p>
             <Input
-              placeholder="Telnet Username"
+              placeholder={t("hostDetails.telnet.username")}
               value={form.telnetUsername || form.username || ""}
               onChange={(e) =>
                 update("telnetUsername" as keyof Host, e.target.value)
@@ -955,7 +972,7 @@ const HostDetailsPanel: React.FC<HostDetailsPanelProps> = ({
               className="h-10"
             />
             <Input
-              placeholder="Telnet Password"
+              placeholder={t("hostDetails.telnet.password")}
               type="password"
               value={form.telnetPassword || form.password || ""}
               onChange={(e) =>
@@ -966,7 +983,7 @@ const HostDetailsPanel: React.FC<HostDetailsPanelProps> = ({
 
             {/* Telnet Charset */}
             <Input
-              placeholder="Charset (e.g. UTF-8)"
+              placeholder={t("hostDetails.charset.placeholder")}
               value={form.charset || "UTF-8"}
               onChange={(e) => update("charset", e.target.value)}
               className="h-10"
@@ -1040,7 +1057,7 @@ const HostDetailsPanel: React.FC<HostDetailsPanelProps> = ({
             }}
           >
             <Plus size={14} />
-            Add Telnet Protocol
+            {t("hostDetails.telnet.add")}
           </Button>
         )}
       </AsidePanelContent>
@@ -1050,7 +1067,7 @@ const HostDetailsPanel: React.FC<HostDetailsPanelProps> = ({
           onClick={handleSubmit}
           disabled={!form.hostname || !form.label}
         >
-          Save
+          {t("common.save")}
         </Button>
       </AsidePanelFooter>
     </AsidePanel>
@@ -1063,18 +1080,21 @@ interface ToggleRowProps {
   onToggle: () => void;
 }
 
-const ToggleRow: React.FC<ToggleRowProps> = ({ label, enabled, onToggle }) => (
-  <div className="flex items-center justify-between h-10 px-3 rounded-md border border-border/70 bg-secondary/70">
-    <span className="text-sm">{label}</span>
-    <Button
-      variant={enabled ? "secondary" : "ghost"}
-      size="sm"
-      className={cn("h-8 min-w-[72px]", enabled && "bg-primary/20")}
-      onClick={onToggle}
-    >
-      {enabled ? "Enabled" : "Disabled"}
-    </Button>
-  </div>
-);
+const ToggleRow: React.FC<ToggleRowProps> = ({ label, enabled, onToggle }) => {
+  const { t } = useI18n();
+  return (
+    <div className="flex items-center justify-between h-10 px-3 rounded-md border border-border/70 bg-secondary/70">
+      <span className="text-sm">{label}</span>
+      <Button
+        variant={enabled ? "secondary" : "ghost"}
+        size="sm"
+        className={cn("h-8 min-w-[72px]", enabled && "bg-primary/20")}
+        onClick={onToggle}
+      >
+        {enabled ? t("common.enabled") : t("common.disabled")}
+      </Button>
+    </div>
+  );
+};
 
 export default HostDetailsPanel;

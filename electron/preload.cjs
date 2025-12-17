@@ -7,6 +7,7 @@ const transferCompleteListeners = new Map();
 const transferErrorListeners = new Map();
 const chainProgressListeners = new Map();
 const authFailedListeners = new Map();
+const languageChangeListeners = new Set();
 
 ipcRenderer.on("netcatty:data", (_event, payload) => {
   const set = dataListeners.get(payload.sessionId);
@@ -44,6 +45,16 @@ ipcRenderer.on("netcatty:chain:progress", (_event, payload) => {
       cb(hop, total, label, status);
     } catch (err) {
       console.error("Chain progress callback failed", err);
+    }
+  });
+});
+
+ipcRenderer.on("netcatty:languageChanged", (_event, language) => {
+  languageChangeListeners.forEach((cb) => {
+    try {
+      cb(language);
+    } catch (err) {
+      console.error("Language changed callback failed", err);
     }
   });
 });
@@ -302,6 +313,13 @@ const api = {
   },
   setTheme: async (theme) => {
     return ipcRenderer.invoke("netcatty:setTheme", theme);
+  },
+  setLanguage: async (language) => {
+    return ipcRenderer.invoke("netcatty:setLanguage", language);
+  },
+  onLanguageChanged: (cb) => {
+    languageChangeListeners.add(cb);
+    return () => languageChangeListeners.delete(cb);
   },
   // Streaming transfer with real progress
   startStreamTransfer: async (options, onProgress, onComplete, onError) => {

@@ -19,6 +19,7 @@ import {
   Zap,
 } from "lucide-react";
 import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { useI18n } from "../application/i18n/I18nProvider";
 import { sanitizeHost } from "../domain/host";
 import { cn } from "../lib/utils";
 import {
@@ -131,6 +132,7 @@ const VaultViewInner: React.FC<VaultViewProps> = ({
   navigateToSection,
   onNavigateToSectionHandled,
 }) => {
+  const { t } = useI18n();
   const [currentSection, setCurrentSection] = useState<VaultSection>("hosts");
   const [search, setSearch] = useState("");
   const [selectedGroupPath, setSelectedGroupPath] = useState<string | null>(
@@ -619,7 +621,7 @@ const VaultViewInner: React.FC<VaultViewProps> = ({
               setCurrentSection("keys");
             }}
           >
-            <Key size={16} /> Keychain
+            <Key size={16} /> {t("vault.nav.keychain")}
           </Button>
           <Button
             variant={currentSection === "port" ? "secondary" : "ghost"}
@@ -630,7 +632,7 @@ const VaultViewInner: React.FC<VaultViewProps> = ({
             )}
             onClick={() => setCurrentSection("port")}
           >
-            <Plug size={16} /> Port Forwarding
+            <Plug size={16} /> {t("vault.nav.portForwarding")}
           </Button>
           <Button
             variant={currentSection === "snippets" ? "secondary" : "ghost"}
@@ -643,7 +645,7 @@ const VaultViewInner: React.FC<VaultViewProps> = ({
               setCurrentSection("snippets");
             }}
           >
-            <FileCode size={16} /> Snippets
+            <FileCode size={16} /> {t("vault.nav.snippets")}
           </Button>
           <Button
             variant={currentSection === "knownhosts" ? "secondary" : "ghost"}
@@ -654,7 +656,7 @@ const VaultViewInner: React.FC<VaultViewProps> = ({
             )}
             onClick={() => setCurrentSection("knownhosts")}
           >
-            <BookMarked size={16} /> Known Hosts
+            <BookMarked size={16} /> {t("vault.nav.knownHosts")}
           </Button>
           <Button
             variant={currentSection === "logs" ? "secondary" : "ghost"}
@@ -665,7 +667,7 @@ const VaultViewInner: React.FC<VaultViewProps> = ({
             )}
             onClick={() => setCurrentSection("logs")}
           >
-            <Activity size={16} /> Logs
+            <Activity size={16} /> {t("vault.nav.logs")}
           </Button>
         </div>
 
@@ -675,7 +677,7 @@ const VaultViewInner: React.FC<VaultViewProps> = ({
             className="w-full justify-start gap-3"
             onClick={onOpenSettings}
           >
-            <Settings size={16} /> Settings
+            <Settings size={16} /> {t("common.settings")}
           </Button>
         </div>
       </div>
@@ -691,7 +693,7 @@ const VaultViewInner: React.FC<VaultViewProps> = ({
                   className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
                 />
                 <Input
-                  placeholder="Find a host or ssh user@hostname..."
+                  placeholder={t("vault.hosts.search.placeholder")}
                   className={cn(
                     "pl-9 h-10 bg-secondary border-border/60 text-sm",
                     isSearchQuickConnect &&
@@ -712,7 +714,7 @@ const VaultViewInner: React.FC<VaultViewProps> = ({
                 className="h-10 px-4 app-no-drag"
                 onClick={handleConnectClick}
               >
-                Connect
+                {t("vault.hosts.connect")}
               </Button>
               {/* View mode, tag filter, and sort controls */}
               <div className="flex items-center gap-1 app-no-drag">
@@ -733,14 +735,14 @@ const VaultViewInner: React.FC<VaultViewProps> = ({
                       className="w-full justify-start gap-2 h-9"
                       onClick={() => setViewMode("grid")}
                     >
-                      <LayoutGrid size={14} /> Grid
+                      <LayoutGrid size={14} /> {t("vault.view.grid")}
                     </Button>
                     <Button
                       variant={viewMode === "list" ? "secondary" : "ghost"}
                       className="w-full justify-start gap-2 h-9"
                       onClick={() => setViewMode("list")}
                     >
-                      <List size={14} /> List
+                      <List size={14} /> {t("vault.view.list")}
                     </Button>
                   </DropdownContent>
                 </Dropdown>
@@ -767,7 +769,7 @@ const VaultViewInner: React.FC<VaultViewProps> = ({
                       className="h-10 px-3 rounded-r-none bg-transparent hover:bg-white/10 shadow-none app-no-drag"
                       onClick={handleNewHost}
                     >
-                      <Plus size={14} className="mr-2" /> New Host
+                      <Plus size={14} className="mr-2" /> {t("vault.hosts.newHost")}
                     </Button>
                     <DropdownTrigger asChild>
                       <Button
@@ -787,7 +789,7 @@ const VaultViewInner: React.FC<VaultViewProps> = ({
                         setIsNewFolderOpen(true);
                       }}
                     >
-                      <FolderTree size={14} /> New Group
+                      <FolderTree size={14} /> {t("vault.hosts.newGroup")}
                     </Button>
                     <Button
                       variant="ghost"
@@ -796,7 +798,7 @@ const VaultViewInner: React.FC<VaultViewProps> = ({
                         // TODO: Import hosts
                       }}
                     >
-                      <Upload size={14} /> Import
+                      <Upload size={14} /> {t("vault.hosts.import")}
                     </Button>
                   </DropdownContent>
                 </Dropdown>
@@ -807,7 +809,7 @@ const VaultViewInner: React.FC<VaultViewProps> = ({
                 className="h-10 px-3 app-no-drag"
                 onClick={onCreateLocalTerminal}
               >
-                <TerminalSquare size={14} className="mr-2" /> Terminal
+                <TerminalSquare size={14} className="mr-2" /> {t("common.terminal")}
               </Button>
             </div>
           </header>
@@ -827,7 +829,7 @@ const VaultViewInner: React.FC<VaultViewProps> = ({
                         className="text-primary hover:underline"
                         onClick={() => setSelectedGroupPath(null)}
                       >
-                        All hosts
+                        {t("vault.hosts.allHosts")}
                       </button>
                       {selectedGroupPath &&
                         selectedGroupPath

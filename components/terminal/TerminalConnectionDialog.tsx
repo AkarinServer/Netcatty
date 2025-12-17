@@ -4,6 +4,7 @@
  */
 import { User } from 'lucide-react';
 import React from 'react';
+import { useI18n } from '../../application/i18n/I18nProvider';
 import { cn } from '../../lib/utils';
 import { Host, SSHKey } from '../../types';
 import { DistroAvatar } from '../DistroAvatar';
@@ -46,6 +47,7 @@ export const TerminalConnectionDialog: React.FC<TerminalConnectionDialogProps> =
     keys,
     progressProps,
 }) => {
+    const { t } = useI18n();
     const hasError = Boolean(error);
     const isConnecting = status === 'connecting';
 
@@ -63,10 +65,13 @@ export const TerminalConnectionDialog: React.FC<TerminalConnectionDialogProps> =
                             {chainProgress ? (
                                 <>
                                     <div className="text-sm font-semibold">
-                                        <span className="text-muted-foreground">Chain</span>{' '}
-                                        <span className="font-bold">{chainProgress.currentHop}</span>{' '}
-                                        <span className="text-muted-foreground">of</span>{' '}
-                                        <span>{chainProgress.totalHops}:</span>{' '}
+                                        <span className="text-muted-foreground">
+                                            {t('terminal.connection.chainOf', {
+                                                current: chainProgress.currentHop,
+                                                total: chainProgress.totalHops,
+                                            })}
+                                            {': '}
+                                        </span>
                                         <span>{chainProgress.currentHostLabel}</span>
                                     </div>
                                     <div className="text-[11px] text-muted-foreground font-mono">
@@ -90,7 +95,7 @@ export const TerminalConnectionDialog: React.FC<TerminalConnectionDialogProps> =
                             className="h-8 text-xs"
                             onClick={() => setShowLogs(!showLogs)}
                         >
-                            {showLogs ? 'Hide logs' : 'Show logs'}
+                            {showLogs ? t('terminal.connection.hideLogs') : t('terminal.connection.showLogs')}
                         </Button>
                     )}
                 </div>

@@ -4,6 +4,7 @@
  */
 import { AlertCircle, Clock, Play, ShieldCheck } from 'lucide-react';
 import React from 'react';
+import { useI18n } from '../../application/i18n/I18nProvider';
 import { Button } from '../ui/button';
 import { ScrollArea } from '../ui/scroll-area';
 
@@ -30,6 +31,8 @@ export const TerminalConnectionProgress: React.FC<TerminalConnectionProgressProp
     onCancel,
     onRetry,
 }) => {
+    const { t } = useI18n();
+
     return (
         <>
             <div className="flex items-center justify-between text-xs text-muted-foreground">
@@ -37,8 +40,8 @@ export const TerminalConnectionProgress: React.FC<TerminalConnectionProgressProp
                     <Clock className="h-3 w-3" />
                     <span>
                         {status === 'connecting'
-                            ? `Timeout in ${timeLeft}s`
-                            : error || 'Disconnected'}
+                            ? t('terminal.progress.timeoutIn', { seconds: timeLeft })
+                            : error || t('terminal.progress.disconnected')}
                     </span>
                 </div>
                 <div className="flex items-center gap-2">
@@ -50,15 +53,15 @@ export const TerminalConnectionProgress: React.FC<TerminalConnectionProgressProp
                             onClick={onCancel}
                             disabled={isCancelling}
                         >
-                            {isCancelling ? 'Cancelling...' : 'Close'}
+                            {isCancelling ? t('terminal.progress.cancelling') : t('common.close')}
                         </Button>
                     ) : (
                         <div className="flex gap-2">
                             <Button variant="ghost" size="sm" className="h-8" onClick={onCancel}>
-                                Close
+                                {t('common.close')}
                             </Button>
                             <Button size="sm" className="h-8" onClick={onRetry}>
-                                <Play className="h-3 w-3 mr-2" /> Start over
+                                <Play className="h-3 w-3 mr-2" /> {t('terminal.progress.startOver')}
                             </Button>
                         </div>
                     )}

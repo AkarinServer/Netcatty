@@ -19,6 +19,7 @@ import React, {
   useMemo,
   useState,
 } from "react";
+import { useI18n } from "../application/i18n/I18nProvider";
 import { useKnownHostsBackend } from "../application/state/useKnownHostsBackend";
 import { logger } from "../lib/logger";
 import { cn } from "../lib/utils";
@@ -128,6 +129,7 @@ interface HostItemProps {
 
 const HostItem = React.memo<HostItemProps>(
   ({ knownHost, converted, viewMode, onDelete, onConvertToHost }) => {
+    const { t } = useI18n();
     // Disabled to reduce log noise - uncomment for debugging
     // console.log('[HostItem] render:', knownHost.hostname);
     if (viewMode === "grid") {
@@ -149,7 +151,7 @@ const HostItem = React.memo<HostItemProps>(
                       e.stopPropagation();
                       onConvertToHost(knownHost);
                     }}
-                    title="Convert to host"
+                    title={t("action.convertToHost")}
                   >
                     <ArrowRight size={12} />
                   </button>
@@ -160,7 +162,7 @@ const HostItem = React.memo<HostItemProps>(
                     e.stopPropagation();
                     onDelete(knownHost.id);
                   }}
-                  title="Remove"
+                  title={t("action.remove")}
                 >
                   <Trash2 size={12} />
                 </button>
@@ -180,14 +182,14 @@ const HostItem = React.memo<HostItemProps>(
           <ContextMenuContent>
             {!converted && (
               <ContextMenuItem onClick={() => onConvertToHost(knownHost)}>
-                <ArrowRight className="mr-2 h-4 w-4" /> Convert to Host
+                <ArrowRight className="mr-2 h-4 w-4" /> {t("action.convertToHost")}
               </ContextMenuItem>
             )}
             <ContextMenuItem
               className="text-destructive"
               onClick={() => onDelete(knownHost.id)}
             >
-              <Trash2 className="mr-2 h-4 w-4" /> Remove
+              <Trash2 className="mr-2 h-4 w-4" /> {t("action.remove")}
             </ContextMenuItem>
           </ContextMenuContent>
         </ContextMenu>
@@ -222,7 +224,7 @@ const HostItem = React.memo<HostItemProps>(
                     e.stopPropagation();
                     onConvertToHost(knownHost);
                   }}
-                  title="Convert to managed host"
+                  title={t("action.convertToHost")}
                 >
                   <ArrowRight size={14} />
                 </Button>
@@ -233,14 +235,14 @@ const HostItem = React.memo<HostItemProps>(
         <ContextMenuContent>
           {!converted && (
             <ContextMenuItem onClick={() => onConvertToHost(knownHost)}>
-              <ArrowRight className="mr-2 h-4 w-4" /> Convert to Host
+              <ArrowRight className="mr-2 h-4 w-4" /> {t("action.convertToHost")}
             </ContextMenuItem>
           )}
           <ContextMenuItem
             className="text-destructive"
             onClick={() => onDelete(knownHost.id)}
           >
-            <Trash2 className="mr-2 h-4 w-4" /> Remove
+            <Trash2 className="mr-2 h-4 w-4" /> {t("action.remove")}
           </ContextMenuItem>
         </ContextMenuContent>
       </ContextMenu>

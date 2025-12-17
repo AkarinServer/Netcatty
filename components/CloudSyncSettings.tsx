@@ -14,6 +14,7 @@ import {
     Cloud,
     CloudOff,
     Copy,
+    Download,
     ExternalLink,
     Eye,
     EyeOff,
@@ -26,6 +27,7 @@ import {
     X,
 } from 'lucide-react';
 import { useCloudSync } from '../application/state/useCloudSync';
+import { useI18n } from '../application/i18n/I18nProvider';
 import type { CloudProvider, ConflictInfo, SyncPayload } from '../domain/sync';
 import { cn } from '../lib/utils';
 import { Button } from './ui/button';
@@ -113,6 +115,7 @@ interface GatekeeperScreenProps {
 }
 
 const GatekeeperScreen: React.FC<GatekeeperScreenProps> = ({ onSetupComplete }) => {
+    const { t } = useI18n();
     const { setupMasterKey } = useCloudSync();
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
@@ -122,7 +125,7 @@ const GatekeeperScreen: React.FC<GatekeeperScreenProps> = ({ onSetupComplete }) 
     const [error, setError] = useState<string | null>(null);
 
     const passwordStrength = React.useMemo(() => {
-        if (password.length < 8) return { level: 0, text: 'Too short' };
+        if (password.length < 8) return { level: 0, text: t('cloudSync.passwordStrength.tooShort') };
         let score = 0;
         if (password.length >= 12) score++;
         if (/[A-Z]/.test(password)) score++;
@@ -130,11 +133,11 @@ const GatekeeperScreen: React.FC<GatekeeperScreenProps> = ({ onSetupComplete }) 
         if (/[0-9]/.test(password)) score++;
         if (/[^A-Za-z0-9]/.test(password)) score++;
 
-        if (score <= 2) return { level: 1, text: 'Weak' };
-        if (score <= 3) return { level: 2, text: 'Moderate' };
-        if (score <= 4) return { level: 3, text: 'Strong' };
-        return { level: 4, text: 'Very Strong' };
-    }, [password]);
+        if (score <= 2) return { level: 1, text: t('cloudSync.passwordStrength.weak') };
+        if (score <= 3) return { level: 2, text: t('cloudSync.passwordStrength.moderate') };
+        if (score <= 4) return { level: 3, text: t('cloudSync.passwordStrength.strong') };
+        return { level: 4, text: t('cloudSync.passwordStrength.veryStrong') };
+    }, [password, t]);
 
     const canSubmit = password.length >= 8 && password === confirmPassword && acknowledged;
 
@@ -147,10 +150,10 @@ const GatekeeperScreen: React.FC<GatekeeperScreenProps> = ({ onSetupComplete }) 
 
         try {
             await setupMasterKey(password, confirmPassword);
-            toast.success('Encryption vault enabled');
+            toast.success(t('cloudSync.gate.enabledToast'));
             onSetupComplete();
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'Failed to setup master key');
+            setError(err instanceof Error ? err.message : t('cloudSync.gate.setupFailed'));
         } finally {
             setIsLoading(false);
         }
@@ -162,21 +165,20 @@ const GatekeeperScreen: React.FC<GatekeeperScreenProps> = ({ onSetupComplete }) 
                 <Shield className="w-10 h-10 text-primary" />
             </div>
 
-            <h2 className="text-xl font-semibold mb-2">End-to-End Encrypted Sync</h2>
+            <h2 className="text-xl font-semibold mb-2">{t('cloudSync.gate.title')}</h2>
             <p className="text-sm text-muted-foreground max-w-md mb-8">
-                Your data is encrypted locally before syncing. Cloud providers never see your plaintext data.
-                Set a master key to enable secure sync.
+                {t('cloudSync.gate.desc')}
             </p>
 
             <form onSubmit={handleSubmit} className="w-full max-w-sm space-y-4">
                 <div className="space-y-2">
-                    <Label className="text-left block">Master Key</Label>
+                    <Label className="text-left block">{t('cloudSync.gate.masterKey')}</Label>
                     <div className="relative">
                         <Input
                             type={showPassword ? 'text' : 'password'}
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
-                            placeholder="Enter a strong password"
+                            placeholder={t('cloudSync.gate.placeholder')}
                             className="pr-10"
                         />
                         <button
@@ -206,15 +208,15 @@ const GatekeeperScreen: React.FC<GatekeeperScreenProps> = ({ onSetupComplete }) 
                 </div>
 
                 <div className="space-y-2">
-                    <Label className="text-left block">Confirm Master Key</Label>
+                    <Label className="text-left block">{t('cloudSync.gate.confirmMasterKey')}</Label>
                     <Input
                         type={showPassword ? 'text' : 'password'}
                         value={confirmPassword}
                         onChange={(e) => setConfirmPassword(e.target.value)}
-                        placeholder="Confirm your password"
+                        placeholder={t('cloudSync.gate.confirmPlaceholder')}
                     />
                     {confirmPassword && password !== confirmPassword && (
-                        <p className="text-xs text-red-500 text-left">Passwords do not match</p>
+                        <p className="text-xs text-red-500 text-left">{t('cloudSync.gate.mismatch')}</p>
                     )}
                 </div>
 
@@ -226,8 +228,7 @@ const GatekeeperScreen: React.FC<GatekeeperScreenProps> = ({ onSetupComplete }) 
                         className="mt-0.5 accent-red-500"
                     />
                     <span className="text-xs text-red-700 dark:text-red-400">
-                        I understand that if I forget my master key, my data cannot be recovered.
-                        There is no password reset.
+                        {t('cloudSync.gate.warning')}
                     </span>
                 </label>
 
@@ -245,7 +246,7 @@ const GatekeeperScreen: React.FC<GatekeeperScreenProps> = ({ onSetupComplete }) 
                     ) : (
                         <ShieldCheck size={16} />
                     )}
-                    Enable Encrypted Vault
+                    {t('cloudSync.gate.enableVault')}
                 </Button>
             </form>
         </div>
@@ -285,14 +286,15 @@ const ProviderCard: React.FC<ProviderCardProps> = ({
     onDisconnect,
     onSync,
 }) => {
+    const { t } = useI18n();
     const formatLastSync = (timestamp?: number): string => {
-        if (!timestamp) return 'Never';
+        if (!timestamp) return t('cloudSync.lastSync.never');
         const date = new Date(timestamp);
         const now = new Date();
         const diff = now.getTime() - date.getTime();
 
-        if (diff < 60000) return 'Just now';
-        if (diff < 3600000) return `${Math.floor(diff / 60000)} min ago`;
+        if (diff < 60000) return t('cloudSync.lastSync.justNow');
+        if (diff < 3600000) return t('cloudSync.lastSync.minutesAgo', { minutes: Math.floor(diff / 60000) });
 
         return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     };
@@ -339,7 +341,7 @@ const ProviderCard: React.FC<ProviderCardProps> = ({
                 ) : error ? (
                     <p className="text-xs text-red-500 truncate mt-1">{error}</p>
                 ) : (
-                    <p className="text-xs text-muted-foreground mt-1">Not connected</p>
+                    <p className="text-xs text-muted-foreground mt-1">{t('cloudSync.provider.notConnected')}</p>
                 )}
             </div>
 
@@ -358,7 +360,7 @@ const ProviderCard: React.FC<ProviderCardProps> = ({
                             ) : (
                                 <RefreshCw size={14} />
                             )}
-                            Sync
+                            {t('cloudSync.provider.sync')}
                         </Button>
                         <Button
                             size="sm"
@@ -377,7 +379,7 @@ const ProviderCard: React.FC<ProviderCardProps> = ({
                         disabled={disabled}
                     >
                         <Cloud size={14} />
-                        Connect
+                        {t('cloudSync.provider.connect')}
                     </Button>
                 )}
             </div>
@@ -404,6 +406,7 @@ const GitHubDeviceFlowModal: React.FC<GitHubDeviceFlowModalProps> = ({
     isPolling,
     onClose,
 }) => {
+    const { t } = useI18n();
     const [copied, setCopied] = useState(false);
 
     const copyCode = useCallback(() => {
@@ -429,9 +432,9 @@ const GitHubDeviceFlowModal: React.FC<GitHubDeviceFlowModalProps> = ({
                         <Github className="w-8 h-8 text-white" />
                     </div>
 
-                    <h3 className="text-lg font-semibold mb-2">Connect to GitHub</h3>
+                    <h3 className="text-lg font-semibold mb-2">{t('cloudSync.githubFlow.title')}</h3>
                     <p className="text-sm text-muted-foreground mb-6">
-                        Copy the code below and enter it on GitHub to authorize Netcatty.
+                        {t('cloudSync.githubFlow.desc')}
                     </p>
 
                     <div className="bg-muted rounded-lg p-4 mb-4">
@@ -440,7 +443,7 @@ const GitHubDeviceFlowModal: React.FC<GitHubDeviceFlowModalProps> = ({
                         </div>
                         <Button size="sm" variant="ghost" onClick={copyCode} className="gap-2">
                             {copied ? <Check size={14} /> : <Copy size={14} />}
-                            {copied ? 'Copied!' : 'Copy Code'}
+                            {copied ? t('cloudSync.githubFlow.copied') : t('cloudSync.githubFlow.copyCode')}
                         </Button>
                     </div>
 
@@ -449,13 +452,13 @@ const GitHubDeviceFlowModal: React.FC<GitHubDeviceFlowModalProps> = ({
                         className="w-full gap-2 mb-4"
                     >
                         <ExternalLink size={14} />
-                        Open GitHub
+                        {t('cloudSync.githubFlow.openGitHub')}
                     </Button>
 
                     {isPolling && (
                         <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
                             <Loader2 size={14} className="animate-spin" />
-                            Waiting for authorization...
+                            {t('cloudSync.githubFlow.waiting')}
                         </div>
                     )}
                 </div>
@@ -481,10 +484,12 @@ const ConflictModal: React.FC<ConflictModalProps> = ({
     onResolve,
     onClose,
 }) => {
+    const { t, resolvedLocale } = useI18n();
+
     if (!open || !conflict) return null;
 
     const formatDate = (timestamp: number) => {
-        return new Date(timestamp).toLocaleString();
+        return new Date(timestamp).toLocaleString(resolvedLocale || undefined);
     };
 
     return (
@@ -502,16 +507,16 @@ const ConflictModal: React.FC<ConflictModalProps> = ({
                         <AlertTriangle className="w-5 h-5 text-amber-500" />
                     </div>
                     <div>
-                        <h3 className="text-lg font-semibold">Version Conflict Detected</h3>
+                        <h3 className="text-lg font-semibold">{t('cloudSync.conflict.title')}</h3>
                         <p className="text-sm text-muted-foreground">
-                            Choose which version to keep
+                            {t('cloudSync.conflict.desc')}
                         </p>
                     </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4 mb-6">
                     <div className="p-4 rounded-lg border bg-muted/30">
-                        <div className="text-xs font-medium text-muted-foreground mb-2">LOCAL</div>
+                        <div className="text-xs font-medium text-muted-foreground mb-2">{t('cloudSync.conflict.local')}</div>
                         <div className="text-sm font-medium">v{conflict.localVersion}</div>
                         <div className="text-xs text-muted-foreground mt-1">
                             {formatDate(conflict.localUpdatedAt)}
@@ -524,7 +529,7 @@ const ConflictModal: React.FC<ConflictModalProps> = ({
                     </div>
 
                     <div className="p-4 rounded-lg border bg-muted/30">
-                        <div className="text-xs font-medium text-muted-foreground mb-2">CLOUD</div>
+                        <div className="text-xs font-medium text-muted-foreground mb-2">{t('cloudSync.conflict.cloud')}</div>
                         <div className="text-sm font-medium">v{conflict.remoteVersion}</div>
                         <div className="text-xs text-muted-foreground mt-1">
                             {formatDate(conflict.remoteUpdatedAt)}
@@ -544,23 +549,20 @@ const ConflictModal: React.FC<ConflictModalProps> = ({
                         onClick={() => onResolve('USE_LOCAL')}
                     >
                         <Cloud size={14} />
-                        Overwrite Cloud (Keep Local)
+                        {t('cloudSync.conflict.keepLocal')}
                     </Button>
                     <Button
                         className="w-full gap-2"
                         onClick={() => onResolve('USE_REMOTE')}
                     >
                         <Download size={14} />
-                        Download Cloud (Overwrite Local)
+                        {t('cloudSync.conflict.useCloud')}
                     </Button>
                 </div>
             </div>
         </div>
     );
 };
-
-// Import the Download icon
-import { Download } from 'lucide-react';
 
 // ============================================================================
 // Main Dashboard (UNLOCKED state)
@@ -575,6 +577,7 @@ export const SyncDashboard: React.FC<SyncDashboardProps> = ({
     onBuildPayload,
     onApplyPayload,
 }) => {
+    const { t, resolvedLocale } = useI18n();
     const sync = useCloudSync();
 
     // Debug: log provider states
@@ -659,10 +662,13 @@ export const SyncDashboard: React.FC<SyncDashboardProps> = ({
 
             setIsPollingGitHub(false);
             setShowGitHubModal(false);
-            toast.success('GitHub connected successfully');
+            toast.success(t('cloudSync.connect.github.success'));
         } catch (error) {
             setIsPollingGitHub(false);
-            toast.error(error instanceof Error ? error.message : 'Unknown error', 'GitHub connection failed');
+            toast.error(
+                error instanceof Error ? error.message : t('common.unknownError'),
+                t('cloudSync.connect.github.failedTitle'),
+            );
         }
     };
 
@@ -678,9 +684,12 @@ export const SyncDashboard: React.FC<SyncDashboardProps> = ({
             }
             await sync.connectGoogle();
             // Note: Auth flow is handled automatically by oauthBridge
-            toast.info('Complete authorization in browser');
+            toast.info(t('cloudSync.connect.browserContinue'));
         } catch (error) {
-            toast.error(error instanceof Error ? error.message : 'Unknown error', 'Google connection failed');
+            toast.error(
+                error instanceof Error ? error.message : t('common.unknownError'),
+                t('cloudSync.connect.google.failedTitle'),
+            );
         }
     };
 
@@ -696,9 +705,12 @@ export const SyncDashboard: React.FC<SyncDashboardProps> = ({
             }
             await sync.connectOneDrive();
             // Note: Auth flow is handled automatically by oauthBridge
-            toast.info('Complete authorization in browser');
+            toast.info(t('cloudSync.connect.browserContinue'));
         } catch (error) {
-            toast.error(error instanceof Error ? error.message : 'Unknown error', 'OneDrive connection failed');
+            toast.error(
+                error instanceof Error ? error.message : t('common.unknownError'),
+                t('cloudSync.connect.onedrive.failedTitle'),
+            );
         }
     };
 
@@ -709,14 +721,14 @@ export const SyncDashboard: React.FC<SyncDashboardProps> = ({
             const result = await sync.syncToProvider(provider, payload);
 
             if (result.success) {
-                toast.success(`Synced to ${provider}`);
+                toast.success(t('cloudSync.sync.success', { provider }));
             } else if (result.conflictDetected) {
                 // Conflict modal will show automatically
             } else {
-                toast.error(result.error || 'Sync failed', 'Sync failed');
+                toast.error(result.error || t('cloudSync.sync.failed'), t('cloudSync.sync.failedTitle'));
             }
         } catch (error) {
-            toast.error(error instanceof Error ? error.message : 'Unknown error', 'Sync error');
+            toast.error(error instanceof Error ? error.message : t('common.unknownError'), t('cloudSync.sync.errorTitle'));
         }
     };
 
@@ -726,16 +738,19 @@ export const SyncDashboard: React.FC<SyncDashboardProps> = ({
             const payload = await sync.resolveConflict(resolution);
             if (payload && resolution === 'USE_REMOTE') {
                 onApplyPayload(payload);
-                toast.success('Downloaded cloud data');
+                toast.success(t('cloudSync.resolve.downloaded'));
             } else if (resolution === 'USE_LOCAL') {
                 // Re-sync with local data
                 const localPayload = onBuildPayload();
                 await sync.syncNow(localPayload);
-                toast.success('Uploaded local data');
+                toast.success(t('cloudSync.resolve.uploaded'));
             }
             setShowConflictModal(false);
         } catch (error) {
-            toast.error(error instanceof Error ? error.message : 'Unknown error', 'Conflict resolution failed');
+            toast.error(
+                error instanceof Error ? error.message : t('common.unknownError'),
+                t('cloudSync.resolve.failedTitle'),
+            );
         }
     };
 
@@ -749,11 +764,13 @@ export const SyncDashboard: React.FC<SyncDashboardProps> = ({
                     </div>
                     <div>
                         <div className="flex items-center gap-2">
-                            <span className="font-medium">{sync.isUnlocked ? 'Vault Ready' : 'Preparing Vault...'}</span>
+                            <span className="font-medium">
+                                {sync.isUnlocked ? t('cloudSync.header.vaultReady') : t('cloudSync.header.preparingVault')}
+                            </span>
                             <StatusDot status={sync.isUnlocked ? 'connected' : 'connecting'} />
                         </div>
                         <span className="text-xs text-muted-foreground">
-                            {sync.connectedProviderCount} provider(s) connected
+                            {t('cloudSync.header.providersConnected', { count: sync.connectedProviderCount })}
                         </span>
                     </div>
                 </div>
@@ -772,14 +789,14 @@ export const SyncDashboard: React.FC<SyncDashboardProps> = ({
                         }}
                     >
                         <Key size={14} />
-                        Change Key
+                        {t('cloudSync.changeKey')}
                     </Button>
                 </div>
             </div>
 
             {/* Provider Cards */}
             <div className="space-y-3">
-                <h3 className="text-sm font-medium text-muted-foreground">Cloud Providers</h3>
+                <h3 className="text-sm font-medium text-muted-foreground">{t('cloudSync.providers.title')}</h3>
 
                 <ProviderCard
                     provider="github"
@@ -842,7 +859,7 @@ export const SyncDashboard: React.FC<SyncDashboardProps> = ({
                     ) : (
                         <RefreshCw size={16} />
                     )}
-                    Sync All Connected Providers
+                    {t('cloudSync.syncAll')}
                 </Button>
             )}
 
@@ -850,9 +867,9 @@ export const SyncDashboard: React.FC<SyncDashboardProps> = ({
             <div className="p-4 rounded-lg border bg-card">
                 <div className="flex items-center justify-between">
                     <div>
-                        <div className="text-sm font-medium">Auto-sync</div>
+                        <div className="text-sm font-medium">{t('cloudSync.autoSync.title')}</div>
                         <div className="text-xs text-muted-foreground">
-                            Automatically sync when changes are made
+                            {t('cloudSync.autoSync.desc')}
                         </div>
                     </div>
                     <Toggle
@@ -866,22 +883,26 @@ export const SyncDashboard: React.FC<SyncDashboardProps> = ({
             {/* Version Info & Sync History */}
             {sync.hasAnyConnectedProvider && (
                 <div className="space-y-3">
-                    <h3 className="text-sm font-medium text-muted-foreground">Sync Status</h3>
+                    <h3 className="text-sm font-medium text-muted-foreground">{t('cloudSync.status.title')}</h3>
 
                     {/* Version Info Cards */}
                     <div className="grid grid-cols-2 gap-3">
                         <div className="p-3 rounded-lg border bg-card">
-                            <div className="text-xs text-muted-foreground mb-1">Local Version</div>
+                            <div className="text-xs text-muted-foreground mb-1">{t('cloudSync.status.localVersion')}</div>
                             <div className="text-lg font-semibold">v{sync.localVersion}</div>
                             <div className="text-xs text-muted-foreground">
-                                {sync.localUpdatedAt ? new Date(sync.localUpdatedAt).toLocaleString() : 'Never'}
+                                {sync.localUpdatedAt
+                                    ? new Date(sync.localUpdatedAt).toLocaleString(resolvedLocale || undefined)
+                                    : t('cloudSync.lastSync.never')}
                             </div>
                         </div>
                         <div className="p-3 rounded-lg border bg-card">
-                            <div className="text-xs text-muted-foreground mb-1">Remote Version</div>
+                            <div className="text-xs text-muted-foreground mb-1">{t('cloudSync.status.remoteVersion')}</div>
                             <div className="text-lg font-semibold">v{sync.remoteVersion}</div>
                             <div className="text-xs text-muted-foreground">
-                                {sync.remoteUpdatedAt ? new Date(sync.remoteUpdatedAt).toLocaleString() : 'Never'}
+                                {sync.remoteUpdatedAt
+                                    ? new Date(sync.remoteUpdatedAt).toLocaleString(resolvedLocale || undefined)
+                                    : t('cloudSync.lastSync.never')}
                             </div>
                         </div>
                     </div>
@@ -890,7 +911,7 @@ export const SyncDashboard: React.FC<SyncDashboardProps> = ({
                     {sync.syncHistory.length > 0 && (
                         <div className="rounded-lg border bg-card">
                             <div className="px-3 py-2 border-b border-border/60">
-                                <div className="text-sm font-medium">Sync History</div>
+                                <div className="text-sm font-medium">{t('cloudSync.history.title')}</div>
                             </div>
                             <div className="max-h-48 overflow-y-auto">
                                 {sync.syncHistory.slice(0, 10).map((entry) => (
@@ -902,20 +923,24 @@ export const SyncDashboard: React.FC<SyncDashboardProps> = ({
                                         <div className="flex-1 min-w-0">
                                             <div className="flex items-center gap-2">
                                                 <span className="text-xs font-medium capitalize">
-                                                    {entry.action === 'upload' ? '↑ Upload' : entry.action === 'download' ? '↓ Download' : '⟳ Resolved'}
+                                                    {entry.action === 'upload'
+                                                        ? t('cloudSync.history.upload')
+                                                        : entry.action === 'download'
+                                                            ? t('cloudSync.history.download')
+                                                            : t('cloudSync.history.resolved')}
                                                 </span>
                                                 <span className="text-xs text-muted-foreground">
                                                     v{entry.localVersion}
                                                 </span>
                                             </div>
                                             <div className="text-[10px] text-muted-foreground truncate">
-                                                {new Date(entry.timestamp).toLocaleString()}
+                                                {new Date(entry.timestamp).toLocaleString(resolvedLocale || undefined)}
                                                 {entry.deviceName && ` · ${entry.deviceName}`}
                                             </div>
                                         </div>
                                         {entry.error && (
                                             <span className="text-xs text-red-500 truncate max-w-24" title={entry.error}>
-                                                Error
+                                                {t('cloudSync.history.error')}
                                             </span>
                                         )}
                                     </div>
@@ -948,41 +973,41 @@ export const SyncDashboard: React.FC<SyncDashboardProps> = ({
             <Dialog open={showChangeKeyDialog} onOpenChange={setShowChangeKeyDialog}>
                 <DialogContent className="sm:max-w-[420px]">
                     <DialogHeader>
-                        <DialogTitle>Change Master Key</DialogTitle>
+                        <DialogTitle>{t('cloudSync.changeKey.title')}</DialogTitle>
                         <DialogDescription>
-                            This will re-encrypt your vault. Make sure you remember the new key.
+                            {t('cloudSync.changeKey.desc')}
                         </DialogDescription>
                     </DialogHeader>
 
                     <div className="space-y-4">
                         <div className="space-y-2">
-                            <Label>Current Master Key</Label>
+                            <Label>{t('cloudSync.changeKey.current')}</Label>
                             <Input
                                 type={showMasterKey ? 'text' : 'password'}
                                 value={currentMasterKey}
                                 onChange={(e) => setCurrentMasterKey(e.target.value)}
-                                placeholder="Enter current master key"
+                                placeholder={t('cloudSync.changeKey.currentPlaceholder')}
                                 autoFocus
                             />
                         </div>
 
                         <div className="space-y-2">
-                            <Label>New Master Key</Label>
+                            <Label>{t('cloudSync.changeKey.new')}</Label>
                             <Input
                                 type={showMasterKey ? 'text' : 'password'}
                                 value={newMasterKey}
                                 onChange={(e) => setNewMasterKey(e.target.value)}
-                                placeholder="Enter new master key"
+                                placeholder={t('cloudSync.changeKey.newPlaceholder')}
                             />
                         </div>
 
                         <div className="space-y-2">
-                            <Label>Confirm New Master Key</Label>
+                            <Label>{t('cloudSync.changeKey.confirmNew')}</Label>
                             <Input
                                 type={showMasterKey ? 'text' : 'password'}
                                 value={confirmNewMasterKey}
                                 onChange={(e) => setConfirmNewMasterKey(e.target.value)}
-                                placeholder="Confirm new master key"
+                                placeholder={t('cloudSync.changeKey.confirmPlaceholder')}
                             />
                         </div>
 
@@ -993,7 +1018,7 @@ export const SyncDashboard: React.FC<SyncDashboardProps> = ({
                                 onChange={(e) => setShowMasterKey(e.target.checked)}
                                 className="accent-primary"
                             />
-                            Show keys
+                            {t('cloudSync.changeKey.showKeys')}
                         </label>
 
                         {changeKeyError && (
@@ -1007,21 +1032,21 @@ export const SyncDashboard: React.FC<SyncDashboardProps> = ({
                             onClick={() => setShowChangeKeyDialog(false)}
                             disabled={isChangingKey}
                         >
-                            Cancel
+                            {t('common.cancel')}
                         </Button>
                         <Button
                             onClick={async () => {
                                 setChangeKeyError(null);
                                 if (!currentMasterKey || !newMasterKey || !confirmNewMasterKey) {
-                                    setChangeKeyError('Please fill in all fields');
+                                    setChangeKeyError(t('cloudSync.changeKey.fillAll'));
                                     return;
                                 }
                                 if (newMasterKey.length < 8) {
-                                    setChangeKeyError('New master key must be at least 8 characters');
+                                    setChangeKeyError(t('cloudSync.changeKey.minLength'));
                                     return;
                                 }
                                 if (newMasterKey !== confirmNewMasterKey) {
-                                    setChangeKeyError('New master keys do not match');
+                                    setChangeKeyError(t('cloudSync.changeKey.notMatch'));
                                     return;
                                 }
 
@@ -1029,7 +1054,7 @@ export const SyncDashboard: React.FC<SyncDashboardProps> = ({
                                 try {
                                     const ok = await sync.changeMasterKey(currentMasterKey, newMasterKey);
                                     if (!ok) {
-                                        setChangeKeyError('Incorrect current master key');
+                                        setChangeKeyError(t('cloudSync.changeKey.incorrectCurrent'));
                                         return;
                                     }
 
@@ -1038,10 +1063,10 @@ export const SyncDashboard: React.FC<SyncDashboardProps> = ({
                                         await sync.syncNow(payload);
                                     }
 
-                                    toast.success('Master key updated');
+                                    toast.success(t('cloudSync.changeKey.updatedToast'));
                                     setShowChangeKeyDialog(false);
                                 } catch (error) {
-                                    setChangeKeyError(error instanceof Error ? error.message : 'Failed to change master key');
+                                    setChangeKeyError(error instanceof Error ? error.message : t('cloudSync.changeKey.failed'));
                                 } finally {
                                     setIsChangingKey(false);
                                 }
@@ -1050,7 +1075,7 @@ export const SyncDashboard: React.FC<SyncDashboardProps> = ({
                             className="gap-2"
                         >
                             {isChangingKey ? <Loader2 size={16} className="animate-spin" /> : <Key size={16} />}
-                            Update Key
+                            {t('cloudSync.changeKey.updateButton')}
                         </Button>
                     </DialogFooter>
                 </DialogContent>
@@ -1059,20 +1084,20 @@ export const SyncDashboard: React.FC<SyncDashboardProps> = ({
             <Dialog open={showUnlockDialog} onOpenChange={setShowUnlockDialog}>
                 <DialogContent className="sm:max-w-[420px]">
                     <DialogHeader>
-                        <DialogTitle>Enter Master Key</DialogTitle>
+                        <DialogTitle>{t('cloudSync.unlock.title')}</DialogTitle>
                         <DialogDescription>
-                            Enter your master key once to enable encrypted sync. It will be stored securely using your OS keychain.
+                            {t('cloudSync.unlock.desc')}
                         </DialogDescription>
                     </DialogHeader>
 
                     <div className="space-y-4">
                         <div className="space-y-2">
-                            <Label>Master Key</Label>
+                            <Label>{t('cloudSync.unlock.masterKey')}</Label>
                             <Input
                                 type={showUnlockMasterKey ? 'text' : 'password'}
                                 value={unlockMasterKey}
                                 onChange={(e) => setUnlockMasterKey(e.target.value)}
-                                placeholder="Enter your master key"
+                                placeholder={t('cloudSync.unlock.placeholder')}
                                 autoFocus
                             />
                         </div>
@@ -1084,7 +1109,7 @@ export const SyncDashboard: React.FC<SyncDashboardProps> = ({
                                 onChange={(e) => setShowUnlockMasterKey(e.target.checked)}
                                 className="accent-primary"
                             />
-                            Show key
+                            {t('cloudSync.unlock.showKey')}
                         </label>
 
                         {unlockError && (
@@ -1098,27 +1123,27 @@ export const SyncDashboard: React.FC<SyncDashboardProps> = ({
                             onClick={() => setShowUnlockDialog(false)}
                             disabled={isUnlocking}
                         >
-                            Not now
+                            {t('cloudSync.unlock.notNow')}
                         </Button>
                         <Button
                             onClick={async () => {
                                 setUnlockError(null);
                                 if (!unlockMasterKey) {
-                                    setUnlockError('Please enter your master key');
+                                    setUnlockError(t('cloudSync.unlock.empty'));
                                     return;
                                 }
                                 setIsUnlocking(true);
                                 try {
                                     const ok = await sync.unlock(unlockMasterKey);
                                     if (!ok) {
-                                        setUnlockError('Incorrect master key');
+                                        setUnlockError(t('cloudSync.unlock.incorrect'));
                                         return;
                                     }
-                                    toast.success('Vault ready');
+                                    toast.success(t('cloudSync.unlock.readyToast'));
                                     setShowUnlockDialog(false);
                                     setUnlockMasterKey('');
                                 } catch (error) {
-                                    setUnlockError(error instanceof Error ? error.message : 'Failed to unlock vault');
+                                    setUnlockError(error instanceof Error ? error.message : t('cloudSync.unlock.failed'));
                                 } finally {
                                     setIsUnlocking(false);
                                 }
@@ -1127,7 +1152,7 @@ export const SyncDashboard: React.FC<SyncDashboardProps> = ({
                             className="gap-2"
                         >
                             {isUnlocking ? <Loader2 size={16} className="animate-spin" /> : <ShieldCheck size={16} />}
-                            Unlock
+                            {t('cloudSync.unlock.unlockButton')}
                         </Button>
                     </DialogFooter>
                 </DialogContent>

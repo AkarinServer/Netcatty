@@ -4,6 +4,7 @@
  */
 import { FolderInput, X, Zap, Palette, Search } from 'lucide-react';
 import React, { useState } from 'react';
+import { useI18n } from '../../application/i18n/I18nProvider';
 import { Snippet, Host } from '../../types';
 import { Button } from '../ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
@@ -40,6 +41,7 @@ export const TerminalToolbar: React.FC<TerminalToolbarProps> = ({
     isSearchOpen,
     onToggleSearch,
 }) => {
+    const { t } = useI18n();
     const [themeModalOpen, setThemeModalOpen] = useState(false);
     const buttonBase = "h-7 px-2 text-[11px] bg-white/5 hover:bg-white/10 text-white shadow-none border-none";
 
@@ -68,10 +70,10 @@ export const TerminalToolbar: React.FC<TerminalToolbarProps> = ({
                 size="sm"
                 className={buttonBase}
                 disabled={status !== 'connected'}
-                title={status === 'connected' ? "Open SFTP" : "Available after connect"}
+                title={status === 'connected' ? t("terminal.toolbar.openSftp") : t("terminal.toolbar.availableAfterConnect")}
                 onClick={onOpenSFTP}
             >
-                <FolderInput size={12} className="mr-2" /> SFTP
+                <FolderInput size={12} className="mr-2" /> {t("terminal.toolbar.sftp")}
             </Button>
 
             <Popover open={isScriptsOpen} onOpenChange={setIsScriptsOpen}>
@@ -81,18 +83,18 @@ export const TerminalToolbar: React.FC<TerminalToolbarProps> = ({
                         size="sm"
                         className={buttonBase}
                     >
-                        <Zap size={12} className="mr-2" /> Scripts
+                        <Zap size={12} className="mr-2" /> {t("terminal.toolbar.scripts")}
                     </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-64 p-0" align="start">
                     <div className="px-3 py-2 text-[10px] uppercase text-muted-foreground font-semibold bg-muted/30 border-b">
-                        Library
+                        {t("terminal.toolbar.library")}
                     </div>
                     <ScrollArea className="h-64">
                         <div className="py-1">
                             {snippets.length === 0 ? (
                                 <div className="px-3 py-2 text-xs text-muted-foreground italic">
-                                    No snippets available
+                                    {t("terminal.toolbar.noSnippets")}
                                 </div>
                             ) : (
                                 snippets.map((s) => (
@@ -117,17 +119,17 @@ export const TerminalToolbar: React.FC<TerminalToolbarProps> = ({
                 variant="secondary"
                 size="sm"
                 className={buttonBase}
-                title="Terminal settings"
+                title={t("terminal.toolbar.terminalSettings")}
                 onClick={() => setThemeModalOpen(true)}
             >
-                <Palette size={12} className="mr-2" /> Settings
+                <Palette size={12} className="mr-2" /> {t("common.settings")}
             </Button>
 
             <Button
                 variant="secondary"
                 size="sm"
                 className={`${buttonBase} px-1.5 ${isSearchOpen ? 'bg-white/20' : ''}`}
-                title="Search terminal (Ctrl+F)"
+                title={t("terminal.toolbar.searchTerminal")}
                 onClick={onToggleSearch}
             >
                 <Search size={12} />
@@ -142,7 +144,7 @@ export const TerminalToolbar: React.FC<TerminalToolbarProps> = ({
                         e.stopPropagation();
                         onClose();
                     }}
-                    title="Close session"
+                    title={t("terminal.toolbar.closeSession")}
                 >
                     <X size={12} />
                 </Button>

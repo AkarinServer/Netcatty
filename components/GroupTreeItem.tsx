@@ -1,5 +1,6 @@
 import { ChevronRight,Folder,FolderOpen,FolderPlus,Plus } from 'lucide-react';
 import React,{ useMemo } from 'react';
+import { useI18n } from '../application/i18n/I18nProvider';
 import { cn } from '../lib/utils';
 import { GroupNode } from '../types';
 import { Collapsible,CollapsibleContent,CollapsibleTrigger } from './ui/collapsible';
@@ -28,6 +29,7 @@ export const GroupTreeItem: React.FC<GroupTreeItemProps> = ({
   onNewHost,
   onNewSubfolder,
 }) => {
+  const { t } = useI18n();
   const isExpanded = expandedPaths.has(node.path);
   const hasChildren = node.children && Object.keys(node.children).length > 0;
   const paddingLeft = `${depth * 12 + 12}px`;
@@ -73,10 +75,10 @@ export const GroupTreeItem: React.FC<GroupTreeItemProps> = ({
         </ContextMenuTrigger>
         <ContextMenuContent>
           <ContextMenuItem onClick={() => onNewHost(node.path)}>
-            <Plus className="mr-2 h-4 w-4" /> New Host
+            <Plus className="mr-2 h-4 w-4" /> {t("action.newHost")}
           </ContextMenuItem>
           <ContextMenuItem onClick={() => onNewSubfolder(node.path)}>
-            <FolderPlus className="mr-2 h-4 w-4" /> New Subfolder
+            <FolderPlus className="mr-2 h-4 w-4" /> {t("action.newSubfolder")}
           </ContextMenuItem>
         </ContextMenuContent>
       </ContextMenu>

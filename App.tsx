@@ -5,6 +5,7 @@ import { useSessionState } from './application/state/useSessionState';
 import { useSettingsState } from './application/state/useSettingsState';
 import { useVaultState } from './application/state/useVaultState';
 import { useWindowControls } from './application/state/useWindowControls';
+import { I18nProvider, useI18n } from './application/i18n/I18nProvider';
 import { matchesKeyBinding } from './domain/models';
 import { netcattyBridge } from './infrastructure/services/netcattyBridge';
 import LogView from './components/LogView.tsx';
@@ -71,6 +72,8 @@ const LogViewWrapper: React.FC<LogViewWrapperProps> = ({ logView, defaultTermina
 
 function App() {
   console.log('[App] render');
+
+  const { t } = useI18n();
 
   const [isQuickSwitcherOpen, setIsQuickSwitcherOpen] = useState(false);
   const [quickSearch, setQuickSearch] = useState('');
@@ -423,10 +426,10 @@ function App() {
 
   const handleDeleteHost = useCallback((hostId: string) => {
     const target = hosts.find(h => h.id === hostId);
-    const confirmed = window.confirm(`Delete host "${target?.label || hostId}"?`);
+    const confirmed = window.confirm(t('confirm.deleteHost', { name: target?.label || hostId }));
     if (!confirmed) return;
     updateHosts(hosts.filter(h => h.id !== hostId));
-  }, [hosts, updateHosts]);
+  }, [hosts, updateHosts, t]);
 
   // System info for connection logs
   const systemInfoRef = useRef<{ username: string; hostname: string }>({
@@ -576,9 +579,9 @@ function App() {
   const handleOpenSettings = useCallback(() => {
     void (async () => {
       const opened = await openSettingsWindow();
-      if (!opened) toast.error('Settings window is unavailable on this platform.', 'Settings');
+      if (!opened) toast.error(t('toast.settingsUnavailable'), t('common.settings'));
     })();
-  }, [openSettingsWindow]);
+  }, [openSettingsWindow, t]);
 
   const handleEndSessionDrag = useCallback(() => {
     setDraggingSessionId(null);
@@ -731,22 +734,22 @@ function App() {
       }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>Rename workspace</DialogTitle>
+            <DialogTitle>{t('dialog.renameWorkspace.title')}</DialogTitle>
           </DialogHeader>
           <div className="space-y-2 py-2">
-            <Label htmlFor="workspace-name">Name</Label>
+            <Label htmlFor="workspace-name">{t('field.name')}</Label>
             <Input
               id="workspace-name"
               value={workspaceRenameValue}
               onChange={(e) => setWorkspaceRenameValue(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') submitWorkspaceRename(); }}
               autoFocus
-              placeholder="Workspace name"
+              placeholder={t('placeholder.workspaceName')}
             />
           </div>
           <DialogFooter>
-            <Button variant="ghost" onClick={resetWorkspaceRename}>Cancel</Button>
-            <Button onClick={submitWorkspaceRename} disabled={!workspaceRenameValue.trim()}>Save</Button>
+            <Button variant="ghost" onClick={resetWorkspaceRename}>{t('common.cancel')}</Button>
+            <Button onClick={submitWorkspaceRename} disabled={!workspaceRenameValue.trim()}>{t('common.save')}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -764,10 +767,13 @@ function App() {
 }
 
 function AppWithProviders() {
+  const { uiLanguage } = useSettingsState();
   return (
-    <ToastProvider>
-      <App />
-    </ToastProvider>
+    <I18nProvider locale={uiLanguage}>
+      <ToastProvider>
+        <App />
+      </ToastProvider>
+    </I18nProvider>
   );
 }
 

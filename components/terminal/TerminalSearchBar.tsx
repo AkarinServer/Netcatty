@@ -4,6 +4,7 @@
  */
 import { ChevronUp, ChevronDown, Search } from 'lucide-react';
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { useI18n } from '../../application/i18n/I18nProvider';
 import { Button } from '../ui/button';
 
 export interface TerminalSearchBarProps {
@@ -23,6 +24,7 @@ export const TerminalSearchBar: React.FC<TerminalSearchBarProps> = ({
     onFindPrevious,
     matchCount,
 }) => {
+    const { t } = useI18n();
     const [searchTerm, setSearchTerm] = useState('');
     const inputRef = useRef<HTMLInputElement>(null);
     const prevSearchTermRef = useRef('');
@@ -85,7 +87,7 @@ export const TerminalSearchBar: React.FC<TerminalSearchBarProps> = ({
                     onKeyDown={handleKeyDown}
                     onClick={(e) => e.stopPropagation()}
                     onMouseDown={(e) => e.stopPropagation()}
-                    placeholder="Search..."
+                    placeholder={t("terminal.search.placeholder")}
                     className="w-full h-6 pl-7 pr-2 text-[11px] bg-white/5 border-none rounded text-white placeholder:text-white/30 focus:outline-none focus:bg-white/10"
                 />
             </div>
@@ -93,7 +95,7 @@ export const TerminalSearchBar: React.FC<TerminalSearchBarProps> = ({
             {/* Match count indicator - only show when no results */}
             {searchTerm.length > 0 && matchCount?.total === 0 && (
                 <span className="text-[10px] text-white/50 flex-shrink-0">
-                    No results
+                    {t("terminal.search.noResults")}
                 </span>
             )}
 
@@ -112,7 +114,7 @@ export const TerminalSearchBar: React.FC<TerminalSearchBarProps> = ({
                     onMouseDown={(e) => e.stopPropagation()}
                     onKeyDown={(e) => e.stopPropagation()}
                     disabled={!searchTerm}
-                    title="Previous match (Shift+Enter)"
+                    title={t("terminal.search.prevMatch")}
                     tabIndex={-1}
                 >
                     <ChevronUp size={14} />
@@ -130,7 +132,7 @@ export const TerminalSearchBar: React.FC<TerminalSearchBarProps> = ({
                     onMouseDown={(e) => e.stopPropagation()}
                     onKeyDown={(e) => e.stopPropagation()}
                     disabled={!searchTerm}
-                    title="Next match (Enter)"
+                    title={t("terminal.search.nextMatch")}
                     tabIndex={-1}
                 >
                     <ChevronDown size={14} />

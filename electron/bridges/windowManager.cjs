@@ -23,7 +23,43 @@ const THEME_COLORS = {
 let mainWindow = null;
 let settingsWindow = null;
 let currentTheme = "light";
+let currentLanguage = "en";
 let handlersRegistered = false; // Prevent duplicate IPC handler registration
+let menuDeps = null;
+
+const MENU_LABELS = {
+  en: { edit: "Edit", view: "View", window: "Window" },
+  "zh-CN": { edit: "编辑", view: "视图", window: "窗口" },
+};
+
+function tMenu(language, key) {
+  if (!language) return MENU_LABELS.en[key] ?? key;
+  const direct = MENU_LABELS?.[language]?.[key];
+  if (direct) return direct;
+  const base = String(language).split("-")[0];
+  const baseMatchKey = Object.keys(MENU_LABELS).find((k) => k === base || k.startsWith(`${base}-`));
+  const baseMatch = baseMatchKey ? MENU_LABELS[baseMatchKey]?.[key] : undefined;
+  return baseMatch ?? MENU_LABELS.en[key] ?? key;
+}
+
+function rebuildApplicationMenu() {
+  if (!menuDeps?.Menu || !menuDeps?.app) return;
+  const menu = buildAppMenu(menuDeps.Menu, menuDeps.app, menuDeps.isMac, currentLanguage);
+  menuDeps.Menu.setApplicationMenu(menu);
+}
+
+function broadcastLanguageChanged() {
+  try {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents?.send?.("netcatty:languageChanged", currentLanguage);
+    }
+    if (settingsWindow && !settingsWindow.isDestroyed()) {
+      settingsWindow.webContents?.send?.("netcatty:languageChanged", currentLanguage);
+    }
+  } catch {
+    // ignore
+  }
+}
 
 /**
  * Normalize dev server URL for local access compatibility
@@ -229,6 +265,13 @@ function registerWindowHandlers(ipcMain, nativeTheme) {
     return true;
   });
 
+  ipcMain.handle("netcatty:setLanguage", (_event, language) => {
+    currentLanguage = typeof language === "string" && language.length ? language : "en";
+    rebuildApplicationMenu();
+    broadcastLanguageChanged();
+    return true;
+  });
+
   // Settings window close handler
   ipcMain.handle("netcatty:settings:close", () => {
     closeSettingsWindow();
@@ -238,7 +281,9 @@ function registerWindowHandlers(ipcMain, nativeTheme) {
 /**
  * Build the application menu
  */
-function buildAppMenu(Menu, app, isMac) {
+function buildAppMenu(Menu, app, isMac, language = currentLanguage) {
+  // Save deps so later language changes can rebuild the menu.
+  menuDeps = { Menu, app, isMac };
   const template = [
     ...(isMac
       ? [
@@ -257,7 +302,7 @@ function buildAppMenu(Menu, app, isMac) {
         ]
       : []),
     {
-      label: "Edit",
+      label: tMenu(language, "edit"),
       submenu: [
         { role: "undo" },
         { role: "redo" },
@@ -269,7 +314,7 @@ function buildAppMenu(Menu, app, isMac) {
       ],
     },
     {
-      label: "View",
+      label: tMenu(language, "view"),
       submenu: [
         { role: "reload" },
         { role: "forceReload" },
@@ -283,7 +328,7 @@ function buildAppMenu(Menu, app, isMac) {
       ],
     },
     {
-      label: "Window",
+      label: tMenu(language, "window"),
       submenu: [
         { role: "minimize" },
         { role: "zoom" },

@@ -4,6 +4,7 @@ import AppLogo from "./AppLogo";
 import { Button } from "./ui/button";
 import { cn } from "../lib/utils";
 import { useApplicationBackend } from "../application/state/useApplicationBackend";
+import { useI18n } from "../application/i18n/I18nProvider";
 import { SettingsTabContent } from "./settings/settings-ui";
 
 type AppInfo = {
@@ -61,6 +62,7 @@ const ActionRow: React.FC<{
 );
 
 export default function SettingsApplicationTab() {
+    const { t } = useI18n();
     const { openExternal, getApplicationInfo } = useApplicationBackend();
     const [appInfo, setAppInfo] = useState<AppInfo>({ name: "Netcatty", version: "" });
 
@@ -103,7 +105,7 @@ export default function SettingsApplicationTab() {
           <div className="mt-6">
             <Button variant="secondary" className="gap-2" onClick={() => void openExternal(releasesUrl)}>
               <RefreshCcw size={16} />
-              Check for updates
+              {t("settings.application.checkUpdates")}
             </Button>
           </div>
         </div>
@@ -112,26 +114,26 @@ export default function SettingsApplicationTab() {
           <div className="space-y-2">
             <ActionRow
               icon={<Bug size={18} />}
-              title="Report a problem"
-              subtitle="Generate a pre-filled GitHub issue"
+              title={t("settings.application.reportProblem")}
+              subtitle={t("settings.application.reportProblem.subtitle")}
               onClick={() => void openExternal(issueUrl)}
             />
             <ActionRow
               icon={<MessageCircle size={18} />}
-              title="Community"
-              subtitle="On GitHub Discussions"
+              title={t("settings.application.community")}
+              subtitle={t("settings.application.community.subtitle")}
               onClick={() => void openExternal(discussionsUrl)}
             />
             <ActionRow
               icon={<Github size={18} />}
               title="GitHub"
-              subtitle="Source code"
+              subtitle={t("settings.application.github.subtitle")}
               onClick={() => void openExternal(REPO_URL)}
             />
             <ActionRow
               icon={<Newspaper size={18} />}
-              title="What's new"
-              subtitle="Show release notes"
+              title={t("settings.application.whatsNew")}
+              subtitle={t("settings.application.whatsNew.subtitle")}
               onClick={() => void openExternal(releasesUrl)}
             />
           </div>

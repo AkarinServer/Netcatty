@@ -33,6 +33,7 @@ import React, {
   useRef,
   useState,
 } from "react";
+import { useI18n } from "../application/i18n/I18nProvider";
 import { useSftpBackend } from "../application/state/useSftpBackend";
 import { logger } from "../lib/logger";
 import { cn } from "../lib/utils";
@@ -211,14 +212,12 @@ const formatBytes = (bytes: number | string): string => {
   return `${size.toFixed(i === 0 ? 0 : 1)} ${units[i]}`;
 };
 
-// Format date as YYYY-MM-DD HH:mm:ss in local timezone
-const formatDate = (dateStr: string | number | undefined): string => {
+const formatDate = (dateStr: string | number | undefined, locale?: string): string => {
   if (!dateStr) return "--";
   const date =
     typeof dateStr === "number" ? new Date(dateStr) : new Date(dateStr);
   if (isNaN(date.getTime())) return String(dateStr);
-  const pad = (n: number) => n.toString().padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+  return date.toLocaleString(locale || undefined);
 };
 
 interface SFTPModalProps {
@@ -273,6 +272,7 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
     deleteSftp,
     mkdirSftp,
   } = useSftpBackend();
+  const { t, resolvedLocale } = useI18n();
   const [currentPath, setCurrentPath] = useState("/");
   const [files, setFiles] = useState<RemoteFile[]>([]);
   const [loading, setLoading] = useState(false);
@@ -381,7 +381,7 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
         if (loadSeqRef.current !== requestId) return;
         logger.error("Failed to load files", e);
         toast.error(
-          e instanceof Error ? e.message : "Failed to load directory",
+          e instanceof Error ? e.message : t("sftp.error.loadFailed"),
           "SFTP",
         );
         setFiles([]);
@@ -391,7 +391,7 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
         }
       }
     },
-    [ensureSftp, host.id, listSftp],
+    [ensureSftp, host.id, listSftp, t],
   );
 
   const closeSftpSession = useCallback(async () => {
@@ -462,12 +462,15 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Download failed", "SFTP");
+        toast.error(
+          e instanceof Error ? e.message : t("sftp.error.downloadFailed"),
+          "SFTP",
+        );
       } finally {
         setLoading(false);
       }
     },
-    [currentPath, ensureSftp, readSftp],
+    [currentPath, ensureSftp, readSftp, t],
   );
 
   const handleUploadFile = async (
@@ -589,7 +592,7 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
             ? {
               ...t,
               status: "failed" as const,
-              error: e instanceof Error ? e.message : "Upload failed",
+              error: e instanceof Error ? e.message : t("sftp.error.uploadFailed"),
             }
             : t,
         ),
@@ -632,7 +635,7 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
   };
 
   const handleDelete = async (file: RemoteFile) => {
-    if (!confirm(`Delete "${file.name}"?`)) return;
+    if (!confirm(t("sftp.confirm.deleteOne", { name: file.name }))) return;
     try {
       const sftpId = await ensureSftp();
       const fullPath =
@@ -641,12 +644,15 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
       await deleteSftp(sftpId, fullPath);
       await loadFiles(currentPath, { force: true });
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Delete failed", "SFTP");
+      toast.error(
+        e instanceof Error ? e.message : t("sftp.error.deleteFailed"),
+        "SFTP",
+      );
     }
   };
 
   const handleCreateFolder = async () => {
-    const folderName = prompt("New folder name?");
+    const folderName = prompt(t("sftp.prompt.newFolderName"));
     if (!folderName) return;
     try {
       const sftpId = await ensureSftp();
@@ -656,7 +662,7 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
       await loadFiles(currentPath, { force: true });
     } catch (e) {
       toast.error(
-        e instanceof Error ? e.message : "Failed to create folder",
+        e instanceof Error ? e.message : t("sftp.error.createFolderFailed"),
         "SFTP",
       );
     }
@@ -872,12 +878,7 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
   const handleDeleteSelected = async () => {
     if (selectedFiles.size === 0) return;
     const fileNames = Array.from(selectedFiles);
-    if (
-      !confirm(
-        `Delete ${fileNames.length} item${fileNames.length > 1 ? "s" : ""}?`,
-      )
-    )
-      return;
+    if (!confirm(t("sftp.deleteConfirm.title", { count: fileNames.length }))) return;
 
     try {
       const sftpId = await ensureSftp();
@@ -889,7 +890,10 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
       await loadFiles(currentPath, { force: true });
       setSelectedFiles(new Set());
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Delete failed", "SFTP");
+      toast.error(
+        e instanceof Error ? e.message : t("sftp.error.deleteFailed"),
+        "SFTP",
+      );
     }
   };
 
@@ -970,7 +974,7 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
               <div
                 className="flex items-center gap-1 flex-1 min-w-0 cursor-text hover:bg-secondary/50 rounded px-1 py-0.5 transition-colors"
                 onDoubleClick={handlePathDoubleClick}
-                title="Double-click to edit path"
+                title={t("sftp.path.doubleClickToEdit")}
               >
                 <button
                   className="text-muted-foreground hover:text-foreground px-1"
@@ -1009,7 +1013,7 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
               onClick={() => inputRef.current?.click()}
               disabled={uploading}
             >
-              <Upload size={14} className="mr-1.5" /> Upload
+              <Upload size={14} className="mr-1.5" /> {t("sftp.upload")}
             </Button>
             <Button
               variant="outline"
@@ -1017,7 +1021,7 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
               className="h-7"
               onClick={handleCreateFolder}
             >
-              <Plus size={14} className="mr-1.5" /> New Folder
+              <Plus size={14} className="mr-1.5" /> {t("sftp.newFolder")}
             </Button>
             <input
               type="file"
@@ -1044,7 +1048,7 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
               <div className="bg-background/95 p-6 rounded-xl shadow-lg border-2 border-dashed border-primary text-primary font-medium flex flex-col items-center gap-2">
                 <Upload size={32} />
-                <span>Drop files to upload</span>
+                <span>{t("sftp.dropFilesHere")}</span>
               </div>
             </div>
           )}
@@ -1058,9 +1062,9 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
           {files.length === 0 && !loading && (
             <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
               <Folder size={48} className="mb-3 opacity-50" />
-              <div className="text-sm font-medium">Empty Directory</div>
+              <div className="text-sm font-medium">{t("sftp.emptyDirectory")}</div>
               <div className="text-xs mt-1">
-                Drag and drop files here to upload
+                {t("sftp.dragDropToUpload")}
               </div>
             </div>
           )}
@@ -1078,7 +1082,7 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
                 className="flex items-center gap-1 cursor-pointer hover:text-foreground relative pr-2"
                 onClick={() => handleSort("name")}
               >
-                <span>Name</span>
+                <span>{t("sftp.columns.name")}</span>
                 {sortField === "name" && (
                   <span className="text-primary">
                     {sortOrder === "asc" ? "↑" : "↓"}
@@ -1093,7 +1097,7 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
                 className="flex items-center gap-1 cursor-pointer hover:text-foreground relative pr-2"
                 onClick={() => handleSort("size")}
               >
-                <span>Size</span>
+                <span>{t("sftp.columns.size")}</span>
                 {sortField === "size" && (
                   <span className="text-primary">
                     {sortOrder === "asc" ? "↑" : "↓"}
@@ -1108,7 +1112,7 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
                 className="flex items-center gap-1 cursor-pointer hover:text-foreground relative pr-2"
                 onClick={() => handleSort("modified")}
               >
-                <span>Modified</span>
+                <span>{t("sftp.columns.modified")}</span>
                 {sortField === "modified" && (
                   <span className="text-primary">
                     {sortOrder === "asc" ? "↑" : "↓"}
@@ -1119,7 +1123,7 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
                   onMouseDown={(e) => handleResizeStart("modified", e)}
                 />
               </div>
-              <div className="text-right">Actions</div>
+              <div className="text-right">{t("sftp.columns.actions")}</div>
             </div>
           )}
 
@@ -1156,7 +1160,7 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
                             : formatBytes(file.size)}
                         </div>
                         <div className="text-xs text-muted-foreground truncate">
-                          {formatDate(file.lastModified)}
+                          {formatDate(file.lastModified, resolvedLocale)}
                         </div>
                         <div className="flex items-center justify-end gap-1">
                           {file.type === "file" && (
@@ -1168,7 +1172,7 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
                                 e.stopPropagation();
                                 handleDownload(file);
                               }}
-                              title="Download"
+                              title={t("sftp.context.download")}
                             >
                               <Download size={14} />
                             </Button>
@@ -1177,11 +1181,11 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
                             variant="ghost"
                             size="icon"
                             className="h-7 w-7 hover:text-destructive"
-                            onClick={(e) => {
+                              onClick={(e) => {
                               e.stopPropagation();
                               handleDelete(file);
                             }}
-                            title="Delete"
+                            title={t("sftp.context.delete")}
                           >
                             <Trash2 size={14} />
                           </Button>
@@ -1199,19 +1203,21 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
                             )
                           }
                         >
-                          Open
+                          {t("sftp.context.open")}
                         </ContextMenuItem>
                       )}
                       {file.type === "file" && (
                         <ContextMenuItem onClick={() => handleDownload(file)}>
-                          <Download size={14} className="mr-2" /> Download
+                          <Download size={14} className="mr-2" />{" "}
+                          {t("sftp.context.download")}
                         </ContextMenuItem>
                       )}
                       <ContextMenuItem
                         className="text-destructive"
                         onClick={() => handleDelete(file)}
                       >
-                        <Trash2 size={14} className="mr-2" /> Delete
+                        <Trash2 size={14} className="mr-2" />{" "}
+                        {t("sftp.context.delete")}
                       </ContextMenuItem>
                     </ContextMenuContent>
                   </ContextMenu>
@@ -1220,28 +1226,28 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
             </ContextMenuTrigger>
             <ContextMenuContent>
               <ContextMenuItem onClick={handleCreateFolder}>
-                <Plus className="h-4 w-4 mr-2" /> New folder
+                <Plus className="h-4 w-4 mr-2" /> {t("sftp.newFolder")}
               </ContextMenuItem>
               <ContextMenuItem onClick={() => inputRef.current?.click()}>
-                <Upload className="h-4 w-4 mr-2" /> Upload files
+                <Upload className="h-4 w-4 mr-2" /> {t("sftp.uploadFiles")}
               </ContextMenuItem>
               <ContextMenuItem
                 onClick={() => loadFiles(currentPath, { force: true })}
               >
-                <RefreshCw className="h-4 w-4 mr-2" /> Refresh
+                <RefreshCw className="h-4 w-4 mr-2" /> {t("sftp.context.refresh")}
               </ContextMenuItem>
               {selectedFiles.size > 0 && (
                 <>
                   <ContextMenuItem onClick={handleDownloadSelected}>
-                    <Download className="h-4 w-4 mr-2" /> Download selected (
-                    {selectedFiles.size})
+                    <Download className="h-4 w-4 mr-2" />{" "}
+                    {t("sftp.context.downloadSelected", { count: selectedFiles.size })}
                   </ContextMenuItem>
                   <ContextMenuItem
                     className="text-destructive"
                     onClick={handleDeleteSelected}
                   >
-                    <Trash2 className="h-4 w-4 mr-2" /> Delete selected (
-                    {selectedFiles.size})
+                    <Trash2 className="h-4 w-4 mr-2" />{" "}
+                    {t("sftp.context.deleteSelected", { count: selectedFiles.size })}
                   </ContextMenuItem>
                 </>
               )}
@@ -1369,7 +1375,7 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
                       )}
                     </div>
                     <div className="text-[10px] text-muted-foreground shrink-0">
-                      {task.status === "pending" && "Waiting..."}
+                      {task.status === "pending" && t("sftp.task.waiting")}
                     </div>
                   </div>
                 );
@@ -1381,12 +1387,12 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
         {/* Footer */}
         <div className="px-4 py-2 border-t border-border/60 flex items-center justify-between text-xs text-muted-foreground bg-muted/30 flex-shrink-0">
           <span>
-            {files.length} items
+            {t("sftp.itemsCount", { count: files.length })}
             {selectedFiles.size > 0 && (
               <>
                 <span className="mx-2">•</span>
                 <span className="text-primary">
-                  {selectedFiles.size} selected
+                  {t("sftp.selectedCount", { count: selectedFiles.size })}
                 </span>
                 <Button
                   variant="ghost"
@@ -1394,7 +1400,7 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
                   className="h-5 px-2 ml-2 text-xs text-primary hover:text-primary"
                   onClick={handleDownloadSelected}
                 >
-                  <Download size={10} className="mr-1" /> Download
+                  <Download size={10} className="mr-1" /> {t("sftp.context.download")}
                 </Button>
                 <Button
                   variant="ghost"
@@ -1402,13 +1408,17 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
                   className="h-5 px-2 text-xs text-destructive hover:text-destructive"
                   onClick={handleDeleteSelected}
                 >
-                  <Trash2 size={10} className="mr-1" /> Delete
+                  <Trash2 size={10} className="mr-1" /> {t("sftp.context.delete")}
                 </Button>
               </>
             )}
           </span>
           <span>
-            {loading ? "Loading..." : uploading ? "Uploading..." : "Ready"}
+            {loading
+              ? t("sftp.status.loading")
+              : uploading
+                ? t("sftp.status.uploading")
+                : t("sftp.status.ready")}
           </span>
         </div>
       </DialogContent>

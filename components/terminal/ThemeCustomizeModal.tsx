@@ -12,6 +12,7 @@
 import React, { useEffect, useMemo, useState, useCallback, useRef, memo } from 'react';
 import { createPortal } from 'react-dom';
 import { Check, Minus, Palette, Plus, Type, X } from 'lucide-react';
+import { useI18n } from '../../application/i18n/I18nProvider';
 import { TERMINAL_THEMES, TerminalThemeConfig } from '../../infrastructure/config/terminalThemes';
 import { TERMINAL_FONTS, DEFAULT_FONT_SIZE, MIN_FONT_SIZE, MAX_FONT_SIZE, TerminalFont } from '../../infrastructure/config/fonts';
 import { Button } from '../ui/button';
@@ -263,6 +264,7 @@ export const ThemeCustomizeModal: React.FC<ThemeCustomizeModalProps> = ({
     onFontSizeChange,
     onSave,
 }) => {
+    const { t } = useI18n();
     const [activeTab, setActiveTab] = useState<TabType>('theme');
     const [selectedTheme, setSelectedTheme] = useState(currentThemeId);
     const [selectedFont, setSelectedFont] = useState(currentFontFamilyId);
@@ -367,14 +369,14 @@ export const ThemeCustomizeModal: React.FC<ThemeCustomizeModalProps> = ({
                 {/* Header */}
                 <div className="flex items-center justify-between px-5 py-3 shrink-0 border-b border-border">
                     <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-primary/10">
-                            <Palette size={16} className="text-primary" />
-                        </div>
-                        <h2 className="text-sm font-semibold text-foreground">Terminal Appearance</h2>
-                    </div>
-                    <button
-                        onClick={handleCancel}
-                        className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                         <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-primary/10">
+                             <Palette size={16} className="text-primary" />
+                         </div>
+                        <h2 className="text-sm font-semibold text-foreground">{t('terminal.themeModal.title')}</h2>
+                     </div>
+                     <button
+                         onClick={handleCancel}
+                         className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
                     >
                         <X size={16} />
                     </button>
@@ -394,23 +396,23 @@ export const ThemeCustomizeModal: React.FC<ThemeCustomizeModalProps> = ({
                                         ? 'bg-primary/15 text-primary'
                                         : 'text-muted-foreground hover:text-foreground hover:bg-muted'
                                 )}
-                            >
-                                <Palette size={13} />
-                                Theme
-                            </button>
-                            <button
-                                onClick={() => setActiveTab('font')}
-                                className={cn(
+                             >
+                                 <Palette size={13} />
+                                {t('terminal.themeModal.tab.theme')}
+                             </button>
+                             <button
+                                 onClick={() => setActiveTab('font')}
+                                 className={cn(
                                     'flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-all',
                                     activeTab === 'font'
                                         ? 'bg-primary/15 text-primary'
                                         : 'text-muted-foreground hover:text-foreground hover:bg-muted'
                                 )}
-                            >
-                                <Type size={13} />
-                                Font
-                            </button>
-                        </div>
+                             >
+                                 <Type size={13} />
+                                {t('terminal.themeModal.tab.font')}
+                             </button>
+                         </div>
 
                         {/* List Content */}
                         <div className="flex-1 min-h-0 overflow-y-auto p-2">
@@ -441,10 +443,12 @@ export const ThemeCustomizeModal: React.FC<ThemeCustomizeModalProps> = ({
                         </div>
 
                         {/* Font Size Control (only in font tab) */}
-                        {activeTab === 'font' && (
-                            <div className="p-3 border-t border-border shrink-0">
-                                <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2 font-semibold">Font Size</div>
-                                <div className="flex items-center justify-between gap-2 bg-muted/30 rounded-lg p-2">
+                         {activeTab === 'font' && (
+                             <div className="p-3 border-t border-border shrink-0">
+                                <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2 font-semibold">
+                                    {t('terminal.themeModal.fontSize')}
+                                </div>
+                                 <div className="flex items-center justify-between gap-2 bg-muted/30 rounded-lg p-2">
                                     <button
                                         onClick={() => handleFontSizeChange(-1)}
                                         disabled={fontSize <= MIN_FONT_SIZE}
@@ -468,41 +472,43 @@ export const ThemeCustomizeModal: React.FC<ThemeCustomizeModalProps> = ({
                         )}
                     </div>
 
-                    {/* Right Panel - Large Preview */}
-                    <div className="flex-1 flex flex-col min-w-0 p-4">
-                        <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-3 font-semibold">Live Preview</div>
-                        <TerminalPreview theme={currentTheme} font={currentFont} fontSize={fontSize} />
+                     {/* Right Panel - Large Preview */}
+                     <div className="flex-1 flex flex-col min-w-0 p-4">
+                        <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-3 font-semibold">
+                            {t('terminal.themeModal.livePreview')}
+                        </div>
+                         <TerminalPreview theme={currentTheme} font={currentFont} fontSize={fontSize} />
 
                         {/* Info line */}
                         <div className="mt-3 text-xs text-muted-foreground flex items-center justify-between">
                             <span>
                                 {currentTheme.name} • {currentFont.name} • {fontSize}px
-                            </span>
-                            <span className="text-[10px] uppercase">
-                                {currentTheme.type} theme
-                            </span>
-                        </div>
-                    </div>
+                             </span>
+                             <span className="text-[10px] uppercase">
+                                {t('terminal.themeModal.themeType', { type: currentTheme.type })}
+                             </span>
+                         </div>
+                     </div>
                 </div>
 
                 {/* Footer */}
                 <div className="flex gap-3 px-5 py-3 shrink-0 border-t border-border bg-muted/20">
-                    <Button
-                        variant="ghost"
-                        onClick={handleCancel}
-                        className="flex-1 h-10"
-                    >
-                        Cancel
-                    </Button>
-                    <Button
-                        onClick={handleSave}
-                        className="flex-1 h-10"
-                    >
-                        Save
-                    </Button>
-                </div>
-            </div>
-        </div>
+                     <Button
+                         variant="ghost"
+                         onClick={handleCancel}
+                         className="flex-1 h-10"
+                     >
+                        {t('common.cancel')}
+                     </Button>
+                     <Button
+                         onClick={handleSave}
+                         className="flex-1 h-10"
+                     >
+                        {t('common.save')}
+                     </Button>
+                 </div>
+             </div>
+         </div>
     );
 
     // Use Portal to render at document root

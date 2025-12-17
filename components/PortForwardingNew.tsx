@@ -10,6 +10,7 @@ import {
   Zap,
 } from "lucide-react";
 import React, { useCallback, useState } from "react";
+import { useI18n } from "../application/i18n/I18nProvider";
 import { usePortForwardingState } from "../application/state/usePortForwardingState";
 import {
   Host,
@@ -64,6 +65,7 @@ const PortForwarding: React.FC<PortForwardingProps> = ({
   onSaveHost,
   onCreateGroup: _onCreateGroup,
 }) => {
+  const { t } = useI18n();
   const {
     rules: _rules,
     selectedRuleId,
@@ -97,8 +99,11 @@ const PortForwarding: React.FC<PortForwardingProps> = ({
     async (rule: PortForwardingRule) => {
       const _host = hosts.find((h) => h.id === rule.hostId);
       if (!_host) {
-        setRuleStatus(rule.id, "error", "Host not found");
-        toast.error("Host not found", `Port Forwarding: ${rule.label}`);
+        setRuleStatus(rule.id, "error", t("pf.error.hostNotFound"));
+        toast.error(
+          t("pf.error.hostNotFound"),
+          t("pf.toast.titleWithLabel", { label: rule.label }),
+        );
         return;
       }
 
@@ -114,14 +119,20 @@ const PortForwarding: React.FC<PortForwardingProps> = ({
             // Show toast on error (only once)
             if (status === "error" && error && !errorShown) {
               errorShown = true;
-              toast.error(error, `Port Forwarding: ${rule.label}`);
+              toast.error(
+                error,
+                t("pf.toast.titleWithLabel", { label: rule.label }),
+              );
             }
           },
         );
         // Show error from result only if not already shown
         if (!result.success && result.error && !errorShown) {
           errorShown = true;
-          toast.error(result.error, `Port Forwarding: ${rule.label}`);
+          toast.error(
+            result.error,
+            t("pf.toast.titleWithLabel", { label: rule.label }),
+          );
         }
       } finally {
         setPendingOperations((prev) => {
@@ -131,7 +142,7 @@ const PortForwarding: React.FC<PortForwardingProps> = ({
         });
       }
     },
-    [hosts, keys, setRuleStatus, startTunnel],
+    [hosts, keys, setRuleStatus, startTunnel, t],
   );
 
   // Stop a port forwarding tunnel
@@ -611,19 +622,18 @@ const PortForwarding: React.FC<PortForwardingProps> = ({
                 <Zap size={32} className="opacity-60" />
               </div>
               <h3 className="text-lg font-semibold text-foreground mb-2">
-                Set up port forwarding
+                {t("pf.empty.title")}
               </h3>
               <p className="text-sm text-center max-w-sm">
-                Save port forwarding to access databases, web apps, and other
-                services.
+                {t("pf.empty.desc")}
               </p>
             </div>
           ) : (
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <h2 className="text-base font-semibold">Port Forwarding</h2>
+                <h2 className="text-base font-semibold">{t("pf.title")}</h2>
                 <span className="text-xs text-muted-foreground">
-                  {filteredRules.length} rules
+                  {t("pf.rulesCount", { count: filteredRules.length })}
                 </span>
               </div>
 
@@ -694,7 +704,7 @@ const PortForwarding: React.FC<PortForwardingProps> = ({
             setShowWizard(false);
             resetWizard();
           }}
-          title={isEditing ? "Edit Port Forwarding" : "New Port Forwarding"}
+          title={isEditing ? t("pf.wizard.editTitle") : t("pf.wizard.newTitle")}
           width="w-[360px]"
           showBackButton={!!getPrevStep()}
           onBack={
@@ -737,9 +747,9 @@ const PortForwarding: React.FC<PortForwardingProps> = ({
             >
               {isLastStep()
                 ? isEditing
-                  ? "Save Changes"
-                  : "Done"
-                : "Continue"}
+                  ? t("pf.wizard.saveChanges")
+                  : t("pf.wizard.done")
+                : t("pf.wizard.continue")}
             </Button>
             <Button
               variant="ghost"
@@ -753,7 +763,7 @@ const PortForwarding: React.FC<PortForwardingProps> = ({
                 }
               }}
             >
-              {isEditing ? "Cancel" : "Skip wizard"}
+              {isEditing ? t("pf.wizard.cancel") : t("pf.wizard.skipWizard")}
             </Button>
           </AsidePanelFooter>
         </AsidePanel>

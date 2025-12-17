@@ -1,5 +1,5 @@
 import { useCallback,useEffect,useMemo,useState } from 'react';
-import { SyncConfig, TerminalSettings, DEFAULT_TERMINAL_SETTINGS, HotkeyScheme, CustomKeyBindings, DEFAULT_KEY_BINDINGS, KeyBinding } from '../../domain/models';
+import { SyncConfig, TerminalSettings, DEFAULT_TERMINAL_SETTINGS, HotkeyScheme, CustomKeyBindings, DEFAULT_KEY_BINDINGS, KeyBinding, UILanguage } from '../../domain/models';
 import {
 STORAGE_KEY_COLOR,
 STORAGE_KEY_SYNC,
@@ -11,7 +11,9 @@ STORAGE_KEY_TERM_SETTINGS,
 STORAGE_KEY_HOTKEY_SCHEME,
 STORAGE_KEY_CUSTOM_KEY_BINDINGS,
 STORAGE_KEY_CUSTOM_CSS,
+STORAGE_KEY_UI_LANGUAGE,
 } from '../../infrastructure/config/storageKeys';
+import { DEFAULT_UI_LOCALE, isSupportedLocale } from '../../infrastructure/config/i18n';
 import { TERMINAL_THEMES } from '../../infrastructure/config/terminalThemes';
 import { TERMINAL_FONTS, DEFAULT_FONT_SIZE } from '../../infrastructure/config/fonts';
 import { localStorageAdapter } from '../../infrastructure/persistence/localStorageAdapter';
@@ -51,6 +53,10 @@ export const useSettingsState = () => {
   const [terminalThemeId, setTerminalThemeId] = useState<string>(() => localStorageAdapter.readString(STORAGE_KEY_TERM_THEME) || DEFAULT_TERMINAL_THEME);
   const [terminalFontFamilyId, setTerminalFontFamilyId] = useState<string>(() => localStorageAdapter.readString(STORAGE_KEY_TERM_FONT_FAMILY) || DEFAULT_FONT_FAMILY);
   const [terminalFontSize, setTerminalFontSize] = useState<number>(() => localStorageAdapter.readNumber(STORAGE_KEY_TERM_FONT_SIZE) || DEFAULT_FONT_SIZE);
+  const [uiLanguage, setUiLanguage] = useState<UILanguage>(() => {
+    const stored = localStorageAdapter.readString(STORAGE_KEY_UI_LANGUAGE);
+    return stored && isSupportedLocale(stored) ? stored : DEFAULT_UI_LOCALE;
+  });
   const [terminalSettings, setTerminalSettings] = useState<TerminalSettings>(() => {
     const stored = localStorageAdapter.read<TerminalSettings>(STORAGE_KEY_TERM_SETTINGS);
     return stored ? { ...DEFAULT_TERMINAL_SETTINGS, ...stored } : DEFAULT_TERMINAL_SETTINGS;
@@ -76,6 +82,29 @@ export const useSettingsState = () => {
     localStorageAdapter.writeString(STORAGE_KEY_COLOR, primaryColor);
   }, [theme, primaryColor]);
 
+  useEffect(() => {
+    localStorageAdapter.writeString(STORAGE_KEY_UI_LANGUAGE, uiLanguage);
+    document.documentElement.lang = uiLanguage;
+    netcattyBridge.get()?.setLanguage?.(uiLanguage);
+  }, [uiLanguage]);
+
+  useEffect(() => {
+    const bridge = netcattyBridge.get();
+    if (!bridge?.onLanguageChanged) return;
+    const unsubscribe = bridge.onLanguageChanged((language) => {
+      if (typeof language !== 'string' || !language.length) return;
+      const next = isSupportedLocale(language) ? language : DEFAULT_UI_LOCALE;
+      setUiLanguage((prev) => (prev === next ? prev : next));
+    });
+    return () => {
+      try {
+        unsubscribe?.();
+      } catch {
+        // ignore
+      }
+    };
+  }, []);
+
   // Listen for storage changes from other windows (cross-window sync)
   useEffect(() => {
     const handleStorageChange = (e: StorageEvent) => {
@@ -99,6 +128,12 @@ export const useSettingsState = () => {
         const newScheme = e.newValue as HotkeyScheme;
         if (newScheme !== hotkeyScheme) {
           setHotkeyScheme(newScheme);
+        }
+      }
+      if (e.key === STORAGE_KEY_UI_LANGUAGE && e.newValue) {
+        const next = e.newValue as UILanguage;
+        if (typeof next === 'string' && isSupportedLocale(next) && next !== uiLanguage) {
+          setUiLanguage(next);
         }
       }
       if (e.key === STORAGE_KEY_CUSTOM_KEY_BINDINGS && e.newValue) {
@@ -141,7 +176,7 @@ export const useSettingsState = () => {
 
     window.addEventListener('storage', handleStorageChange);
     return () => window.removeEventListener('storage', handleStorageChange);
-  }, [theme, primaryColor, customCSS, hotkeyScheme, terminalThemeId, terminalFontFamilyId, terminalFontSize]);
+  }, [theme, primaryColor, customCSS, hotkeyScheme, uiLanguage, terminalThemeId, terminalFontFamilyId, terminalFontSize]);
 
   useEffect(() => {
     localStorageAdapter.writeString(STORAGE_KEY_TERM_THEME, terminalThemeId);
@@ -257,6 +292,8 @@ export const useSettingsState = () => {
     setPrimaryColor,
     syncConfig,
     updateSyncConfig,
+    uiLanguage,
+    setUiLanguage,
     terminalThemeId,
     setTerminalThemeId,
     currentTerminalTheme,

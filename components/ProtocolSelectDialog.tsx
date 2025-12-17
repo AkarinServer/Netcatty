@@ -4,6 +4,7 @@ Terminal as TerminalIcon,
 Wifi
 } from 'lucide-react';
 import React,{ useMemo,useState } from 'react';
+import { useI18n } from '../application/i18n/I18nProvider';
 import { cn } from '../lib/utils';
 import { Host,HostProtocol } from '../types';
 import { DistroAvatar } from './DistroAvatar';
@@ -30,6 +31,7 @@ const ProtocolSelectDialog: React.FC<ProtocolSelectDialogProps> = ({
     onSelect,
     onCancel,
 }) => {
+    const { t } = useI18n();
     // Build protocol options from host configuration
     const protocolOptions = useMemo<ProtocolOption[]>(() => {
         const options: ProtocolOption[] = [];
@@ -143,7 +145,7 @@ const ProtocolSelectDialog: React.FC<ProtocolSelectDialogProps> = ({
 
                 {/* Protocol selection */}
                 <div className="px-6 py-4 space-y-4">
-                    <h3 className="text-base font-semibold">Choose protocol</h3>
+                    <h3 className="text-base font-semibold">{t("protocolSelect.chooseProtocol")}</h3>
                     <div className="space-y-3">
                         {protocolOptions.map((option) => (
                             <button
@@ -173,7 +175,7 @@ const ProtocolSelectDialog: React.FC<ProtocolSelectDialogProps> = ({
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                    <span className="text-xs text-muted-foreground">port:</span>
+                                    <span className="text-xs text-muted-foreground">{t("protocolSelect.port")}</span>
                                     <Input
                                         type="number"
                                         value={ports[option.protocol] || option.port}
@@ -195,10 +197,10 @@ const ProtocolSelectDialog: React.FC<ProtocolSelectDialogProps> = ({
                 {/* Footer */}
                 <div className="px-6 py-4 border-t border-border/50 flex items-center justify-between">
                     <Button variant="secondary" onClick={onCancel}>
-                        Close
+                        {t("common.close")}
                     </Button>
                     <Button onClick={handleContinue}>
-                        Continue
+                        {t("common.continue")}
                     </Button>
                 </div>
             </div>

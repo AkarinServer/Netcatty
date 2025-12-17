@@ -4,6 +4,7 @@ import { WebglAddon } from "@xterm/addon-webgl";
 import "@xterm/xterm/css/xterm.css";
 import { FileText, Palette, X } from "lucide-react";
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useI18n } from "../application/i18n/I18nProvider";
 import { cn } from "../lib/utils";
 import { ConnectionLog, TerminalTheme } from "../types";
 import { TERMINAL_THEMES } from "../infrastructure/config/terminalThemes";
@@ -27,6 +28,7 @@ const LogViewComponent: React.FC<LogViewProps> = ({
     onClose,
     onUpdateLog,
 }) => {
+    const { t, resolvedLocale } = useI18n();
     const containerRef = useRef<HTMLDivElement>(null);
     const termRef = useRef<XTerm | null>(null);
     const fitAddonRef = useRef<FitAddon | null>(null);
@@ -46,14 +48,14 @@ const LogViewComponent: React.FC<LogViewProps> = ({
     // Format date for display
     const formattedDate = useMemo(() => {
         const date = new Date(log.startTime);
-        return date.toLocaleString("en-US", {
+        return date.toLocaleString(resolvedLocale || undefined, {
             year: "numeric",
             month: "short",
             day: "numeric",
             hour: "2-digit",
             minute: "2-digit",
         });
-    }, [log.startTime]);
+    }, [log.startTime, resolvedLocale]);
 
     // Handle theme change
     const handleThemeChange = useCallback((themeId: string) => {
@@ -206,7 +208,7 @@ const LogViewComponent: React.FC<LogViewProps> = ({
                     </div>
                     <div>
                         <div className="text-sm font-medium">
-                            {isLocal ? "Local Terminal" : log.hostname}
+                            {isLocal ? t("logs.localTerminal") : log.hostname}
                         </div>
                         <div className="text-xs text-muted-foreground">
                             {formattedDate} • {log.localUsername}@{log.localHostname}
@@ -220,14 +222,14 @@ const LogViewComponent: React.FC<LogViewProps> = ({
                         size="sm"
                         className="gap-1.5 h-8 px-2"
                         onClick={() => setThemeModalOpen(true)}
-                        title="Customize appearance"
+                        title={t("logView.customizeAppearance")}
                     >
                         <Palette size={14} />
-                        <span className="text-xs">Appearance</span>
+                        <span className="text-xs">{t("logView.appearance")}</span>
                     </Button>
 
                     <span className="text-xs text-muted-foreground bg-secondary px-2 py-1 rounded">
-                        Read-only
+                        {t("logView.readOnly")}
                     </span>
                     <Button variant="ghost" size="sm" onClick={onClose}>
                         <X size={16} />

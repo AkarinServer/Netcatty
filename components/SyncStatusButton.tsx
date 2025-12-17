@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { useCloudSync } from '../application/state/useCloudSync';
 import type { CloudProvider } from '../domain/sync';
+import { useI18n } from '../application/i18n/I18nProvider';
 import { cn } from '../lib/utils';
 import { Button } from './ui/button';
 import {
@@ -106,6 +107,7 @@ export const SyncStatusButton: React.FC<SyncStatusButtonProps> = ({
     onSyncNow,
     className,
 }) => {
+    const { t } = useI18n();
     const [isOpen, setIsOpen] = useState(false);
     const [isSyncingManual, setIsSyncingManual] = useState(false);
     const sync = useCloudSync();
@@ -142,10 +144,10 @@ export const SyncStatusButton: React.FC<SyncStatusButtonProps> = ({
     };
 
     const formatTime = (timestamp?: number): string => {
-        if (!timestamp) return 'Never';
+        if (!timestamp) return t('time.never');
         const diff = Date.now() - timestamp;
-        if (diff < 60000) return 'Just now';
-        if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
+        if (diff < 60000) return t('time.justNow');
+        if (diff < 3600000) return t('time.minutesAgo', { minutes: Math.floor(diff / 60000) });
         return new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     };
 
@@ -162,7 +164,7 @@ export const SyncStatusButton: React.FC<SyncStatusButtonProps> = ({
                         "h-8 w-8 relative text-muted-foreground hover:text-foreground app-no-drag",
                         className
                     )}
-                    title="Cloud Sync"
+                    title={t('sync.cloudSync')}
                 >
                     {getButtonIcon()}
 
@@ -199,10 +201,10 @@ export const SyncStatusButton: React.FC<SyncStatusButtonProps> = ({
                             )}
 
                             <span className="text-sm font-medium">
-                                {overallStatus === 'synced' && 'Cloud Sync Active'}
-                                {overallStatus === 'syncing' && 'Syncing...'}
-                                {overallStatus === 'error' && 'Sync Error'}
-                                {overallStatus === 'none' && 'Not Configured'}
+                                {overallStatus === 'synced' && t('sync.active')}
+                                {overallStatus === 'syncing' && t('sync.syncing')}
+                                {overallStatus === 'error' && t('sync.error')}
+                                {overallStatus === 'none' && t('sync.notConfigured')}
                             </span>
                         </div>
 
@@ -213,7 +215,7 @@ export const SyncStatusButton: React.FC<SyncStatusButtonProps> = ({
                                     onOpenSettings();
                                 }}
                                 className="p-1 rounded hover:bg-muted transition-colors"
-                                title="Sync Settings"
+                                title={t('sync.settings')}
                             >
                                 <Settings size={14} className="text-muted-foreground" />
                             </button>

@@ -4,6 +4,7 @@
 
 import { Copy,ExternalLink,Pencil,Trash2 } from 'lucide-react';
 import React from 'react';
+import { useI18n } from '../../application/i18n/I18nProvider';
 import { cn } from '../../lib/utils';
 import { SSHKey } from '../../types';
 import { Button } from '../ui/button';
@@ -39,6 +40,7 @@ export const KeyCard: React.FC<KeyCardProps> = ({
     onCopyPublicKey,
     onDelete,
 }) => {
+    const { t } = useI18n();
     return (
         <ContextMenu>
             <ContextMenuTrigger asChild>
@@ -88,20 +90,20 @@ export const KeyCard: React.FC<KeyCardProps> = ({
             <ContextMenuContent>
                 <ContextMenuItem onClick={onCopyPublicKey} disabled={!keyItem.publicKey}>
                     <Copy size={14} className="mr-2" />
-                    Copy Public Key
+                    {t("action.copyPublicKey")}
                 </ContextMenuItem>
                 <ContextMenuItem onClick={onExport}>
                     <ExternalLink size={14} className="mr-2" />
-                    Key Export
+                    {t("action.keyExport")}
                 </ContextMenuItem>
                 <ContextMenuItem onClick={onEdit}>
                     <Pencil size={14} className="mr-2" />
-                    Edit
+                    {t("action.edit")}
                 </ContextMenuItem>
                 <ContextMenuSeparator />
                 <ContextMenuItem onClick={onDelete} className="text-destructive focus:text-destructive">
                     <Trash2 size={14} className="mr-2" />
-                    Delete
+                    {t("action.delete")}
                 </ContextMenuItem>
             </ContextMenuContent>
         </ContextMenu>
