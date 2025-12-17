@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import React, { useMemo, useState } from "react";
 import { cn } from "../lib/utils";
+import { useI18n } from "../application/i18n/I18nProvider";
 import { Host, SSHKey } from "../types";
 import { DistroAvatar } from "./DistroAvatar";
 import HostDetailsPanel from "./HostDetailsPanel";
@@ -48,10 +49,12 @@ const SelectHostPanel: React.FC<SelectHostPanelProps> = ({
   availableKeys = [],
   onSaveHost,
   onCreateGroup,
-  title = "Select Host",
+  title,
   subtitle,
   className,
 }) => {
+  const { t } = useI18n();
+  const panelTitle = title ?? t("selectHost.title");
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPath, setCurrentPath] = useState<string | null>(null);
   const [sortMode, setSortMode] = useState<SortMode>("az");
@@ -214,7 +217,7 @@ const SelectHostPanel: React.FC<SelectHostPanelProps> = ({
             <ArrowLeft size={18} />
           </button>
           <div className="min-w-0">
-            <h3 className="text-sm font-semibold">{title}</h3>
+            <h3 className="text-sm font-semibold">{panelTitle}</h3>
             {subtitle && (
               <p className="text-xs text-muted-foreground">{subtitle}</p>
             )}
@@ -279,7 +282,7 @@ const SelectHostPanel: React.FC<SelectHostPanelProps> = ({
                 onClick={() => setCurrentPath(null)}
                 className="text-primary hover:underline"
               >
-                All hosts
+                {t("vault.hosts.allHosts")}
               </button>
               {breadcrumbs.map((crumb, index) => (
                 <React.Fragment key={crumb.path}>
@@ -301,7 +304,7 @@ const SelectHostPanel: React.FC<SelectHostPanelProps> = ({
           )}
           {groupsWithCounts.length > 0 && (
             <div>
-              <h4 className="text-sm font-semibold mb-3">Groups</h4>
+              <h4 className="text-sm font-semibold mb-3">{t("vault.groups.title")}</h4>
               <div className="space-y-1">
                 {groupsWithCounts.map((group) => (
                   <div
@@ -315,7 +318,7 @@ const SelectHostPanel: React.FC<SelectHostPanelProps> = ({
                     <div className="flex-1 min-w-0">
                       <div className="font-medium">{group.name}</div>
                       <div className="text-xs text-muted-foreground">
-                        {group.count} Host{group.count !== 1 ? "s" : ""}
+                        {t("vault.groups.hostsCount", { count: group.count })}
                       </div>
                     </div>
                   </div>
@@ -327,7 +330,7 @@ const SelectHostPanel: React.FC<SelectHostPanelProps> = ({
           {/* Hosts Section */}
           {filteredHosts.length > 0 && (
             <div>
-              <h4 className="text-sm font-semibold mb-3">Hosts</h4>
+              <h4 className="text-sm font-semibold mb-3">{t("vault.nav.hosts")}</h4>
               <div className="space-y-1">
                 {filteredHosts.map((host) => {
                   const isSelected = selectedHostIds.includes(host.id);
@@ -367,7 +370,7 @@ const SelectHostPanel: React.FC<SelectHostPanelProps> = ({
           {/* Empty state */}
           {groupsWithCounts.length === 0 && filteredHosts.length === 0 && (
             <div className="text-center py-12 text-muted-foreground">
-              <p>No hosts found</p>
+              <p>{t("selectHost.noHostsFound")}</p>
             </div>
           )}
         </div>

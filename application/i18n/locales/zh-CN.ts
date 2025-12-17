@@ -57,14 +57,14 @@ const zhCN: Messages = {
   'settings.appearance.language.desc': '选择界面语言',
 
   // Context menus / common actions
-  'action.newHost': '新建 Host',
+  'action.newHost': '新建主机',
   'action.newSubfolder': '新建文件夹',
   'action.copyPublicKey': '复制公钥',
   'action.keyExport': '导出密钥',
   'action.edit': '编辑',
   'action.delete': '删除',
   'action.remove': '移除',
-  'action.convertToHost': '转换为 Host',
+  'action.convertToHost': '转换为主机',
 
   // Sync
   'sync.cloudSync': '云同步',
@@ -84,6 +84,27 @@ const zhCN: Messages = {
   'vault.nav.snippets': '代码片段',
   'vault.nav.knownHosts': '已知主机',
   'vault.nav.logs': '日志',
+
+  'vault.groups.title': '分组',
+  'vault.groups.total': '共 {count} 个',
+  'vault.groups.hostsCount': '{count} 台主机',
+  'vault.groups.newSubgroup': '新建子分组',
+  'vault.groups.rename': '重命名分组',
+  'vault.groups.delete': '删除分组',
+  'vault.groups.createSubfolder': '创建子分组',
+  'vault.groups.createRoot': '创建根分组',
+  'vault.groups.createDialog.desc': '创建新的分组用于组织主机。',
+  'vault.groups.renameDialogTitle': '重命名分组',
+  'vault.groups.renameDialog.desc': '重命名已有分组。',
+  'vault.groups.field.name': '分组名称',
+  'vault.groups.placeholder.example': '例如：Production',
+  'vault.groups.parentLabel': '父级',
+  'vault.groups.pathLabel': '路径',
+  'vault.groups.errors.required': '分组名称不能为空。',
+  'vault.groups.errors.invalidChars': "分组名称不能包含 '/' 或 '\\\\'.",
+
+  'vault.hosts.header.entries': '{count} 条',
+  'vault.hosts.header.live': '{count} 个在线',
 
   // Vault hosts header/actions
   'vault.hosts.search.placeholder': '查找主机或 ssh user@hostname…',
@@ -163,12 +184,16 @@ const zhCN: Messages = {
   'qs.jumpTo': '跳转到',
   'qs.localTerminal': '本地终端',
 
+  // Select Host panel
+  'selectHost.title': '选择主机',
+  'selectHost.noHostsFound': '未找到主机',
+
   // Protocol select dialog
   'protocolSelect.chooseProtocol': '选择协议',
   'protocolSelect.port': '端口:',
   // Host Details
-  'hostDetails.title.details': 'Host 详情',
-  'hostDetails.title.new': '新建 Host',
+  'hostDetails.title.details': '主机详情',
+  'hostDetails.title.new': '新建主机',
   'hostDetails.saveAria': '保存',
   'hostDetails.section.address': '地址',
   'hostDetails.hostname.placeholder': 'IP 或 主机名',
@@ -227,10 +252,10 @@ const zhCN: Messages = {
   'hostForm.placeholder.addTag': '添加标签…',
   'hostForm.auth.method': '认证方式',
   'hostForm.auth.password': '密码',
-  'hostForm.auth.sshKey': 'SSH Key',
-  'hostForm.auth.selectKey': '选择 SSH Key',
-  'hostForm.auth.noKeys': '暂无 keys',
-  'hostForm.auth.noKeysHint': 'Keychain 中未找到 SSH keys，请先创建一个。',
+  'hostForm.auth.sshKey': 'SSH密钥',
+  'hostForm.auth.selectKey': '选择 SSH密钥',
+  'hostForm.auth.noKeys': '暂无密钥',
+  'hostForm.auth.noKeysHint': '钥匙串中未找到 SSH密钥，请先创建一个。',
   'hostForm.saveHost': '保存主机',
 
   // Connection logs

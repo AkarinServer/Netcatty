@@ -482,11 +482,11 @@ const VaultViewInner: React.FC<VaultViewProps> = ({
 
     const nextName = renameGroupName.trim();
     if (!nextName) {
-      setRenameGroupError("Group name is required.");
+      setRenameGroupError(t("vault.groups.errors.required"));
       return;
     }
     if (nextName.includes("/") || nextName.includes("\\")) {
-      setRenameGroupError("Group name cannot include '/' or '\\'.");
+      setRenameGroupError(t("vault.groups.errors.invalidChars"));
       return;
     }
 
@@ -608,7 +608,7 @@ const VaultViewInner: React.FC<VaultViewProps> = ({
               setSelectedGroupPath(null);
             }}
           >
-            <LayoutGrid size={16} /> Hosts
+            <LayoutGrid size={16} /> {t("vault.nav.hosts")}
           </Button>
           <Button
             variant={currentSection === "keys" ? "secondary" : "ghost"}
@@ -864,10 +864,10 @@ const VaultViewInner: React.FC<VaultViewProps> = ({
                       <>
                         <div className="flex items-center justify-between">
                           <h3 className="text-sm font-semibold text-muted-foreground">
-                            Groups
+                            {t("vault.groups.title")}
                           </h3>
                           <div className="text-xs text-muted-foreground">
-                            {displayedGroups.length} total
+                            {t("vault.groups.total", { count: displayedGroups.length })}
                           </div>
                         </div>
                       </>
@@ -934,7 +934,7 @@ const VaultViewInner: React.FC<VaultViewProps> = ({
                                     {node.name}
                                   </div>
                                   <div className="text-[11px] text-muted-foreground">
-                                    {node.hosts.length} Hosts
+                                    {t("vault.groups.hostsCount", { count: node.hosts.length })}
                                   </div>
                                 </div>
                               </div>
@@ -947,8 +947,7 @@ const VaultViewInner: React.FC<VaultViewProps> = ({
                                 setIsNewFolderOpen(true);
                               }}
                             >
-                              <FolderPlus className="mr-2 h-4 w-4" /> New
-                              Subgroup
+                              <FolderPlus className="mr-2 h-4 w-4" /> {t("vault.groups.newSubgroup")}
                             </ContextMenuItem>
                             <ContextMenuItem
                               onClick={() => {
@@ -958,13 +957,13 @@ const VaultViewInner: React.FC<VaultViewProps> = ({
                                 setIsRenameGroupOpen(true);
                               }}
                             >
-                              <Edit2 className="mr-2 h-4 w-4" /> Rename Group
+                              <Edit2 className="mr-2 h-4 w-4" /> {t("vault.groups.rename")}
                             </ContextMenuItem>
                             <ContextMenuItem
                               className="text-destructive"
                               onClick={() => deleteGroupPath(node.path)}
                             >
-                              <Trash2 className="mr-2 h-4 w-4" /> Delete Group
+                              <Trash2 className="mr-2 h-4 w-4" /> {t("vault.groups.delete")}
                             </ContextMenuItem>
                           </ContextMenuContent>
                         </ContextMenu>
@@ -975,12 +974,14 @@ const VaultViewInner: React.FC<VaultViewProps> = ({
                   <section className="space-y-2">
                     <div className="flex items-center justify-between">
                       <h3 className="text-sm font-semibold text-muted-foreground">
-                        Hosts
+                        {t("vault.nav.hosts")}
                       </h3>
                       <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <span>{displayedHosts.length} entries</span>
+                        <span>
+                          {t("vault.hosts.header.entries", { count: displayedHosts.length })}
+                        </span>
                         <div className="bg-secondary/80 border border-border/70 rounded-md px-2 py-1 text-[11px]">
-                          {sessions.length} live
+                          {t("vault.hosts.header.live", { count: sessions.length })}
                         </div>
                       </div>
                     </div>
@@ -1211,36 +1212,39 @@ const VaultViewInner: React.FC<VaultViewProps> = ({
         />
       )}
 
-      <Dialog open={isNewFolderOpen} onOpenChange={setIsNewFolderOpen}>
+          <Dialog open={isNewFolderOpen} onOpenChange={setIsNewFolderOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {targetParentPath ? `Create Subfolder` : "Create Root Group"}
+              {targetParentPath
+                ? t("vault.groups.createSubfolder")
+                : t("vault.groups.createRoot")}
             </DialogTitle>
             <DialogDescription className="sr-only">
-              Create a new group for organizing hosts.
+              {t("vault.groups.createDialog.desc")}
             </DialogDescription>
           </DialogHeader>
           <div className="py-4">
-            <Label>Group Name</Label>
+            <Label>{t("vault.groups.field.name")}</Label>
             <Input
               value={newFolderName}
               onChange={(e) => setNewFolderName(e.target.value)}
-              placeholder="e.g. Production"
+              placeholder={t("vault.groups.placeholder.example")}
               autoFocus
               onKeyDown={(e) => e.key === "Enter" && submitNewFolder()}
             />
             {targetParentPath && (
               <p className="text-xs text-muted-foreground mt-2">
-                Parent: <span className="font-mono">{targetParentPath}</span>
+                {t("vault.groups.parentLabel")}:{" "}
+                <span className="font-mono">{targetParentPath}</span>
               </p>
             )}
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setIsNewFolderOpen(false)}>
-              Cancel
+              {t("common.cancel")}
             </Button>
-            <Button onClick={submitNewFolder}>Create</Button>
+            <Button onClick={submitNewFolder}>{t("common.create")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1256,28 +1260,29 @@ const VaultViewInner: React.FC<VaultViewProps> = ({
           }
         }}
       >
-        <DialogContent>
+          <DialogContent>
           <DialogHeader>
-            <DialogTitle>Rename Group</DialogTitle>
+            <DialogTitle>{t("vault.groups.renameDialogTitle")}</DialogTitle>
             <DialogDescription className="sr-only">
-              Rename an existing group.
+              {t("vault.groups.renameDialog.desc")}
             </DialogDescription>
           </DialogHeader>
           <div className="py-4 space-y-2">
-            <Label>Group Name</Label>
+            <Label>{t("vault.groups.field.name")}</Label>
             <Input
               value={renameGroupName}
               onChange={(e) => {
                 setRenameGroupName(e.target.value);
                 setRenameGroupError(null);
               }}
-              placeholder="e.g. Production"
+              placeholder={t("vault.groups.placeholder.example")}
               autoFocus
               onKeyDown={(e) => e.key === "Enter" && submitRenameGroup()}
             />
             {renameTargetPath && (
               <p className="text-xs text-muted-foreground">
-                Path: <span className="font-mono">{renameTargetPath}</span>
+                {t("vault.groups.pathLabel")}:{" "}
+                <span className="font-mono">{renameTargetPath}</span>
               </p>
             )}
             {renameGroupError && (
@@ -1286,9 +1291,9 @@ const VaultViewInner: React.FC<VaultViewProps> = ({
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setIsRenameGroupOpen(false)}>
-              Cancel
+              {t("common.cancel")}
             </Button>
-            <Button onClick={submitRenameGroup}>Rename</Button>
+            <Button onClick={submitRenameGroup}>{t("common.rename")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

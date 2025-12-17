@@ -86,6 +86,27 @@ const en: Messages = {
   'vault.nav.knownHosts': 'Known Hosts',
   'vault.nav.logs': 'Logs',
 
+  'vault.groups.title': 'Groups',
+  'vault.groups.total': '{count} total',
+  'vault.groups.hostsCount': '{count} Hosts',
+  'vault.groups.newSubgroup': 'New Subgroup',
+  'vault.groups.rename': 'Rename Group',
+  'vault.groups.delete': 'Delete Group',
+  'vault.groups.createSubfolder': 'Create Subfolder',
+  'vault.groups.createRoot': 'Create Root Group',
+  'vault.groups.createDialog.desc': 'Create a new group for organizing hosts.',
+  'vault.groups.renameDialogTitle': 'Rename Group',
+  'vault.groups.renameDialog.desc': 'Rename an existing group.',
+  'vault.groups.field.name': 'Group Name',
+  'vault.groups.placeholder.example': 'e.g. Production',
+  'vault.groups.parentLabel': 'Parent',
+  'vault.groups.pathLabel': 'Path',
+  'vault.groups.errors.required': 'Group name is required.',
+  'vault.groups.errors.invalidChars': "Group name cannot include '/' or '\\\\'.",
+
+  'vault.hosts.header.entries': '{count} entries',
+  'vault.hosts.header.live': '{count} live',
+
   // Vault hosts header/actions
   'vault.hosts.search.placeholder': 'Find a host or ssh user@hostname...',
   'vault.hosts.connect': 'Connect',
@@ -163,6 +184,10 @@ const en: Messages = {
   'qs.restore': 'Restore',
   'qs.jumpTo': 'Jump To',
   'qs.localTerminal': 'Local Terminal',
+
+  // Select Host panel
+  'selectHost.title': 'Select Host',
+  'selectHost.noHostsFound': 'No hosts found',
 
   // Protocol select dialog
   'protocolSelect.chooseProtocol': 'Choose protocol',
