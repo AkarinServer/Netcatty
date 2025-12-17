@@ -493,116 +493,26 @@ const HostDetailsPanel: React.FC<HostDetailsPanelProps> = ({
           </div>
         </Card>
 
-        {/* SSH Protocol Card */}
-        <Card className="p-3 space-y-3 bg-card border-border/80">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 bg-secondary/70 border border-border/70 rounded-md px-2 py-1">
-              <span className="text-xs text-muted-foreground">SSH on</span>
-              <Input
-                type="number"
-                value={form.port}
-                onChange={(e) => update("port", Number(e.target.value))}
-                className="h-8 w-16 text-center"
-              />
-              <span className="text-xs text-muted-foreground">port</span>
-            </div>
-          </div>
-
-          {/* SSH Theme Selection */}
-          <button
-            type="button"
-            className="w-full flex items-center gap-3 p-2 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors text-left"
-            onClick={() => setActiveSubPanel("theme-select")}
-          >
-            <div
-              className="w-12 h-8 rounded-md border border-border/60 flex items-center justify-center text-[6px] font-mono overflow-hidden"
-              style={{
-                backgroundColor:
-                  TERMINAL_THEMES.find(
-                    (t) => t.id === (form.theme || "flexoki-dark"),
-                  )?.colors.background || "#100F0F",
-                color:
-                  TERMINAL_THEMES.find(
-                    (t) => t.id === (form.theme || "flexoki-dark"),
-                  )?.colors.foreground || "#CECDC3",
-              }}
-            >
-              <div className="p-0.5">
-                <div
-                  style={{
-                    color: TERMINAL_THEMES.find(
-                      (t) => t.id === (form.theme || "flexoki-dark"),
-                    )?.colors.green,
-                  }}
-                >
-                  $
-                </div>
-              </div>
-            </div>
-            <span className="text-sm flex-1">
-              {TERMINAL_THEMES.find(
-                (t) => t.id === (form.theme || "flexoki-dark"),
-              )?.name || "Flexoki Dark"}
-            </span>
-          </button>
-
-          {/* Font Size */}
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground">Font Size:</span>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                if ((form.fontSize || 14) > MIN_FONT_SIZE) {
-                  update("fontSize", (form.fontSize || 14) - 1);
-                }
-              }}
-              disabled={(form.fontSize || 14) <= MIN_FONT_SIZE}
-              className="px-2 h-8"
-            >
-              −
-            </Button>
-            <Input
-              type="number"
-              min={MIN_FONT_SIZE}
-              max={MAX_FONT_SIZE}
-              value={form.fontSize || 14}
-              onChange={(e) => {
-                const val = parseInt(e.target.value);
-                if (val >= MIN_FONT_SIZE && val <= MAX_FONT_SIZE) {
-                  update("fontSize", val);
-                }
-              }}
-              className="w-16 text-center h-8"
-            />
-            <span className="text-sm text-muted-foreground">pt</span>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                if ((form.fontSize || 14) < MAX_FONT_SIZE) {
-                  update("fontSize", (form.fontSize || 14) + 1);
-                }
-              }}
-              disabled={(form.fontSize || 14) >= MAX_FONT_SIZE}
-              className="px-2 h-8"
-            >
-              +
-            </Button>
-          </div>
-
-          {/* Mosh Toggle */}
-          <ToggleRow
-            label="Mosh"
-            enabled={!!form.moshEnabled}
-            onToggle={() => update("moshEnabled", !form.moshEnabled)}
-          />
-        </Card>
-
         <Card className="p-3 space-y-3 bg-card border-border/80">
           <p className="text-xs font-semibold">
-            {t("hostDetails.section.credentials")}
+            {t("hostDetails.section.portCredentials")}
           </p>
+          <div className="flex items-center gap-2">
+            <div className="flex-1 min-w-0 h-10 flex items-center gap-2 bg-secondary/70 border border-border/70 rounded-md px-3">
+              <span className="text-xs text-muted-foreground">SSH on</span>
+              <div className="ml-auto w-1/2 min-w-0 flex items-center gap-2 justify-end">
+                <Input
+                  type="number"
+                  value={form.port}
+                  onChange={(e) => update("port", Number(e.target.value))}
+                  className="h-8 flex-1 min-w-0 text-center"
+                />
+                <span className="text-xs text-muted-foreground">
+                  {t("hostDetails.port")}
+                </span>
+              </div>
+            </div>
+          </div>
           <div className="grid gap-2">
             <Input
               placeholder={t("hostDetails.username.placeholder")}
@@ -768,6 +678,104 @@ const HostDetailsPanel: React.FC<HostDetailsPanelProps> = ({
 	              )}
 	          </div>
 	        </Card>
+
+        <Card className="p-3 space-y-3 bg-card border-border/80">
+          <p className="text-xs font-semibold">
+            {t("hostDetails.section.appearance")}
+          </p>
+
+          {/* SSH Theme Selection */}
+          <button
+            type="button"
+            className="w-full flex items-center gap-3 p-2 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors text-left"
+            onClick={() => setActiveSubPanel("theme-select")}
+          >
+            <div
+              className="w-12 h-8 rounded-md border border-border/60 flex items-center justify-center text-[6px] font-mono overflow-hidden"
+              style={{
+                backgroundColor:
+                  TERMINAL_THEMES.find(
+                    (t) => t.id === (form.theme || "flexoki-dark"),
+                  )?.colors.background || "#100F0F",
+                color:
+                  TERMINAL_THEMES.find(
+                    (t) => t.id === (form.theme || "flexoki-dark"),
+                  )?.colors.foreground || "#CECDC3",
+              }}
+            >
+              <div className="p-0.5">
+                <div
+                  style={{
+                    color: TERMINAL_THEMES.find(
+                      (t) => t.id === (form.theme || "flexoki-dark"),
+                    )?.colors.green,
+                  }}
+                >
+                  $
+                </div>
+              </div>
+            </div>
+            <span className="text-sm flex-1">
+              {TERMINAL_THEMES.find(
+                (t) => t.id === (form.theme || "flexoki-dark"),
+              )?.name || "Flexoki Dark"}
+            </span>
+          </button>
+
+          {/* Font Size */}
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">Font Size:</span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                if ((form.fontSize || 14) > MIN_FONT_SIZE) {
+                  update("fontSize", (form.fontSize || 14) - 1);
+                }
+              }}
+              disabled={(form.fontSize || 14) <= MIN_FONT_SIZE}
+              className="px-2 h-8"
+            >
+              -
+            </Button>
+            <Input
+              type="number"
+              min={MIN_FONT_SIZE}
+              max={MAX_FONT_SIZE}
+              value={form.fontSize || 14}
+              onChange={(e) => {
+                const val = parseInt(e.target.value);
+                if (val >= MIN_FONT_SIZE && val <= MAX_FONT_SIZE) {
+                  update("fontSize", val);
+                }
+              }}
+              className="w-16 text-center h-8"
+            />
+            <span className="text-sm text-muted-foreground">pt</span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                if ((form.fontSize || 14) < MAX_FONT_SIZE) {
+                  update("fontSize", (form.fontSize || 14) + 1);
+                }
+              }}
+              disabled={(form.fontSize || 14) >= MAX_FONT_SIZE}
+              className="px-2 h-8"
+            >
+              +
+            </Button>
+          </div>
+        </Card>
+
+        <Card className="p-3 space-y-3 bg-card border-border/80">
+          <p className="text-xs font-semibold">{t("hostDetails.section.mosh")}</p>
+          <ToggleRow
+            label="Mosh"
+            enabled={!!form.moshEnabled}
+            onToggle={() => update("moshEnabled", !form.moshEnabled)}
+          />
+        </Card>
 
         <Card className="p-3 space-y-2 bg-card border-border/80">
           <ToggleRow
