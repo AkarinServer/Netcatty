@@ -323,6 +323,14 @@ async function createWindow(electronModule, options) {
 
   mainWindow = win;
 
+  win.on("enter-full-screen", () => {
+    win.webContents?.send("netcatty:window:fullscreen-changed", true);
+  });
+
+  win.on("leave-full-screen", () => {
+    win.webContents?.send("netcatty:window:fullscreen-changed", false);
+  });
+
   // Ensure native background matches frontend background, even before first paint.
   try {
     win.setBackgroundColor(backgroundColor);
@@ -398,6 +406,14 @@ async function openSettingsWindow(electronModule, options) {
   });
 
   settingsWindow = win;
+
+  win.on("enter-full-screen", () => {
+    win.webContents?.send("netcatty:window:fullscreen-changed", true);
+  });
+
+  win.on("leave-full-screen", () => {
+    win.webContents?.send("netcatty:window:fullscreen-changed", false);
+  });
 
   // Ensure native background matches frontend background, even before first paint.
   try {
@@ -493,6 +509,14 @@ function registerWindowHandlers(ipcMain, nativeTheme) {
     const win = getWindowForIpcEvent(event);
     if (win && !win.isDestroyed()) {
       return win.isMaximized();
+    }
+    return false;
+  });
+
+  ipcMain.handle("netcatty:window:isFullscreen", (event) => {
+    const win = getWindowForIpcEvent(event);
+    if (win && !win.isDestroyed()) {
+      return win.isFullScreen();
     }
     return false;
   });

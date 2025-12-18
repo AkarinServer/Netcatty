@@ -40,6 +40,16 @@ export const useWindowControls = () => {
     return bridge?.windowIsMaximized?.();
   }, []);
 
+  const isFullscreen = useCallback(async () => {
+    const bridge = netcattyBridge.get();
+    return bridge?.windowIsFullscreen?.() ?? false;
+  }, []);
+
+  const onFullscreenChanged = useCallback((cb: (isFullscreen: boolean) => void) => {
+    const bridge = netcattyBridge.get();
+    return bridge?.onWindowFullScreenChanged?.(cb) ?? (() => {});
+  }, []);
+
   return {
     notifyRendererReady,
     closeSettingsWindow,
@@ -48,6 +58,7 @@ export const useWindowControls = () => {
     maximize,
     close,
     isMaximized,
+    isFullscreen,
+    onFullscreenChanged,
   };
 };
-

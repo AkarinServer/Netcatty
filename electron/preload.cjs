@@ -8,6 +8,7 @@ const transferErrorListeners = new Map();
 const chainProgressListeners = new Map();
 const authFailedListeners = new Map();
 const languageChangeListeners = new Set();
+const fullscreenChangeListeners = new Set();
 
 ipcRenderer.on("netcatty:data", (_event, payload) => {
   const set = dataListeners.get(payload.sessionId);
@@ -55,6 +56,16 @@ ipcRenderer.on("netcatty:languageChanged", (_event, language) => {
       cb(language);
     } catch (err) {
       console.error("Language changed callback failed", err);
+    }
+  });
+});
+
+ipcRenderer.on("netcatty:window:fullscreen-changed", (_event, isFullscreen) => {
+  fullscreenChangeListeners.forEach((cb) => {
+    try {
+      cb(isFullscreen);
+    } catch (err) {
+      console.error("Fullscreen changed callback failed", err);
     }
   });
 });
@@ -343,6 +354,11 @@ const api = {
   windowMaximize: () => ipcRenderer.invoke("netcatty:window:maximize"),
   windowClose: () => ipcRenderer.invoke("netcatty:window:close"),
   windowIsMaximized: () => ipcRenderer.invoke("netcatty:window:isMaximized"),
+  windowIsFullscreen: () => ipcRenderer.invoke("netcatty:window:isFullscreen"),
+  onWindowFullScreenChanged: (cb) => {
+    fullscreenChangeListeners.add(cb);
+    return () => fullscreenChangeListeners.delete(cb);
+  },
   
   // Settings window
   openSettingsWindow: () => ipcRenderer.invoke("netcatty:settings:open"),

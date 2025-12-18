@@ -227,6 +227,8 @@ interface NetcattyBridge {
   windowMaximize?(): Promise<boolean>;
   windowClose?(): Promise<void>;
   windowIsMaximized?(): Promise<boolean>;
+  windowIsFullscreen?(): Promise<boolean>;
+  onWindowFullScreenChanged?(cb: (isFullscreen: boolean) => void): () => void;
   
   // Settings window
   openSettingsWindow?(): Promise<boolean>;

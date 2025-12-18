@@ -1,1 +1,38 @@
-<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 56 56'><rect x='0' y='0' width='56' height='56' rx='12' fill='#2463EB'/><rect x='10' y='13' width='36' height='24' rx='4' fill='white'/><rect x='10' y='13' width='36' height='5' rx='4' fill='#E5ECFF'/><circle cx='14' cy='15.5' r='1' fill='#2463EB'/><circle cx='18' cy='15.5' r='1' fill='#2463EB' opacity='0.7'/><circle cx='22' cy='15.5' r='1' fill='#2463EB' opacity='0.5'/><path d='M16 28 L20 26 L16 24' stroke='#2463EB' fill='none' stroke-width='1.6'/><path d='M24 30 H30' stroke='#2463EB' stroke-width='1.6'/><path d='M20 13 L22 8 L24 13Z' fill='white'/><path d='M32 13 L34 8 L36 13Z' fill='white'/><path d='M36 33 C40 36,42 38,42 42 C42 45,40 47,37 47' stroke='white' fill='none' stroke-width='3.2'/><rect x='34' y='44' width='6' height='5' rx='1' fill='white' stroke='#2463EB'/></svg>
+<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 56 56'>
+  <defs>
+    <linearGradient id='bg' x1='8' y1='6' x2='46' y2='50' gradientUnits='userSpaceOnUse'>
+      <stop stop-color='#2F7BFF'/>
+      <stop offset='1' stop-color='#1C4CCB'/>
+    </linearGradient>
+    <linearGradient id='bg-glow' x1='28' y1='4' x2='28' y2='30' gradientUnits='userSpaceOnUse'>
+      <stop stop-color='white' stop-opacity='0.28'/>
+      <stop offset='1' stop-color='white' stop-opacity='0'/>
+    </linearGradient>
+    <linearGradient id='screen' x1='10' y1='13' x2='46' y2='37' gradientUnits='userSpaceOnUse'>
+      <stop stop-color='white'/>
+      <stop offset='1' stop-color='#EEF3FF'/>
+    </linearGradient>
+    <linearGradient id='header' x1='10' y1='13' x2='46' y2='18' gradientUnits='userSpaceOnUse'>
+      <stop stop-color='#F1F5FF'/>
+      <stop offset='1' stop-color='#D9E4FF'/>
+    </linearGradient>
+    <filter id='panel-shadow' x='8' y='11' width='40' height='28' filterUnits='userSpaceOnUse'>
+      <feDropShadow dx='0' dy='2' stdDeviation='2' flood-color='#0B2D7A' flood-opacity='0.18'/>
+    </filter>
+  </defs>
+  <rect x='0' y='0' width='56' height='56' rx='12' fill='url(#bg)'/>
+  <rect x='0' y='0' width='56' height='32' rx='12' fill='url(#bg-glow)'/>
+  <g filter='url(#panel-shadow)'>
+    <rect x='10' y='13' width='36' height='24' rx='4' fill='url(#screen)' stroke='#1D4FCF' stroke-opacity='0.1'/>
+  </g>
+  <rect x='10' y='13' width='36' height='5' rx='4' fill='url(#header)'/>
+  <circle cx='14' cy='15.5' r='1' fill='#1E4FD1'/>
+  <circle cx='18' cy='15.5' r='1' fill='#1E4FD1' opacity='0.7'/>
+  <circle cx='22' cy='15.5' r='1' fill='#1E4FD1' opacity='0.5'/>
+  <path d='M16 28 L20 26 L16 24' stroke='#1E4FD1' fill='none' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/>
+  <path d='M24 30 H30' stroke='#1E4FD1' stroke-width='1.6' stroke-linecap='round'/>
+  <path d='M20 13 L22 8 L24 13Z' fill='white' opacity='0.9'/>
+  <path d='M32 13 L34 8 L36 13Z' fill='white' opacity='0.9'/>
+  <path d='M36 33 C40 36,42 38,42 42 C42 45,40 47,37 47' stroke='white' fill='none' stroke-width='3.2' stroke-linecap='round'/>
+  <rect x='34' y='44' width='6' height='5' rx='1' fill='white' stroke='#1E4FD1'/>
+</svg>

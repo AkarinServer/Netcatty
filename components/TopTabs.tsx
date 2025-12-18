@@ -132,7 +132,7 @@ const TopTabsInner: React.FC<TopTabsProps> = ({
 }) => {
   const { t } = useI18n();
   // Subscribe to activeTabId from external store
-  const { maximize } = useWindowControls();
+  const { maximize, isFullscreen, onFullscreenChanged } = useWindowControls();
   const activeTabId = useActiveTabId();
   const isVaultActive = activeTabId === 'vault';
   const isSftpActive = activeTabId === 'sftp';
@@ -142,6 +142,20 @@ const TopTabsInner: React.FC<TopTabsProps> = ({
   const [dropIndicator, setDropIndicator] = useState<{ tabId: string; position: 'before' | 'after' } | null>(null);
   const [isDraggingForReorder, setIsDraggingForReorder] = useState(false);
   const draggedTabIdRef = useRef<string | null>(null);
+  const [isWindowFullscreen, setIsWindowFullscreen] = useState(false);
+
+  useEffect(() => {
+    if (!isMacClient) return;
+    let cancelled = false;
+    isFullscreen().then((value) => {
+      if (!cancelled) setIsWindowFullscreen(!!value);
+    });
+    const unsubscribe = onFullscreenChanged((value) => setIsWindowFullscreen(!!value));
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, [isFullscreen, isMacClient, onFullscreenChanged]);
 
   // Refs for scrollable tab container
   const tabsContainerRef = useRef<HTMLDivElement>(null);
@@ -512,7 +526,7 @@ const TopTabsInner: React.FC<TopTabsProps> = ({
       <div className="absolute inset-x-0 top-0 h-3 app-drag pointer-events-auto z-10" style={dragRegionStyle} aria-hidden />
       <div
         className="h-10 px-3 flex items-center gap-2 app-drag"
-        style={{ ...dragRegionStyle, paddingLeft: isMacClient ? 76 : 12 }}
+        style={{ ...dragRegionStyle, paddingLeft: isMacClient && !isWindowFullscreen ? 76 : 12 }}
       >
         {/* Fixed left tabs: Vaults and SFTP */}
         <div className="flex items-center gap-2 flex-shrink-0 app-drag">
