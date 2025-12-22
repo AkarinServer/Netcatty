@@ -11,6 +11,12 @@ export const TYPE_LABEL_KEYS: Record<PortForwardingType, string> = {
   dynamic: 'pf.type.dynamic',
 };
 
+export const TYPE_MENU_LABEL_KEYS: Record<PortForwardingType, string> = {
+  local: 'pf.type.menu.local',
+  remote: 'pf.type.menu.remote',
+  dynamic: 'pf.type.menu.dynamic',
+};
+
 export const TYPE_DESCRIPTION_KEYS: Record<PortForwardingType, string> = {
   local: 'pf.type.local.desc',
   remote: 'pf.type.remote.desc',
@@ -22,6 +28,13 @@ export function getTypeLabel(
   type: PortForwardingType
 ): string {
   return t(TYPE_LABEL_KEYS[type]);
+}
+
+export function getTypeMenuLabel(
+  t: (key: string, vars?: Record<string, unknown>) => string,
+  type: PortForwardingType
+): string {
+  return t(TYPE_MENU_LABEL_KEYS[type]);
 }
 
 export function getTypeDescription(

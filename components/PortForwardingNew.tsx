@@ -36,6 +36,7 @@ import {
   EditPanel,
   generateRuleLabel as buildRuleLabel,
   getTypeLabel,
+  getTypeMenuLabel,
   NewFormPanel,
   RuleCard,
   WizardContent,
@@ -529,7 +530,7 @@ const PortForwarding: React.FC<PortForwardingProps> = ({
                 onClick={() => startNewRule("local")}
               >
                 <Globe size={16} className="text-blue-500" />
-                {getTypeLabel(t, "local")}
+                {getTypeMenuLabel(t, "local")}
               </Button>
               <Button
                 variant="ghost"
@@ -537,7 +538,7 @@ const PortForwarding: React.FC<PortForwardingProps> = ({
                 onClick={() => startNewRule("remote")}
               >
                 <Server size={16} className="text-orange-500" />
-                {getTypeLabel(t, "remote")}
+                {getTypeMenuLabel(t, "remote")}
               </Button>
               <Button
                 variant="ghost"
@@ -545,7 +546,7 @@ const PortForwarding: React.FC<PortForwardingProps> = ({
                 onClick={() => startNewRule("dynamic")}
               >
                 <Shuffle size={16} className="text-purple-500" />
-                {getTypeLabel(t, "dynamic")}
+                {getTypeMenuLabel(t, "dynamic")}
               </Button>
             </DropdownContent>
           </Dropdown>
