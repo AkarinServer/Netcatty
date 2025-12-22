@@ -80,14 +80,14 @@ const WindowControls: React.FC = memo(() => {
     <div className="flex items-center app-drag">
       <button
         onClick={handleMinimize}
-        className="h-10 w-12 flex items-center justify-center text-muted-foreground hover:bg-foreground/10 hover:text-foreground transition-all duration-150 app-no-drag"
+        className="h-9 w-11 flex items-center justify-center text-muted-foreground hover:bg-foreground/10 hover:text-foreground transition-all duration-150 app-no-drag"
         title="Minimize"
       >
         <Minus size={16} />
       </button>
       <button
         onClick={handleMaximize}
-        className="h-10 w-12 flex items-center justify-center text-muted-foreground hover:bg-foreground/10 hover:text-foreground transition-all duration-150 app-no-drag"
+        className="h-9 w-11 flex items-center justify-center text-muted-foreground hover:bg-foreground/10 hover:text-foreground transition-all duration-150 app-no-drag"
         title={isMaximized ? "Restore" : "Maximize"}
       >
         {isMaximized ? (
@@ -100,7 +100,7 @@ const WindowControls: React.FC = memo(() => {
       </button>
       <button
         onClick={handleClose}
-        className="h-10 w-12 flex items-center justify-center text-muted-foreground hover:bg-red-500 hover:text-white transition-all duration-150 app-no-drag"
+        className="h-9 w-11 flex items-center justify-center text-muted-foreground hover:bg-red-500 hover:text-white transition-all duration-150 app-no-drag"
         title="Close"
       >
         <X size={16} />
@@ -374,7 +374,7 @@ const TopTabsInner: React.FC<TopTabsProps> = ({
                 onDragLeave={handleTabDragLeave}
                 onDrop={(e) => handleTabDrop(e, session.id)}
                 className={cn(
-                  "relative h-8 pl-3 pr-2 min-w-[140px] max-w-[240px] rounded-md border text-xs font-semibold cursor-pointer flex items-center justify-between gap-2 app-no-drag flex-shrink-0",
+                  "relative h-7 pl-3 pr-2 min-w-[140px] max-w-[240px] rounded-md border text-xs font-semibold cursor-pointer flex items-center justify-between gap-2 app-no-drag flex-shrink-0",
                   "transition-all duration-200 ease-out",
                   activeTabId === session.id ? "bg-accent/20 text-foreground" : "border-border/60 text-muted-foreground hover:border-accent/40 hover:text-foreground",
                   isBeingDragged && isDraggingForReorder ? "opacity-40 scale-95" : ""
@@ -440,7 +440,7 @@ const TopTabsInner: React.FC<TopTabsProps> = ({
                 onDragLeave={handleTabDragLeave}
                 onDrop={(e) => handleTabDrop(e, workspace.id)}
                 className={cn(
-                  "relative h-8 pl-3 pr-2 min-w-[150px] max-w-[260px] rounded-md border text-xs font-semibold cursor-pointer flex items-center justify-between gap-2 app-no-drag flex-shrink-0",
+                  "relative h-7 pl-3 pr-2 min-w-[150px] max-w-[260px] rounded-md border text-xs font-semibold cursor-pointer flex items-center justify-between gap-2 app-no-drag flex-shrink-0",
                   "transition-all duration-200 ease-out",
                   isActive ? "bg-accent/20 text-foreground" : "border-border/60 text-muted-foreground hover:border-accent/40 hover:text-foreground",
                   isBeingDragged && isDraggingForReorder ? "opacity-40 scale-95" : ""
@@ -490,7 +490,7 @@ const TopTabsInner: React.FC<TopTabsProps> = ({
             data-tab-id={logView.id}
             onClick={() => onSelectTab(logView.id)}
             className={cn(
-              "relative h-8 pl-3 pr-2 min-w-[140px] max-w-[240px] rounded-md border text-xs font-semibold cursor-pointer flex items-center justify-between gap-2 app-no-drag flex-shrink-0",
+              "relative h-7 pl-3 pr-2 min-w-[140px] max-w-[240px] rounded-md border text-xs font-semibold cursor-pointer flex items-center justify-between gap-2 app-no-drag flex-shrink-0",
               "transition-all duration-200 ease-out",
               isActive ? "bg-accent/20 text-foreground" : "border-border/60 text-muted-foreground hover:border-accent/40 hover:text-foreground"
             )}
@@ -536,9 +536,9 @@ const TopTabsInner: React.FC<TopTabsProps> = ({
       onDoubleClick={handleTitleBarDoubleClick}
     >
       {/* Always-on drag stripe so the window can be moved even when tabs fill the bar */}
-      <div className="absolute inset-x-0 top-0 h-3 app-drag pointer-events-auto z-10" style={dragRegionStyle} aria-hidden />
+      <div className="absolute inset-x-0 top-0 h-2 app-drag pointer-events-auto z-10" style={dragRegionStyle} aria-hidden />
       <div
-        className="h-10 px-3 flex items-center gap-2 app-drag"
+        className="h-9 px-3 flex items-center gap-2 app-drag"
         style={{ ...dragRegionStyle, paddingLeft: isMacClient && !isWindowFullscreen ? 76 : 12 }}
       >
         {/* Fixed left tabs: Vaults and SFTP */}
@@ -546,7 +546,7 @@ const TopTabsInner: React.FC<TopTabsProps> = ({
           <div
             onClick={() => onSelectTab('vault')}
             className={cn(
-              "h-8 px-3 rounded-md border text-xs font-semibold cursor-pointer flex items-center gap-2 app-no-drag",
+              "h-7 px-3 rounded-md border text-xs font-semibold cursor-pointer flex items-center gap-2 app-no-drag",
               isVaultActive ? "bg-accent/20 text-foreground" : "border-border/60 text-muted-foreground hover:border-accent/40 hover:text-foreground"
             )}
             style={isVaultActive ? { borderColor: 'hsl(var(--accent))' } : undefined}
@@ -556,7 +556,7 @@ const TopTabsInner: React.FC<TopTabsProps> = ({
           <div
             onClick={() => onSelectTab('sftp')}
             className={cn(
-              "h-8 px-3 rounded-md border text-xs font-semibold cursor-pointer flex items-center gap-2 app-no-drag",
+              "h-7 px-3 rounded-md border text-xs font-semibold cursor-pointer flex items-center gap-2 app-no-drag",
               isSftpActive ? "bg-accent/20 text-foreground" : "border-border/60 text-muted-foreground hover:border-accent/40 hover:text-foreground"
             )}
             style={isSftpActive ? { borderColor: 'hsl(var(--accent))' } : undefined}
@@ -598,7 +598,7 @@ const TopTabsInner: React.FC<TopTabsProps> = ({
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 flex-shrink-0 app-no-drag"
+                className="h-7 w-7 flex-shrink-0 app-no-drag"
                 onClick={onOpenQuickSwitcher}
                 title="Open quick switcher"
               >
@@ -606,7 +606,7 @@ const TopTabsInner: React.FC<TopTabsProps> = ({
               </Button>
             )}
             {/* Draggable spacer - fixed width handle at the end */}
-            <div className="min-w-[20px] h-8 app-drag flex-shrink-0" style={dragRegionStyle} />
+            <div className="min-w-[20px] h-7 app-drag flex-shrink-0" style={dragRegionStyle} />
           </div>
 
           {/* Right fade mask */}
@@ -623,7 +623,7 @@ const TopTabsInner: React.FC<TopTabsProps> = ({
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8 flex-shrink-0 app-no-drag"
+            className="h-7 w-7 flex-shrink-0 app-no-drag"
             onClick={onOpenQuickSwitcher}
             title="More tabs"
           >
@@ -633,14 +633,14 @@ const TopTabsInner: React.FC<TopTabsProps> = ({
 
         {/* Fixed right controls */}
         <div className="flex-shrink-0 flex items-center gap-2 app-drag" style={dragRegionStyle}>
-          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground app-no-drag">
+          <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground app-no-drag">
             <Bell size={16} />
           </Button>
           <SyncStatusButton onOpenSettings={onOpenSettings} onSyncNow={onSyncNow} />
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8 text-muted-foreground hover:text-foreground app-no-drag"
+            className="h-7 w-7 text-muted-foreground hover:text-foreground app-no-drag"
             onClick={onToggleTheme}
             title="Toggle theme"
           >
@@ -650,7 +650,7 @@ const TopTabsInner: React.FC<TopTabsProps> = ({
         {/* Custom window controls for Windows/Linux */}
         {!isMacClient && <WindowControls />}
         {/* Small drag shim to the right edge */}
-        <div className="w-2 h-10 app-drag flex-shrink-0" />
+        <div className="w-2 h-9 app-drag flex-shrink-0" />
       </div>
     </div>
   );

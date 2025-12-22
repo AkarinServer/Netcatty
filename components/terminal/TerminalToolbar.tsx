@@ -55,7 +55,7 @@ export const TerminalToolbar: React.FC<TerminalToolbarProps> = ({
 }) => {
     const { t } = useI18n();
     const [themeModalOpen, setThemeModalOpen] = useState(false);
-    const buttonBase = "h-6 w-6 p-0 shadow-none border-none text-[color:var(--terminal-toolbar-fg)] bg-[color:var(--terminal-toolbar-btn)] hover:bg-[color:var(--terminal-toolbar-btn-hover)]";
+    const buttonBase = "h-6 w-6 p-0 shadow-none border-none text-[color:var(--terminal-toolbar-fg)] bg-transparent hover:bg-transparent";
 
     const isLocalTerminal = host?.protocol === 'local' || host?.id?.startsWith('local-');
 
@@ -162,7 +162,7 @@ export const TerminalToolbar: React.FC<TerminalToolbarProps> = ({
             <Button
                 variant="secondary"
                 size="icon"
-                className={`${buttonBase} ${isSearchOpen ? 'bg-[color:var(--terminal-toolbar-btn-active)]' : ''}`}
+                className={buttonBase}
                 title={t("terminal.toolbar.searchTerminal")}
                 aria-label={t("terminal.toolbar.searchTerminal")}
                 onClick={onToggleSearch}
@@ -174,7 +174,7 @@ export const TerminalToolbar: React.FC<TerminalToolbarProps> = ({
                 <Button
                     variant="ghost"
                     size="icon"
-                    className="h-6 w-6 text-[color:var(--terminal-toolbar-fg)] hover:bg-[color:var(--terminal-toolbar-btn-hover)]"
+                    className="h-6 w-6 text-[color:var(--terminal-toolbar-fg)] hover:bg-transparent"
                     onClick={(e) => {
                         e.stopPropagation();
                         onClose();

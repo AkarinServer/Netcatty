@@ -852,8 +852,7 @@ const TerminalComponent: React.FC<TerminalProps> = ({
                     size="icon"
                     className={cn(
                       "h-6 w-6 p-0 shadow-none border-none text-[color:var(--terminal-toolbar-fg)]",
-                      "bg-[color:var(--terminal-toolbar-btn)] hover:bg-[color:var(--terminal-toolbar-btn-hover)]",
-                      isBroadcastEnabled ? "bg-[color:var(--terminal-toolbar-btn-active)]" : "",
+                      "bg-transparent hover:bg-transparent",
                     )}
                   onClick={onToggleBroadcast}
                   title={
@@ -874,7 +873,7 @@ const TerminalComponent: React.FC<TerminalProps> = ({
                   <Button
                     variant="secondary"
                     size="icon"
-                    className="h-6 w-6 p-0 shadow-none border-none text-[color:var(--terminal-toolbar-fg)] bg-[color:var(--terminal-toolbar-btn)] hover:bg-[color:var(--terminal-toolbar-btn-hover)]"
+                    className="h-6 w-6 p-0 shadow-none border-none text-[color:var(--terminal-toolbar-fg)] bg-transparent hover:bg-transparent"
                     onClick={onExpandToFocus}
                     title={t("terminal.toolbar.focusMode")}
                     aria-label={t("terminal.toolbar.focusMode")}
