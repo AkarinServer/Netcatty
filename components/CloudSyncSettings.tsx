@@ -356,7 +356,12 @@ const ProviderCard: React.FC<ProviderCardProps> = ({
                         </span>
                     </div>
                 ) : error ? (
-                    <p className="text-xs text-red-500 truncate mt-1">{error}</p>
+                    <p
+                        className="text-xs text-red-500 truncate mt-1 max-w-[360px] cursor-help"
+                        title={error}
+                    >
+                        {error}
+                    </p>
                 ) : (
                     <p className="text-xs text-muted-foreground mt-1">{t('cloudSync.provider.notConnected')}</p>
                 )}

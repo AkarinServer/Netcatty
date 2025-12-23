@@ -472,6 +472,22 @@ const api = {
     ipcRenderer.invoke("netcatty:google:drive:downloadSyncFile", options),
   googleDriveDeleteSyncFile: (options) =>
     ipcRenderer.invoke("netcatty:google:drive:deleteSyncFile", options),
+
+  // OneDrive OAuth + Graph (proxied via main process to avoid CORS)
+  onedriveExchangeCodeForTokens: (options) =>
+    ipcRenderer.invoke("netcatty:onedrive:oauth:exchange", options),
+  onedriveRefreshAccessToken: (options) =>
+    ipcRenderer.invoke("netcatty:onedrive:oauth:refresh", options),
+  onedriveGetUserInfo: (options) =>
+    ipcRenderer.invoke("netcatty:onedrive:oauth:userinfo", options),
+  onedriveFindSyncFile: (options) =>
+    ipcRenderer.invoke("netcatty:onedrive:drive:findSyncFile", options),
+  onedriveUploadSyncFile: (options) =>
+    ipcRenderer.invoke("netcatty:onedrive:drive:uploadSyncFile", options),
+  onedriveDownloadSyncFile: (options) =>
+    ipcRenderer.invoke("netcatty:onedrive:drive:downloadSyncFile", options),
+  onedriveDeleteSyncFile: (options) =>
+    ipcRenderer.invoke("netcatty:onedrive:drive:deleteSyncFile", options),
 };
 
 // Merge with existing netcatty (if any) to avoid stale objects on hot reload

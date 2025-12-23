@@ -19,6 +19,7 @@ import {
   type SyncedFile,
   type PKCEChallenge,
 } from '../../../domain/sync';
+import { netcattyBridge } from '../netcattyBridge';
 import { arrayBufferToBase64, generateRandomBytes } from '../EncryptionService';
 
 // ============================================================================
@@ -125,6 +126,15 @@ export const exchangeCodeForTokens = async (
   codeVerifier: string,
   redirectUri: string
 ): Promise<OAuthTokens> => {
+  const bridge = netcattyBridge.get();
+  if (bridge?.onedriveExchangeCodeForTokens) {
+    return bridge.onedriveExchangeCodeForTokens({
+      clientId: SYNC_CONSTANTS.ONEDRIVE_CLIENT_ID,
+      code,
+      codeVerifier,
+      redirectUri,
+    });
+  }
   const response = await fetch(SYNC_CONSTANTS.ONEDRIVE_TOKEN_URL, {
     method: 'POST',
     headers: {
@@ -159,6 +169,13 @@ export const exchangeCodeForTokens = async (
  * Refresh access token
  */
 export const refreshAccessToken = async (refreshToken: string): Promise<OAuthTokens> => {
+  const bridge = netcattyBridge.get();
+  if (bridge?.onedriveRefreshAccessToken) {
+    return bridge.onedriveRefreshAccessToken({
+      clientId: SYNC_CONSTANTS.ONEDRIVE_CLIENT_ID,
+      refreshToken,
+    });
+  }
   const response = await fetch(SYNC_CONSTANTS.ONEDRIVE_TOKEN_URL, {
     method: 'POST',
     headers: {
@@ -194,6 +211,16 @@ export const refreshAccessToken = async (refreshToken: string): Promise<OAuthTok
  * Get authenticated user info
  */
 export const getUserInfo = async (accessToken: string): Promise<ProviderAccount> => {
+  const bridge = netcattyBridge.get();
+  if (bridge?.onedriveGetUserInfo) {
+    const user = await bridge.onedriveGetUserInfo({ accessToken });
+    return {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      avatarUrl: user.avatarDataUrl,
+    };
+  }
   const response = await fetch(`${SYNC_CONSTANTS.ONEDRIVE_GRAPH_API}/me`, {
     headers: {
       'Authorization': `Bearer ${accessToken}`,
@@ -235,6 +262,15 @@ export const getUserInfo = async (accessToken: string): Promise<ProviderAccount>
  * Validate access token
  */
 export const validateToken = async (accessToken: string): Promise<boolean> => {
+  const bridge = netcattyBridge.get();
+  if (bridge?.onedriveGetUserInfo) {
+    try {
+      await bridge.onedriveGetUserInfo({ accessToken });
+      return true;
+    } catch {
+      return false;
+    }
+  }
   try {
     const response = await fetch(`${SYNC_CONSTANTS.ONEDRIVE_GRAPH_API}/me`, {
       headers: { 'Authorization': `Bearer ${accessToken}` },
@@ -255,6 +291,14 @@ const APP_FOLDER_PATH = '/drive/special/approot';
  * Ensure app folder exists and find sync file
  */
 export const findSyncFile = async (accessToken: string): Promise<string | null> => {
+  const bridge = netcattyBridge.get();
+  if (bridge?.onedriveFindSyncFile) {
+    const result = await bridge.onedriveFindSyncFile({
+      accessToken,
+      fileName: SYNC_CONSTANTS.SYNC_FILE_NAME,
+    });
+    return result.fileId || null;
+  }
   try {
     const response = await fetch(
       `${SYNC_CONSTANTS.ONEDRIVE_GRAPH_API}/me${APP_FOLDER_PATH}:/${SYNC_CONSTANTS.SYNC_FILE_NAME}`,
@@ -287,6 +331,18 @@ export const uploadSyncFile = async (
   accessToken: string,
   syncedFile: SyncedFile
 ): Promise<string> => {
+  const bridge = netcattyBridge.get();
+  if (bridge?.onedriveUploadSyncFile) {
+    const result = await bridge.onedriveUploadSyncFile({
+      accessToken,
+      fileName: SYNC_CONSTANTS.SYNC_FILE_NAME,
+      syncedFile,
+    });
+    if (!result.fileId) {
+      throw new Error('Failed to upload sync file');
+    }
+    return result.fileId;
+  }
   const content = JSON.stringify(syncedFile, null, 2);
 
   const response = await fetch(
@@ -316,6 +372,15 @@ export const downloadSyncFile = async (
   accessToken: string,
   fileId?: string
 ): Promise<SyncedFile | null> => {
+  const bridge = netcattyBridge.get();
+  if (bridge?.onedriveDownloadSyncFile) {
+    const result = await bridge.onedriveDownloadSyncFile({
+      accessToken,
+      fileId,
+      fileName: SYNC_CONSTANTS.SYNC_FILE_NAME,
+    });
+    return (result.syncedFile as SyncedFile | null) || null;
+  }
   try {
     // Can use either file ID or path
     const url = fileId
@@ -349,6 +414,11 @@ export const deleteSyncFile = async (
   accessToken: string,
   fileId: string
 ): Promise<void> => {
+  const bridge = netcattyBridge.get();
+  if (bridge?.onedriveDeleteSyncFile) {
+    await bridge.onedriveDeleteSyncFile({ accessToken, fileId });
+    return;
+  }
   const response = await fetch(
     `${SYNC_CONSTANTS.ONEDRIVE_GRAPH_API}/me/drive/items/${fileId}`,
     {

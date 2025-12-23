@@ -345,6 +345,40 @@ interface NetcattyBridge {
   googleDriveUpdateSyncFile?(options: { accessToken: string; fileId: string; syncedFile: unknown }): Promise<{ ok: true }>;
   googleDriveDownloadSyncFile?(options: { accessToken: string; fileId: string }): Promise<{ syncedFile: unknown | null }>;
   googleDriveDeleteSyncFile?(options: { accessToken: string; fileId: string }): Promise<{ ok: true }>;
+
+  // OneDrive OAuth + Graph (cloud sync) - proxied via main process to avoid CORS
+  onedriveExchangeCodeForTokens?(options: {
+    clientId: string;
+    code: string;
+    codeVerifier: string;
+    redirectUri: string;
+  }): Promise<{
+    accessToken: string;
+    refreshToken?: string;
+    expiresAt?: number;
+    tokenType: string;
+    scope?: string;
+  }>;
+  onedriveRefreshAccessToken?(options: {
+    clientId: string;
+    refreshToken: string;
+  }): Promise<{
+    accessToken: string;
+    refreshToken: string;
+    expiresAt?: number;
+    tokenType: string;
+    scope?: string;
+  }>;
+  onedriveGetUserInfo?(options: { accessToken: string }): Promise<{
+    id: string;
+    email: string;
+    name: string;
+    avatarDataUrl?: string;
+  }>;
+  onedriveFindSyncFile?(options: { accessToken: string; fileName?: string }): Promise<{ fileId: string | null }>;
+  onedriveUploadSyncFile?(options: { accessToken: string; fileName?: string; syncedFile: unknown }): Promise<{ fileId: string | null }>;
+  onedriveDownloadSyncFile?(options: { accessToken: string; fileId?: string; fileName?: string }): Promise<{ syncedFile: unknown | null }>;
+  onedriveDeleteSyncFile?(options: { accessToken: string; fileId: string }): Promise<{ ok: true }>;
 }
 
 interface Window {

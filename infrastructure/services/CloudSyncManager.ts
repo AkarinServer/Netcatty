@@ -588,23 +588,9 @@ export class CloudSyncManager {
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      if (provider === 'webdav') {
-        const webdav = config as WebDAVConfig;
-        console.error('[CloudSync] WebDAV connect failed', {
-          endpoint: webdav.endpoint,
-          authType: webdav.authType,
-          error: errorMessage,
-        });
-      } else {
-        const s3 = config as S3Config;
-        console.error('[CloudSync] S3 connect failed', {
-          endpoint: s3.endpoint,
-          region: s3.region,
-          bucket: s3.bucket,
-          forcePathStyle: s3.forcePathStyle,
-          error: errorMessage,
-        });
-      }
+      console.error(`[CloudSync] ${provider} connect failed`, {
+        error: errorMessage,
+      });
       this.updateProviderStatus(provider, 'error', errorMessage);
       throw error;
     }
