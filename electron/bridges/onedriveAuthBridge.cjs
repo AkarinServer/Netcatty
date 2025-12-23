@@ -9,6 +9,8 @@ const ONEDRIVE_TOKEN_URL = "https://login.microsoftonline.com/consumers/oauth2/v
 const ONEDRIVE_GRAPH_API = "https://graph.microsoft.com/v1.0";
 const APP_FOLDER_PATH = "/drive/special/approot";
 const DEFAULT_SYNC_FILE_NAME = "netcatty-vault.json";
+const DEFAULT_SCOPE =
+  "https://graph.microsoft.com/Files.ReadWrite.AppFolder https://graph.microsoft.com/User.Read offline_access";
 
 const isNonEmptyString = (v) => typeof v === "string" && v.trim().length > 0;
 
@@ -32,6 +34,78 @@ const base64FromArrayBuffer = (buffer) => {
   return Buffer.from(buffer).toString("base64");
 };
 
+const describeToken = (token) => {
+  if (!isNonEmptyString(token)) {
+    return { present: false };
+  }
+  const length = token.length;
+  const preview = `${token.slice(0, 6)}...${token.slice(-4)}`;
+  const isJwt = token.split(".").length >= 3;
+  return { present: true, length, preview, isJwt };
+};
+
+const decodeJwtClaims = (token) => {
+  if (!isNonEmptyString(token)) return null;
+  const parts = token.split(".");
+  if (parts.length < 2) return null;
+  const payload = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+  const padded = payload + "=".repeat((4 - (payload.length % 4)) % 4);
+  try {
+    const json = Buffer.from(padded, "base64").toString("utf8");
+    const data = JSON.parse(json);
+    return {
+      aud: data?.aud,
+      scp: data?.scp,
+      iss: data?.iss,
+      tid: data?.tid,
+      appid: data?.appid,
+      exp: data?.exp,
+    };
+  } catch {
+    return null;
+  }
+};
+
+const logTokenClaims = (context, token) => {
+  const claims = decodeJwtClaims(token);
+  if (!claims) return;
+  console.warn(`[OneDrive] ${context} token claims`, claims);
+};
+
+const logTokenInfo = (context, token, res) => {
+  console.warn(`[OneDrive] ${context} token info`, describeToken(token));
+  logTokenClaims(context, token);
+  const authHeader = res?.headers?.get?.("www-authenticate");
+  if (authHeader) {
+    console.warn(`[OneDrive] ${context} www-authenticate`, authHeader);
+  }
+  const requestId = res?.headers?.get?.("request-id");
+  if (requestId) {
+    console.warn(`[OneDrive] ${context} request-id`, requestId);
+  }
+};
+
+const validateGraphToken = async (fetchImpl, accessToken, context) => {
+  try {
+    const res = await fetchImpl(`${ONEDRIVE_GRAPH_API}/me`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (res.ok) {
+      console.info(`[OneDrive] ${context} token validation ok`);
+      return;
+    }
+    const text = await res.text();
+    logTokenInfo(`${context} token validation ${res.status}`, accessToken, res);
+    console.warn(
+      `[OneDrive] ${context} token validation failed: ${res.status} - ${text.slice(0, 200)}`
+    );
+  } catch (err) {
+    console.warn(
+      `[OneDrive] ${context} token validation network error: ${describeNetworkError(err)}`
+    );
+  }
+};
+
 /**
  * @param {Electron.IpcMain} ipcMain
  * @param {import('electron')=} electronModule
@@ -45,6 +119,7 @@ function registerHandlers(ipcMain, electronModule) {
     const code = payload?.code;
     const codeVerifier = payload?.codeVerifier;
     const redirectUri = payload?.redirectUri;
+    const scope = isNonEmptyString(payload?.scope) ? payload.scope : DEFAULT_SCOPE;
 
     if (!isNonEmptyString(clientId)) throw new Error("Missing OneDrive clientId");
     if (!isNonEmptyString(code)) throw new Error("Missing authorization code");
@@ -57,6 +132,7 @@ function registerHandlers(ipcMain, electronModule) {
       code_verifier: codeVerifier,
       grant_type: "authorization_code",
       redirect_uri: redirectUri,
+      scope,
     });
 
     let res;
@@ -88,6 +164,14 @@ function registerHandlers(ipcMain, electronModule) {
       throw new Error(`OneDrive token exchange invalid JSON: ${text.slice(0, 200)}`);
     }
 
+    console.info("[OneDrive] token exchange result", {
+      scope: data.scope,
+      tokenType: data.token_type,
+      hasRefreshToken: Boolean(data.refresh_token),
+      expiresIn: data.expires_in,
+    });
+    await validateGraphToken(fetchImpl, data.access_token, "exchange");
+
     return {
       accessToken: data.access_token,
       refreshToken: data.refresh_token,
@@ -100,6 +184,7 @@ function registerHandlers(ipcMain, electronModule) {
   ipcMain.handle("netcatty:onedrive:oauth:refresh", async (_event, payload) => {
     const clientId = payload?.clientId;
     const refreshToken = payload?.refreshToken;
+    const scope = isNonEmptyString(payload?.scope) ? payload.scope : DEFAULT_SCOPE;
 
     if (!isNonEmptyString(clientId)) throw new Error("Missing OneDrive clientId");
     if (!isNonEmptyString(refreshToken)) throw new Error("Missing refreshToken");
@@ -108,6 +193,7 @@ function registerHandlers(ipcMain, electronModule) {
       client_id: clientId,
       refresh_token: refreshToken,
       grant_type: "refresh_token",
+      scope,
     });
 
     let res;
@@ -139,6 +225,14 @@ function registerHandlers(ipcMain, electronModule) {
       throw new Error(`OneDrive token refresh invalid JSON: ${text.slice(0, 200)}`);
     }
 
+    console.info("[OneDrive] token refresh result", {
+      scope: data.scope,
+      tokenType: data.token_type,
+      hasRefreshToken: Boolean(data.refresh_token),
+      expiresIn: data.expires_in,
+    });
+    await validateGraphToken(fetchImpl, data.access_token, "refresh");
+
     return {
       accessToken: data.access_token,
       refreshToken: data.refresh_token || refreshToken,
@@ -165,6 +259,9 @@ function registerHandlers(ipcMain, electronModule) {
 
     const text = await res.text();
     if (!res.ok) {
+      if (res.status === 401) {
+        logTokenInfo("userinfo 401", accessToken, res);
+      }
       throw new Error(`OneDrive userinfo failed: ${res.status} - ${text.slice(0, 200)}`);
     }
 
@@ -205,6 +302,9 @@ function registerHandlers(ipcMain, electronModule) {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
 
+    if (res.status === 401) {
+      logTokenInfo("findSyncFile 401", accessToken, res);
+    }
     if (res.status === 404) {
       return { fileId: null };
     }
@@ -236,6 +336,9 @@ function registerHandlers(ipcMain, electronModule) {
 
     const text = await res.text();
     if (!res.ok) {
+      if (res.status === 401) {
+        logTokenInfo("uploadSyncFile 401", accessToken, res);
+      }
       throw new Error(`OneDrive upload failed: ${res.status} - ${text.slice(0, 200)}`);
     }
 
@@ -249,25 +352,47 @@ function registerHandlers(ipcMain, electronModule) {
     const fileName = isNonEmptyString(payload?.fileName) ? payload.fileName : DEFAULT_SYNC_FILE_NAME;
     if (!isNonEmptyString(accessToken)) throw new Error("Missing accessToken");
 
-    const url = fileId
-      ? `${ONEDRIVE_GRAPH_API}/me/drive/items/${fileId}/content`
-      : `${ONEDRIVE_GRAPH_API}/me${APP_FOLDER_PATH}:/${encodeURIComponent(fileName)}:/content`;
+    const itemUrl = fileId
+      ? `${ONEDRIVE_GRAPH_API}/me/drive/items/${fileId}`
+      : `${ONEDRIVE_GRAPH_API}/me${APP_FOLDER_PATH}:/${encodeURIComponent(fileName)}`;
 
-    const res = await fetchImpl(url, {
+    const itemRes = await fetchImpl(itemUrl, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
 
-    if (res.status === 404) {
+    if (itemRes.status === 401) {
+      logTokenInfo("downloadSyncFile item 401", accessToken, itemRes);
+    }
+    if (itemRes.status === 404) {
       return { syncedFile: null };
     }
-    const text = await res.text();
-    if (!res.ok) {
-      throw new Error(`OneDrive download failed: ${res.status} - ${text.slice(0, 200)}`);
+
+    const itemText = await itemRes.text();
+    if (!itemRes.ok) {
+      throw new Error(`OneDrive download item failed: ${itemRes.status} - ${itemText.slice(0, 200)}`);
     }
 
-    const data = safeJsonParse(text);
+    const item = safeJsonParse(itemText);
+    if (!item) {
+      throw new Error(`OneDrive download item invalid JSON: ${itemText.slice(0, 200)}`);
+    }
+
+    const downloadUrl = item["@microsoft.graph.downloadUrl"];
+    if (!isNonEmptyString(downloadUrl)) {
+      throw new Error("OneDrive download item missing @microsoft.graph.downloadUrl");
+    }
+
+    const downloadRes = await fetchImpl(downloadUrl);
+    const downloadText = await downloadRes.text();
+    if (!downloadRes.ok) {
+      throw new Error(
+        `OneDrive download content failed: ${downloadRes.status} - ${downloadText.slice(0, 200)}`
+      );
+    }
+
+    const data = safeJsonParse(downloadText);
     if (!data) {
-      throw new Error(`OneDrive download invalid JSON: ${text.slice(0, 200)}`);
+      throw new Error(`OneDrive download invalid JSON: ${downloadText.slice(0, 200)}`);
     }
 
     return { syncedFile: data };
@@ -285,6 +410,9 @@ function registerHandlers(ipcMain, electronModule) {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
 
+    if (res.status === 401) {
+      logTokenInfo("deleteSyncFile 401", accessToken, res);
+    }
     if (!res.ok && res.status !== 404) {
       const text = await res.text();
       throw new Error(`OneDrive delete failed: ${res.status} - ${text.slice(0, 200)}`);

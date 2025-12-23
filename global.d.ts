@@ -352,6 +352,7 @@ interface NetcattyBridge {
     code: string;
     codeVerifier: string;
     redirectUri: string;
+    scope?: string;
   }): Promise<{
     accessToken: string;
     refreshToken?: string;
@@ -362,6 +363,7 @@ interface NetcattyBridge {
   onedriveRefreshAccessToken?(options: {
     clientId: string;
     refreshToken: string;
+    scope?: string;
   }): Promise<{
     accessToken: string;
     refreshToken: string;

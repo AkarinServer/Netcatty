@@ -414,8 +414,8 @@ export const SYNC_CONSTANTS = {
   GOOGLE_TOKEN_URL: 'https://oauth2.googleapis.com/token',
   GOOGLE_DRIVE_API: 'https://www.googleapis.com/drive/v3',
   
-  ONEDRIVE_AUTH_URL: 'https://login.microsoftonline.com/common/oauth2/v2.0/authorize',
-  ONEDRIVE_TOKEN_URL: 'https://login.microsoftonline.com/common/oauth2/v2.0/token',
+  ONEDRIVE_AUTH_URL: 'https://login.microsoftonline.com/consumers/oauth2/v2.0/authorize',
+  ONEDRIVE_TOKEN_URL: 'https://login.microsoftonline.com/consumers/oauth2/v2.0/token',
   ONEDRIVE_GRAPH_API: 'https://graph.microsoft.com/v1.0',
 } as const;
 

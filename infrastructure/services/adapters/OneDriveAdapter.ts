@@ -41,6 +41,70 @@ export interface DriveItem {
   '@microsoft.graph.downloadUrl'?: string;
 }
 
+const ONEDRIVE_SCOPES = [
+  'https://graph.microsoft.com/Files.ReadWrite.AppFolder',
+  'https://graph.microsoft.com/User.Read',
+  'offline_access',
+];
+
+const ONEDRIVE_SCOPE = ONEDRIVE_SCOPES.join(' ');
+
+const decodeBase64Url = (value: string): string | null => {
+  if (typeof atob !== 'function') return null;
+  const base64 = value.replace(/-/g, '+').replace(/_/g, '/');
+  const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4);
+  try {
+    return atob(padded);
+  } catch {
+    return null;
+  }
+};
+
+const decodeJwtClaims = (
+  token?: string | null
+): {
+  aud?: string;
+  scp?: string;
+  iss?: string;
+  tid?: string;
+  appid?: string;
+  exp?: number;
+} | null => {
+  if (!token) return null;
+  const parts = token.split('.');
+  if (parts.length < 2) return null;
+  const decoded = decodeBase64Url(parts[1]);
+  if (!decoded) return null;
+  try {
+    const payload = JSON.parse(decoded) as Record<string, unknown>;
+    return {
+      aud: typeof payload.aud === 'string' ? payload.aud : undefined,
+      scp: typeof payload.scp === 'string' ? payload.scp : undefined,
+      iss: typeof payload.iss === 'string' ? payload.iss : undefined,
+      tid: typeof payload.tid === 'string' ? payload.tid : undefined,
+      appid: typeof payload.appid === 'string' ? payload.appid : undefined,
+      exp: typeof payload.exp === 'number' ? payload.exp : undefined,
+    };
+  } catch {
+    return null;
+  }
+};
+
+const logTokenClaims = (context: string, token?: string | null): void => {
+  const claims = decodeJwtClaims(token);
+  if (!claims) return;
+  console.warn(`[OneDrive] ${context} token claims`, claims);
+};
+
+const isUnauthorizedError = (error: unknown): boolean => {
+  const message = error instanceof Error ? error.message : String(error);
+  const lower = message.toLowerCase();
+  return message.includes(' 401') ||
+    message.includes('401 -') ||
+    lower.includes('unauthenticated') ||
+    lower.includes('invalidauthenticationtoken');
+};
+
 // ============================================================================
 // PKCE Utilities
 // ============================================================================
@@ -105,11 +169,12 @@ export const buildAuthUrl = async (
     client_id: SYNC_CONSTANTS.ONEDRIVE_CLIENT_ID,
     redirect_uri: redirectUri,
     response_type: 'code',
-    scope: 'Files.ReadWrite.AppFolder User.Read offline_access',
+    scope: ONEDRIVE_SCOPE,
     code_challenge: pkce.codeChallenge,
     code_challenge_method: 'S256',
     state: pkce.state,
     response_mode: 'query',
+    prompt: 'consent',
   });
 
   return {
@@ -133,6 +198,7 @@ export const exchangeCodeForTokens = async (
       code,
       codeVerifier,
       redirectUri,
+      scope: ONEDRIVE_SCOPE,
     });
   }
   const response = await fetch(SYNC_CONSTANTS.ONEDRIVE_TOKEN_URL, {
@@ -146,6 +212,7 @@ export const exchangeCodeForTokens = async (
       code_verifier: codeVerifier,
       grant_type: 'authorization_code',
       redirect_uri: redirectUri,
+      scope: ONEDRIVE_SCOPE,
     }),
   });
 
@@ -174,6 +241,7 @@ export const refreshAccessToken = async (refreshToken: string): Promise<OAuthTok
     return bridge.onedriveRefreshAccessToken({
       clientId: SYNC_CONSTANTS.ONEDRIVE_CLIENT_ID,
       refreshToken,
+      scope: ONEDRIVE_SCOPE,
     });
   }
   const response = await fetch(SYNC_CONSTANTS.ONEDRIVE_TOKEN_URL, {
@@ -185,6 +253,7 @@ export const refreshAccessToken = async (refreshToken: string): Promise<OAuthTok
       client_id: SYNC_CONSTANTS.ONEDRIVE_CLIENT_ID,
       refresh_token: refreshToken,
       grant_type: 'refresh_token',
+      scope: ONEDRIVE_SCOPE,
     }),
   });
 
@@ -540,6 +609,39 @@ export class OneDriveAdapter {
     return this.tokens.accessToken;
   }
 
+  private async runWithAuthRetry<T>(
+    context: string,
+    operation: (accessToken: string) => Promise<T>
+  ): Promise<T> {
+    const accessToken = await this.ensureValidToken();
+
+    try {
+      return await operation(accessToken);
+    } catch (error) {
+      if (isUnauthorizedError(error) && this.tokens?.refreshToken) {
+        console.warn(`[OneDrive] ${context} received 401, refreshing token and retrying.`);
+        this.tokens = await refreshAccessToken(this.tokens.refreshToken);
+        logTokenClaims(`${context} refresh`, this.tokens.accessToken);
+        try {
+          return await operation(this.tokens.accessToken);
+        } catch (retryError) {
+          if (isUnauthorizedError(retryError)) {
+            logTokenClaims(`${context} retry failed`, this.tokens.accessToken);
+          }
+          throw retryError;
+        }
+      }
+
+      if (isUnauthorizedError(error)) {
+        if (!this.tokens?.refreshToken) {
+          console.warn(`[OneDrive] ${context} 401 without refresh token; re-auth required.`);
+        }
+        logTokenClaims(`${context} failed`, accessToken);
+      }
+      throw error;
+    }
+  }
+
   /**
    * Sign out
    */
@@ -554,31 +656,32 @@ export class OneDriveAdapter {
    * Initialize or find sync file
    */
   async initializeSync(): Promise<string | null> {
-    const accessToken = await this.ensureValidToken();
-    this.fileId = await findSyncFile(accessToken);
-    return this.fileId;
+    return this.runWithAuthRetry('initializeSync', async (accessToken) => {
+      this.fileId = await findSyncFile(accessToken);
+      return this.fileId;
+    });
   }
 
   /**
    * Upload sync file
    */
   async upload(syncedFile: SyncedFile): Promise<string> {
-    const accessToken = await this.ensureValidToken();
-    this.fileId = await uploadSyncFile(accessToken, syncedFile);
-    return this.fileId;
+    return this.runWithAuthRetry('upload', async (accessToken) => {
+      this.fileId = await uploadSyncFile(accessToken, syncedFile);
+      return this.fileId;
+    });
   }
 
   /**
    * Download sync file
    */
   async download(): Promise<SyncedFile | null> {
-    const accessToken = await this.ensureValidToken();
-
-    if (!this.fileId) {
-      this.fileId = await findSyncFile(accessToken);
-    }
-
-    return downloadSyncFile(accessToken, this.fileId || undefined);
+    return this.runWithAuthRetry('download', async (accessToken) => {
+      if (!this.fileId) {
+        this.fileId = await findSyncFile(accessToken);
+      }
+      return downloadSyncFile(accessToken, this.fileId || undefined);
+    });
   }
 
   /**
@@ -589,9 +692,10 @@ export class OneDriveAdapter {
       return;
     }
 
-    const accessToken = await this.ensureValidToken();
-    await deleteSyncFile(accessToken, this.fileId);
-    this.fileId = null;
+    await this.runWithAuthRetry('deleteSync', async (accessToken) => {
+      await deleteSyncFile(accessToken, this.fileId as string);
+      this.fileId = null;
+    });
   }
 
   /**
