@@ -845,18 +845,18 @@ const VaultViewInner: React.FC<VaultViewProps> = ({
                   </div>
                 )}
               </div>
-                <Button
-                  variant={isSearchQuickConnect ? "default" : "secondary"}
-                  className={cn(
-                    "h-10 px-4 app-no-drag",
-                    !isSearchQuickConnect &&
-                      currentSection === "hosts" &&
-                      "bg-foreground/5 text-foreground hover:bg-foreground/10 border-border/40",
-                  )}
-                  onClick={handleConnectClick}
-                >
-                  {t("vault.hosts.connect")}
-                </Button>
+              <Button
+                variant={isSearchQuickConnect ? "default" : "secondary"}
+                className={cn(
+                  "h-10 px-4 app-no-drag",
+                  !isSearchQuickConnect &&
+                  currentSection === "hosts" &&
+                  "bg-foreground/5 text-foreground hover:bg-foreground/10 border-border/40",
+                )}
+                onClick={handleConnectClick}
+              >
+                {t("vault.hosts.connect")}
+              </Button>
               {/* View mode, tag filter, and sort controls */}
               <div className="flex items-center gap-1 app-no-drag">
                 <Dropdown>
@@ -945,18 +945,18 @@ const VaultViewInner: React.FC<VaultViewProps> = ({
                   </DropdownContent>
                 </Dropdown>
               </div>
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  className={cn(
-                    "h-10 px-3 app-no-drag",
-                    currentSection === "hosts" &&
-                      "bg-foreground/5 text-foreground hover:bg-foreground/10 border-border/40",
-                  )}
-                  onClick={onCreateLocalTerminal}
-                >
-                  <TerminalSquare size={14} className="mr-2" /> {t("common.terminal")}
-                </Button>
+              <Button
+                size="sm"
+                variant="secondary"
+                className={cn(
+                  "h-10 px-3 app-no-drag",
+                  currentSection === "hosts" &&
+                  "bg-foreground/5 text-foreground hover:bg-foreground/10 border-border/40",
+                )}
+                onClick={onCreateLocalTerminal}
+              >
+                <TerminalSquare size={14} className="mr-2" /> {t("common.terminal")}
+              </Button>
             </div>
           </header>
         )}
@@ -1280,8 +1280,8 @@ const VaultViewInner: React.FC<VaultViewProps> = ({
               onUpdateIdentities(
                 identities.find((ex) => ex.id === identity.id)
                   ? identities.map((ex) =>
-                      ex.id === identity.id ? identity : ex,
-                    )
+                    ex.id === identity.id ? identity : ex,
+                  )
                   : [...identities, identity],
               )
             }
@@ -1373,13 +1373,13 @@ const VaultViewInner: React.FC<VaultViewProps> = ({
         />
       )}
 
-          <Dialog open={isNewFolderOpen} onOpenChange={(open) => {
-            setIsNewFolderOpen(open);
-            if (!open) {
-              setNewFolderName("");
-              setTargetParentPath(null);
-            }
-          }}>
+      <Dialog open={isNewFolderOpen} onOpenChange={(open) => {
+        setIsNewFolderOpen(open);
+        if (!open) {
+          setNewFolderName("");
+          setTargetParentPath(null);
+        }
+      }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
@@ -1427,7 +1427,7 @@ const VaultViewInner: React.FC<VaultViewProps> = ({
           }
         }}
       >
-          <DialogContent>
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>{t("vault.groups.renameDialogTitle")}</DialogTitle>
             <DialogDescription className="sr-only">
