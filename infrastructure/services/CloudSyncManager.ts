@@ -1114,6 +1114,24 @@ export class CloudSyncManager {
   }
 
   // ==========================================================================
+  // Local Data Reset
+  // ==========================================================================
+
+  /**
+   * Resets local version and timestamp to 0.
+   * This allows the next sync to treat the remote data as newer
+   * and download it, effectively resetting local vault data.
+   */
+  resetLocalVersion(): void {
+    this.state.localVersion = 0;
+    this.state.localUpdatedAt = 0;
+    this.state.syncHistory = [];
+    this.saveSyncConfig();
+    this.saveToStorage(SYNC_HISTORY_STORAGE_KEY, []);
+    this.notifyStateChange();
+  }
+
+  // ==========================================================================
   // Cleanup
   // ==========================================================================
 

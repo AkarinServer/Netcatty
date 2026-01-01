@@ -92,7 +92,10 @@ export interface CloudSyncHook {
   // Settings
   setAutoSync: (enabled: boolean, intervalMinutes?: number) => void;
   setDeviceName: (name: string) => void;
-  
+
+  // Local Data Reset
+  resetLocalVersion: () => void;
+
   // Utilities
   formatLastSync: (timestamp?: number) => string;
   getProviderDotColor: (provider: CloudProvider) => string;
@@ -444,7 +447,10 @@ export const useCloudSync = (): CloudSyncHook => {
     // Settings
     setAutoSync,
     setDeviceName,
-    
+
+    // Local Data Reset
+    resetLocalVersion: () => manager.resetLocalVersion(),
+
     // Utilities
     formatLastSync,
     getProviderDotColor,

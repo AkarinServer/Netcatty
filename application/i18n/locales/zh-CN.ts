@@ -591,6 +591,15 @@ const zhCN: Messages = {
   'cloudSync.resolve.downloaded': '已下载云端数据',
   'cloudSync.resolve.uploaded': '已上传本地数据',
   'cloudSync.resolve.failedTitle': '冲突处理失败',
+  'cloudSync.clearLocal.title': '清空本地数据',
+  'cloudSync.clearLocal.desc': '重置本地版本和同步历史。下次同步将从云端下载。',
+  'cloudSync.clearLocal.button': '清空',
+  'cloudSync.clearLocal.dialog.title': '清空本地 Vault 数据？',
+  'cloudSync.clearLocal.dialog.desc': '这将重置本地版本为 0 并清除同步历史。下次同步时会从云端下载数据，替换本地数据。',
+  'cloudSync.clearLocal.dialog.cancel': '取消',
+  'cloudSync.clearLocal.dialog.confirm': '确认清空',
+  'cloudSync.clearLocal.toast.title': '本地数据已清空',
+  'cloudSync.clearLocal.toast.desc': '本地版本已重置为 0。同步以从云端下载数据。',
 
   // Common (additional)
   'common.searchPlaceholder': '搜索...',

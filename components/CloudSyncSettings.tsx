@@ -27,6 +27,7 @@ import {
     Server,
     Shield,
     ShieldCheck,
+    Trash2,
     X,
 } from 'lucide-react';
 import { useCloudSync } from '../application/state/useCloudSync';
@@ -745,6 +746,9 @@ export const SyncDashboard: React.FC<SyncDashboardProps> = ({
     const [s3ErrorDetail, setS3ErrorDetail] = useState<string | null>(null);
     const [isSavingS3, setIsSavingS3] = useState(false);
 
+    // Clear local data dialog
+    const [showClearLocalDialog, setShowClearLocalDialog] = useState(false);
+
     // Handle conflict detection
     useEffect(() => {
         if (sync.currentConflict) {
@@ -1202,6 +1206,26 @@ export const SyncDashboard: React.FC<SyncDashboardProps> = ({
                             )}
                         </div>
                     )}
+
+                    {/* Clear Local Data */}
+                    <div className="p-4 rounded-lg border border-destructive/30 bg-destructive/5">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <div className="text-sm font-medium">{t('cloudSync.clearLocal.title')}</div>
+                                <div className="text-xs text-muted-foreground">
+                                    {t('cloudSync.clearLocal.desc')}
+                                </div>
+                            </div>
+                            <Button
+                                variant="destructive"
+                                size="sm"
+                                onClick={() => setShowClearLocalDialog(true)}
+                            >
+                                <Trash2 size={14} className="mr-1" />
+                                {t('cloudSync.clearLocal.button')}
+                            </Button>
+                        </div>
+                    </div>
                 </TabsContent>
             </Tabs>
 
@@ -1633,6 +1657,40 @@ export const SyncDashboard: React.FC<SyncDashboardProps> = ({
                         >
                             {isUnlocking ? <Loader2 size={16} className="animate-spin" /> : <ShieldCheck size={16} />}
                             {t('cloudSync.unlock.unlockButton')}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Clear Local Data Confirmation Dialog */}
+            <Dialog open={showClearLocalDialog} onOpenChange={setShowClearLocalDialog}>
+                <DialogContent className="sm:max-w-[400px] z-[70]">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2 text-destructive">
+                            <AlertTriangle size={20} />
+                            {t('cloudSync.clearLocal.dialog.title')}
+                        </DialogTitle>
+                        <DialogDescription>
+                            {t('cloudSync.clearLocal.dialog.desc')}
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter className="gap-2 sm:gap-0">
+                        <Button
+                            variant="outline"
+                            onClick={() => setShowClearLocalDialog(false)}
+                        >
+                            {t('cloudSync.clearLocal.dialog.cancel')}
+                        </Button>
+                        <Button
+                            variant="destructive"
+                            onClick={() => {
+                                sync.resetLocalVersion();
+                                setShowClearLocalDialog(false);
+                                toast.success(t('cloudSync.clearLocal.toast.desc'), t('cloudSync.clearLocal.toast.title'));
+                            }}
+                        >
+                            <Trash2 size={14} className="mr-1" />
+                            {t('cloudSync.clearLocal.dialog.confirm')}
                         </Button>
                     </DialogFooter>
                 </DialogContent>

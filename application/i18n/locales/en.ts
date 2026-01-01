@@ -752,6 +752,15 @@ const en: Messages = {
   'cloudSync.resolve.downloaded': 'Downloaded cloud data',
   'cloudSync.resolve.uploaded': 'Uploaded local data',
   'cloudSync.resolve.failedTitle': 'Conflict resolution failed',
+  'cloudSync.clearLocal.title': 'Clear Local Data',
+  'cloudSync.clearLocal.desc': 'Reset local version and sync history. Next sync will download from cloud.',
+  'cloudSync.clearLocal.button': 'Clear',
+  'cloudSync.clearLocal.dialog.title': 'Clear Local Vault Data?',
+  'cloudSync.clearLocal.dialog.desc': 'This will reset local version to 0 and clear sync history. Your next sync will download data from the cloud, replacing local data.',
+  'cloudSync.clearLocal.dialog.cancel': 'Cancel',
+  'cloudSync.clearLocal.dialog.confirm': 'Clear Local Data',
+  'cloudSync.clearLocal.toast.title': 'Local data cleared',
+  'cloudSync.clearLocal.toast.desc': 'Local version reset to 0. Sync to download from cloud.',
 
   // Keychain
   'keychain.filter.key': 'KEY',
