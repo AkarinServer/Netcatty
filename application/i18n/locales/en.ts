@@ -703,6 +703,7 @@ const en: Messages = {
   'cloudSync.smb.port': 'Port (optional)',
   'cloudSync.smb.showSecret': 'Show password',
   'cloudSync.smb.validation.share': 'Share path is required.',
+  'cloudSync.smb.validation.port': 'Port must be a number between 1 and 65535.',
   'cloudSync.connect.smb.success': 'SMB connected successfully',
   'cloudSync.connect.smb.failedTitle': 'SMB connection failed',
   'cloudSync.provider.smb': 'SMB Share',

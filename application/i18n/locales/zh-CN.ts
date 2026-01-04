@@ -540,6 +540,7 @@ const zhCN: Messages = {
   'cloudSync.smb.port': '端口（可选）',
   'cloudSync.smb.showSecret': '显示密码',
   'cloudSync.smb.validation.share': '共享路径必填。',
+  'cloudSync.smb.validation.port': '端口必须是 1 到 65535 之间的数字。',
   'cloudSync.connect.smb.success': 'SMB 已连接',
   'cloudSync.connect.smb.failedTitle': 'SMB 连接失败',
   'cloudSync.provider.smb': 'SMB 共享',

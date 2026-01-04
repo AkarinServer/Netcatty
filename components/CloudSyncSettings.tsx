@@ -987,12 +987,24 @@ export const SyncDashboard: React.FC<SyncDashboardProps> = ({
             return;
         }
 
+        // Validate port if provided
+        let parsedPort: number | undefined;
+        if (smbPort.trim()) {
+            const portNum = parseInt(smbPort.trim(), 10);
+            if (isNaN(portNum) || portNum < 1 || portNum > 65535) {
+                setSmbError(t('cloudSync.smb.validation.port'));
+                setSmbErrorDetail(null);
+                return;
+            }
+            parsedPort = portNum;
+        }
+
         const config: SMBConfig = {
             share: smbShare.trim(),
             username: smbUsername.trim() || undefined,
             password: smbPassword || undefined,
             domain: smbDomain.trim() || undefined,
-            port: smbPort.trim() ? parseInt(smbPort.trim(), 10) : undefined,
+            port: parsedPort,
         };
 
         setIsSavingSmb(true);
