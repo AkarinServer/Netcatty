@@ -36,6 +36,8 @@ export interface SerialConfig {
   stopBits?: 1 | 1.5 | 2; // Stop bits (default: 1)
   parity?: SerialParity; // Parity (default: 'none')
   flowControl?: SerialFlowControl; // Flow control (default: 'none')
+  localEcho?: boolean; // Force local echo (default: false, rely on remote echo)
+  lineMode?: boolean; // Line mode - buffer input and send on Enter (default: false)
 }
 
 // Per-protocol configuration

@@ -445,7 +445,7 @@ async function startMoshSession(event, options) {
 }
 
 /**
- * List available serial ports
+ * List available serial ports (hardware only)
  */
 async function listSerialPorts() {
   try {
@@ -457,6 +457,7 @@ async function listSerialPorts() {
       vendorId: port.vendorId || '',
       productId: port.productId || '',
       pnpId: port.pnpId || '',
+      type: 'hardware',
     }));
   } catch (err) {
     console.error("[Serial] Failed to list ports:", err.message);
@@ -465,7 +466,8 @@ async function listSerialPorts() {
 }
 
 /**
- * Start a serial port session
+ * Start a serial port session (supports both hardware serial ports and PTY devices)
+ * Note: SerialPort library can open PTY devices directly, they just won't appear in list()
  */
 async function startSerialSession(event, options) {
   const sessionId =
@@ -559,7 +561,6 @@ function writeToSession(event, payload) {
   } catch (err) {
     if (err.code !== 'EPIPE' && err.code !== 'ERR_STREAM_DESTROYED') {
       console.warn("Write failed", err);
-    }
     }
   }
 }

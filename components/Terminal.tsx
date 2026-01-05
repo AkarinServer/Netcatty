@@ -141,6 +141,7 @@ const TerminalComponent: React.FC<TerminalProps> = ({
   const hasConnectedRef = useRef(false);
   const hasRunStartupCommandRef = useRef(false);
   const commandBufferRef = useRef<string>("");
+  const serialLineBufferRef = useRef<string>("");
 
   const terminalSettingsRef = useRef(terminalSettings);
   terminalSettingsRef.current = terminalSettings;
@@ -340,6 +341,10 @@ const TerminalComponent: React.FC<TerminalProps> = ({
           onCommandExecuted,
           commandBufferRef,
           setIsSearchOpen,
+          // Serial-specific options
+          serialLocalEcho: serialConfig?.localEcho,
+          serialLineMode: serialConfig?.lineMode,
+          serialLineBufferRef,
         });
 
         xtermRuntimeRef.current = runtime;
@@ -415,21 +420,28 @@ const TerminalComponent: React.FC<TerminalProps> = ({
   // Connection timeline and timeout visuals
   useEffect(() => {
     if (status !== "connecting" || auth.needsAuth) return;
-    const scripted = [
-      "Resolving host and keys...",
-      "Negotiating ciphers...",
-      "Exchanging keys...",
-      "Authenticating user...",
-      "Waiting for server greeting...",
-    ];
-    let idx = 0;
-    const stepTimer = setInterval(() => {
-      setProgressLogs((prev) => {
-        if (idx >= scripted.length) return prev;
-        const next = scripted[idx++];
-        return prev.includes(next) ? prev : [...prev, next];
-      });
-    }, 900);
+    
+    // Only show SSH-specific scripted logs for SSH connections
+    const isSSH = host.protocol !== "serial" && host.protocol !== "local" && host.protocol !== "telnet" && host.hostname !== "localhost";
+    
+    let stepTimer: ReturnType<typeof setInterval> | undefined;
+    if (isSSH) {
+      const scripted = [
+        "Resolving host and keys...",
+        "Negotiating ciphers...",
+        "Exchanging keys...",
+        "Authenticating user...",
+        "Waiting for server greeting...",
+      ];
+      let idx = 0;
+      stepTimer = setInterval(() => {
+        setProgressLogs((prev) => {
+          if (idx >= scripted.length) return prev;
+          const next = scripted[idx++];
+          return prev.includes(next) ? prev : [...prev, next];
+        });
+      }, 900);
+    }
 
     setTimeLeft(CONNECTION_TIMEOUT / 1000);
     const countdown = setInterval(() => {
@@ -453,13 +465,13 @@ const TerminalComponent: React.FC<TerminalProps> = ({
     }, 200);
 
     return () => {
-      clearInterval(stepTimer);
+      if (stepTimer) clearInterval(stepTimer);
       clearInterval(countdown);
       clearTimeout(timeout);
       clearInterval(prog);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- updateStatus is a stable internal helper
-  }, [status, auth.needsAuth]);
+  }, [status, auth.needsAuth, host.protocol, host.hostname]);
 
   const safeFit = () => {
     const fitAddon = fitAddonRef.current;

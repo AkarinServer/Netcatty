@@ -71,6 +71,11 @@ export type CreateXTermRuntimeContext = {
   ) => void;
   commandBufferRef: RefObject<string>;
   setIsSearchOpen: Dispatch<SetStateAction<boolean>>;
+  
+  // Serial-specific options
+  serialLocalEcho?: boolean;
+  serialLineMode?: boolean;
+  serialLineBufferRef?: RefObject<string>;
 };
 
 const detectPlatform = (): XTermPlatform => {
@@ -397,7 +402,64 @@ export const createXTermRuntime = (ctx: CreateXTermRuntimeContext): XTermRuntime
   term.onData((data) => {
     const id = ctx.sessionRef.current;
     if (id) {
-      ctx.terminalBackend.writeToSession(id, data);
+      // Serial line mode: buffer input and send on Enter
+      if (ctx.host.protocol === "serial" && ctx.serialLineMode && ctx.serialLineBufferRef) {
+        if (data === "\r") {
+          // Enter key: send buffered line + CR
+          const line = ctx.serialLineBufferRef.current + "\r";
+          ctx.terminalBackend.writeToSession(id, line);
+          ctx.serialLineBufferRef.current = "";
+          // Local echo newline if enabled
+          if (ctx.serialLocalEcho) {
+            term.write("\r\n");
+          }
+        } else if (data === "\x7f" || data === "\b") {
+          // Backspace: remove last character from buffer
+          if (ctx.serialLineBufferRef.current.length > 0) {
+            ctx.serialLineBufferRef.current = ctx.serialLineBufferRef.current.slice(0, -1);
+            if (ctx.serialLocalEcho) {
+              term.write("\b \b");
+            }
+          }
+        } else if (data === "\x03") {
+          // Ctrl+C: clear buffer and send Ctrl+C
+          ctx.serialLineBufferRef.current = "";
+          ctx.terminalBackend.writeToSession(id, data);
+          if (ctx.serialLocalEcho) {
+            term.write("^C\r\n");
+          }
+        } else if (data === "\x15") {
+          // Ctrl+U: clear line buffer
+          if (ctx.serialLocalEcho && ctx.serialLineBufferRef.current.length > 0) {
+            // Erase the displayed line
+            const len = ctx.serialLineBufferRef.current.length;
+            term.write("\b \b".repeat(len));
+          }
+          ctx.serialLineBufferRef.current = "";
+        } else if (data.charCodeAt(0) >= 32 || data.length > 1) {
+          // Regular characters: add to buffer
+          ctx.serialLineBufferRef.current += data;
+          if (ctx.serialLocalEcho) {
+            term.write(data);
+          }
+        }
+      } else {
+        // Character mode (default): send immediately
+        ctx.terminalBackend.writeToSession(id, data);
+
+        // Local echo for serial connections only when explicitly enabled
+        if (ctx.host.protocol === "serial" && ctx.serialLocalEcho) {
+          if (data === "\r") {
+            term.write("\r\n");
+          } else if (data === "\x7f" || data === "\b") {
+            term.write("\b \b");
+          } else if (data === "\x03") {
+            term.write("^C");
+          } else if (data.charCodeAt(0) >= 32 || data.length > 1) {
+            term.write(data);
+          }
+        }
+      }
 
       if (ctx.isBroadcastEnabledRef.current && ctx.onBroadcastInputRef.current) {
         ctx.onBroadcastInputRef.current(data, ctx.sessionId);

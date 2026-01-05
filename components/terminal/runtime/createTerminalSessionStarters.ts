@@ -119,12 +119,21 @@ const attachSessionToTerminal = (
   opts?: {
     onExitMessage?: (evt: { exitCode?: number; signal?: number }) => string;
     onConnected?: () => void;
+    // For serial: convert lone LF to CRLF to avoid "staircase effect"
+    convertLfToCrlf?: boolean;
   },
 ) => {
   ctx.sessionRef.current = id;
 
   ctx.disposeDataRef.current = ctx.terminalBackend.onSessionData(id, (chunk) => {
-    term.write(ctx.highlightProcessorRef.current(chunk));
+    let data = chunk;
+    // Convert lone LF (\n) to CRLF (\r\n) for proper terminal display
+    // This prevents the "staircase effect" common in serial terminals
+    if (opts?.convertLfToCrlf) {
+      // Replace \n that is not preceded by \r with \r\n
+      data = data.replace(/(?<!\r)\n/g, "\r\n");
+    }
+    term.write(ctx.highlightProcessorRef.current(data));
     if (!ctx.hasConnectedRef.current) {
       ctx.updateStatus("connected");
       opts?.onConnected?.();
@@ -620,9 +629,17 @@ export const createTerminalSessionStarters = (ctx: TerminalSessionStartersContex
         flowControl: ctx.serialConfig.flowControl,
       });
 
+      // Serial connection is established immediately when session starts
+      // Update status right away since serial ports don't require handshake
+      ctx.updateStatus("connected");
+      ctx.setProgressValue(100);
+      term.writeln(`[Connected to ${ctx.serialConfig.path} at ${ctx.serialConfig.baudRate} baud]`);
+
       attachSessionToTerminal(ctx, term, id, {
         onExitMessage: (evt) =>
           `\r\n[serial port closed${evt?.exitCode !== undefined ? ` (code ${evt.exitCode})` : ""}]`,
+        // Convert lone LF to CRLF to prevent "staircase effect" in serial terminals
+        convertLfToCrlf: true,
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);

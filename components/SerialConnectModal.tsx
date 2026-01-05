@@ -3,12 +3,13 @@
  * Allows users to configure and connect to a serial port
  */
 import { ChevronDown, ChevronUp, Cpu, RefreshCw, Usb } from 'lucide-react';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useI18n } from '../application/i18n/I18nProvider';
 import { useTerminalBackend } from '../application/state/useTerminalBackend';
 import type { SerialConfig, SerialFlowControl, SerialParity } from '../domain/models';
 import { cn } from '../lib/utils';
 import { Button } from './ui/button';
+import { Combobox, type ComboboxOption } from './ui/combobox';
 import {
   Dialog,
   DialogContent,
@@ -27,6 +28,7 @@ interface SerialPort {
   vendorId: string;
   productId: string;
   pnpId: string;
+  type?: 'hardware' | 'pseudo' | 'custom';
 }
 
 interface SerialConnectModalProps {
@@ -58,6 +60,8 @@ export const SerialConnectModal: React.FC<SerialConnectModalProps> = ({
   const [stopBits, setStopBits] = useState<1 | 1.5 | 2>(1);
   const [parity, setParity] = useState<SerialParity>('none');
   const [flowControl, setFlowControl] = useState<SerialFlowControl>('none');
+  const [localEcho, setLocalEcho] = useState(false);
+  const [lineMode, setLineMode] = useState(false);
 
   const terminalBackend = useTerminalBackend();
 
@@ -66,22 +70,22 @@ export const SerialConnectModal: React.FC<SerialConnectModalProps> = ({
     try {
       const result = await terminalBackend.listSerialPorts();
       setPorts(result);
-      // Auto-select first port if available
-      if (result.length > 0 && !selectedPort) {
-        setSelectedPort(result[0].path);
+      // Auto-select first port if available and no port is selected
+      if (result.length > 0) {
+        setSelectedPort((prev) => prev || result[0].path);
       }
     } catch (err) {
       console.error('[Serial] Failed to list ports:', err);
     } finally {
       setIsLoadingPorts(false);
     }
-  }, [selectedPort, terminalBackend]);
+  }, [terminalBackend]);
 
   useEffect(() => {
     if (open) {
       loadPorts();
     }
-  }, [open, loadPorts]);
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleConnect = () => {
     if (!selectedPort) return;
@@ -93,14 +97,25 @@ export const SerialConnectModal: React.FC<SerialConnectModalProps> = ({
       stopBits,
       parity,
       flowControl,
+      localEcho,
+      lineMode,
     };
 
     onConnect(config);
     onClose();
   };
 
-  // Validate: port must be selected from available ports, baud rate must be valid
-  const isPortValid = !!selectedPort && ports.some(p => p.path === selectedPort);
+  // Convert ports to Combobox options
+  const portOptions: ComboboxOption[] = useMemo(() => {
+    return ports.map((port) => ({
+      value: port.path,
+      label: port.path,
+      sublabel: port.manufacturer || undefined,
+    }));
+  }, [ports]);
+
+  // Validate: port path must start with /dev/
+  const isPortValid = selectedPort.trim().startsWith('/dev/');
   const isBaudRateValid = BAUD_RATES.includes(baudRate);
   const isValid = isPortValid && isBaudRateValid;
 
@@ -133,22 +148,22 @@ export const SerialConnectModal: React.FC<SerialConnectModalProps> = ({
                 {t('common.refresh')}
               </Button>
             </div>
-            <select
-              id="serial-port"
+            
+            {/* Combobox for port selection with manual input support */}
+            <Combobox
+              options={portOptions}
               value={selectedPort}
-              onChange={(e) => setSelectedPort(e.target.value)}
-              className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-            >
-              <option value="">{t('serial.field.selectPort')}</option>
-              {ports.map((port) => (
-                <option key={port.path} value={port.path}>
-                  {port.path} {port.manufacturer ? `(${port.manufacturer})` : ''}
-                </option>
-              ))}
-            </select>
-            {ports.length === 0 && !isLoadingPorts && (
-              <p className="text-xs text-muted-foreground">
-                {t('serial.noPorts')}
+              onValueChange={setSelectedPort}
+              placeholder={t('serial.field.selectPort')}
+              emptyText={t('serial.noPorts')}
+              allowCreate
+              createText={t('common.use')}
+              icon={<Usb size={14} className="text-muted-foreground" />}
+            />
+            
+            {!isPortValid && selectedPort && (
+              <p className="text-xs text-destructive">
+                {t('serial.field.customPortPlaceholder')}
               </p>
             )}
           </div>
@@ -256,6 +271,45 @@ export const SerialConnectModal: React.FC<SerialConnectModalProps> = ({
                     </option>
                   ))}
                 </select>
+              </div>
+
+              {/* Terminal Options */}
+              <div className="space-y-3 pt-2 border-t border-border/60">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="local-echo" className="text-sm font-medium cursor-pointer">
+                      {t('serial.field.localEcho')}
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      {t('serial.field.localEchoDesc')}
+                    </p>
+                  </div>
+                  <input
+                    type="checkbox"
+                    id="local-echo"
+                    checked={localEcho}
+                    onChange={(e) => setLocalEcho(e.target.checked)}
+                    className="h-4 w-4 rounded border-input"
+                  />
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="line-mode" className="text-sm font-medium cursor-pointer">
+                      {t('serial.field.lineMode')}
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      {t('serial.field.lineModeDesc')}
+                    </p>
+                  </div>
+                  <input
+                    type="checkbox"
+                    id="line-mode"
+                    checked={lineMode}
+                    onChange={(e) => setLineMode(e.target.checked)}
+                    className="h-4 w-4 rounded border-input"
+                  />
+                </div>
               </div>
             </CollapsibleContent>
           </Collapsible>
