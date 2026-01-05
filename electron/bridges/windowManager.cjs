@@ -27,11 +27,15 @@ let currentTheme = "light";
 let currentLanguage = "en";
 let handlersRegistered = false; // Prevent duplicate IPC handler registration
 let menuDeps = null;
+let electronApp = null; // Reference to Electron app for userData path
 const rendererReadyCallbacksByWebContentsId = new Map();
 const DEBUG_WINDOWS = process.env.NETCATTY_DEBUG_WINDOWS === "1";
 const OAUTH_DEFAULT_WIDTH = 600;
 const OAUTH_DEFAULT_HEIGHT = 700;
 const OAUTH_OVERLAY_ID = "__netcatty_oauth_loading__";
+const WINDOW_STATE_FILE = "window-state.json";
+const DEFAULT_WINDOW_WIDTH = 1400;
+const DEFAULT_WINDOW_HEIGHT = 900;
 
 function debugLog(...args) {
   if (!DEBUG_WINDOWS) return;
@@ -41,6 +45,78 @@ function debugLog(...args) {
   } catch {
     // ignore
   }
+}
+
+/**
+ * Get the path to the window state file
+ */
+function getWindowStatePath() {
+  try {
+    if (!electronApp) return null;
+    return path.join(electronApp.getPath("userData"), WINDOW_STATE_FILE);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Load saved window state from disk
+ */
+function loadWindowState() {
+  try {
+    const statePath = getWindowStatePath();
+    if (!statePath || !fs.existsSync(statePath)) {
+      return null;
+    }
+    const data = fs.readFileSync(statePath, "utf8");
+    const state = JSON.parse(data);
+    // Validate the loaded state has required properties
+    if (
+      typeof state.width === "number" &&
+      typeof state.height === "number" &&
+      state.width > 0 &&
+      state.height > 0
+    ) {
+      return state;
+    }
+    return null;
+  } catch (err) {
+    debugLog("Failed to load window state:", err?.message || err);
+    return null;
+  }
+}
+
+/**
+ * Save window state to disk
+ */
+function saveWindowState(state) {
+  try {
+    const statePath = getWindowStatePath();
+    if (!statePath) return false;
+    fs.writeFileSync(statePath, JSON.stringify(state, null, 2), { mode: 0o600 });
+    return true;
+  } catch (err) {
+    debugLog("Failed to save window state:", err?.message || err);
+    return false;
+  }
+}
+
+/**
+ * Get the current window bounds state for saving
+ * @param {BrowserWindow} win - The window to get bounds from
+ * @param {Object} overrideBounds - Optional bounds to use instead of current window bounds (for normal bounds tracking)
+ */
+function getWindowBoundsState(win, overrideBounds) {
+  if (!win || win.isDestroyed()) return null;
+  const bounds = overrideBounds || win.getBounds();
+  return {
+    x: bounds.x,
+    y: bounds.y,
+    width: bounds.width,
+    height: bounds.height,
+    isMaximized: win.isMaximized(),
+    isFullScreen: win.isFullScreen(),
+  };
 }
 
 const MENU_LABELS = {
@@ -420,8 +496,11 @@ function setupDeferredShow(win, { timeoutMs = 3000, waitForRendererReady = true 
  * Create the main application window
  */
 async function createWindow(electronModule, options) {
-  const { BrowserWindow, nativeTheme } = electronModule;
+  const { BrowserWindow, nativeTheme, app, screen } = electronModule;
   const { preload, devServerUrl, isDev, appIcon, isMac, onRegisterBridge, electronDir } = options;
+  
+  // Store app reference for window state persistence
+  electronApp = app;
   
   const osTheme = nativeTheme?.shouldUseDarkColors ? "dark" : "light";
   const effectiveTheme = currentTheme === "dark" || currentTheme === "light" ? currentTheme : osTheme;
@@ -429,9 +508,46 @@ async function createWindow(electronModule, options) {
   const backgroundColor = frontendBackground || "#1a1a1a";
   const themeConfig = THEME_COLORS[effectiveTheme] || THEME_COLORS.light;
 
+  // Load saved window state
+  const savedState = loadWindowState();
+  let windowBounds = {
+    width: DEFAULT_WINDOW_WIDTH,
+    height: DEFAULT_WINDOW_HEIGHT,
+  };
+
+  if (savedState) {
+    // Use saved dimensions
+    windowBounds.width = savedState.width;
+    windowBounds.height = savedState.height;
+
+    // Only use saved position if the screen is available at that location
+    if (typeof savedState.x === "number" && typeof savedState.y === "number") {
+      try {
+        // Check if the saved position is within any available display
+        const displays = screen?.getAllDisplays?.() || [];
+        const isPositionVisible = displays.some((display) => {
+          const { x, y, width, height } = display.bounds;
+          // Check if at least part of the window would be visible on this display
+          return (
+            savedState.x < x + width &&
+            savedState.x + savedState.width > x &&
+            savedState.y < y + height &&
+            savedState.y + savedState.height > y
+          );
+        });
+
+        if (isPositionVisible) {
+          windowBounds.x = savedState.x;
+          windowBounds.y = savedState.y;
+        }
+      } catch {
+        // Ignore screen check errors, just don't set position
+      }
+    }
+  }
+
   const win = new BrowserWindow({
-    width: 1400,
-    height: 900,
+    ...windowBounds,
     backgroundColor,
     icon: appIcon,
     show: false,
@@ -448,12 +564,68 @@ async function createWindow(electronModule, options) {
 
   mainWindow = win;
 
+  // Restore maximized state if it was saved
+  if (savedState?.isMaximized && !savedState?.isFullScreen) {
+    win.once("ready-to-show", () => {
+      try {
+        win.maximize();
+      } catch {
+        // ignore
+      }
+    });
+  }
+
+  // Track window bounds for saving (use last non-maximized/non-fullscreen bounds)
+  let lastNormalBounds = null;
+  let saveStateTimer = null;
+
+  const updateNormalBounds = () => {
+    if (!win.isDestroyed() && !win.isMaximized() && !win.isFullScreen()) {
+      lastNormalBounds = win.getBounds();
+    }
+  };
+
+  const scheduleSaveState = () => {
+    if (saveStateTimer) clearTimeout(saveStateTimer);
+    saveStateTimer = setTimeout(() => {
+      const state = getWindowBoundsState(win, lastNormalBounds);
+      if (state) saveWindowState(state);
+    }, 500);
+  };
+
+  // Update normal bounds on resize/move when not maximized/fullscreen
+  win.on("resize", () => {
+    updateNormalBounds();
+    scheduleSaveState();
+  });
+
+  win.on("move", () => {
+    updateNormalBounds();
+    scheduleSaveState();
+  });
+
+  win.on("maximize", scheduleSaveState);
+  win.on("unmaximize", () => {
+    updateNormalBounds();
+    scheduleSaveState();
+  });
+
+  // Save state when window is about to close
+  win.on("close", () => {
+    if (saveStateTimer) clearTimeout(saveStateTimer);
+    const state = getWindowBoundsState(win, lastNormalBounds);
+    if (state) saveWindowState(state);
+  });
+
   win.on("enter-full-screen", () => {
     win.webContents?.send("netcatty:window:fullscreen-changed", true);
+    scheduleSaveState();
   });
 
   win.on("leave-full-screen", () => {
     win.webContents?.send("netcatty:window:fullscreen-changed", false);
+    updateNormalBounds();
+    scheduleSaveState();
   });
 
   // Ensure native background matches frontend background, even before first paint.
