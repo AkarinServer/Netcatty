@@ -1,5 +1,5 @@
 /**
- * Terminal Bridge - Handles local shell and telnet/mosh sessions
+ * Terminal Bridge - Handles local shell, telnet/mosh, and serial port sessions
  * Extracted from main.cjs for single responsibility
  */
 
@@ -8,6 +8,7 @@ const fs = require("node:fs");
 const net = require("node:net");
 const path = require("node:path");
 const pty = require("node-pty");
+const { SerialPort } = require("serialport");
 
 // Shared references
 let sessions = null;
@@ -444,6 +445,101 @@ async function startMoshSession(event, options) {
 }
 
 /**
+ * List available serial ports
+ */
+async function listSerialPorts() {
+  try {
+    const ports = await SerialPort.list();
+    return ports.map(port => ({
+      path: port.path,
+      manufacturer: port.manufacturer || '',
+      serialNumber: port.serialNumber || '',
+      vendorId: port.vendorId || '',
+      productId: port.productId || '',
+      pnpId: port.pnpId || '',
+    }));
+  } catch (err) {
+    console.error("[Serial] Failed to list ports:", err.message);
+    return [];
+  }
+}
+
+/**
+ * Start a serial port session
+ */
+async function startSerialSession(event, options) {
+  const sessionId =
+    options.sessionId ||
+    `serial-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
+  const portPath = options.path;
+  const baudRate = options.baudRate || 115200;
+  const dataBits = options.dataBits || 8;
+  const stopBits = options.stopBits || 1;
+  const parity = options.parity || 'none';
+  const flowControl = options.flowControl || 'none';
+
+  console.log(`[Serial] Starting connection to ${portPath} at ${baudRate} baud`);
+
+  return new Promise((resolve, reject) => {
+    try {
+      const serialPort = new SerialPort({
+        path: portPath,
+        baudRate: baudRate,
+        dataBits: dataBits,
+        stopBits: stopBits,
+        parity: parity,
+        rtscts: flowControl === 'rts/cts',
+        xon: flowControl === 'xon/xoff',
+        xoff: flowControl === 'xon/xoff',
+        autoOpen: false,
+      });
+
+      serialPort.open((err) => {
+        if (err) {
+          console.error(`[Serial] Failed to open port ${portPath}:`, err.message);
+          reject(new Error(`Failed to open serial port: ${err.message}`));
+          return;
+        }
+
+        console.log(`[Serial] Connected to ${portPath}`);
+
+        const session = {
+          serialPort,
+          type: 'serial',
+          webContentsId: event.sender.id,
+        };
+        sessions.set(sessionId, session);
+
+        serialPort.on('data', (data) => {
+          const contents = electronModule.webContents.fromId(session.webContentsId);
+          contents?.send("netcatty:data", { sessionId, data: data.toString('binary') });
+        });
+
+        serialPort.on('error', (err) => {
+          console.error(`[Serial] Port error: ${err.message}`);
+          const contents = electronModule.webContents.fromId(session.webContentsId);
+          contents?.send("netcatty:exit", { sessionId, exitCode: 1, error: err.message });
+          sessions.delete(sessionId);
+        });
+
+        serialPort.on('close', () => {
+          console.log(`[Serial] Port closed`);
+          const contents = electronModule.webContents.fromId(session.webContentsId);
+          contents?.send("netcatty:exit", { sessionId, exitCode: 0 });
+          sessions.delete(sessionId);
+        });
+
+        resolve({ sessionId });
+      });
+    } catch (err) {
+      console.error("[Serial] Failed to start serial session:", err.message);
+      reject(err);
+    }
+  });
+}
+
+/**
  * Write data to a session
  */
 function writeToSession(event, payload) {
@@ -457,10 +553,13 @@ function writeToSession(event, payload) {
       session.proc.write(payload.data);
     } else if (session.socket) {
       session.socket.write(payload.data);
+    } else if (session.serialPort) {
+      session.serialPort.write(payload.data);
     }
   } catch (err) {
     if (err.code !== 'EPIPE' && err.code !== 'ERR_STREAM_DESTROYED') {
       console.warn("Write failed", err);
+    }
     }
   }
 }
@@ -511,6 +610,8 @@ function closeSession(event, payload) {
       session.proc.kill();
     } else if (session.socket) {
       session.socket.destroy();
+    } else if (session.serialPort) {
+      session.serialPort.close();
     }
     if (session.chainConnections) {
       for (const c of session.chainConnections) {
@@ -530,6 +631,8 @@ function registerHandlers(ipcMain) {
   ipcMain.handle("netcatty:local:start", startLocalSession);
   ipcMain.handle("netcatty:telnet:start", startTelnetSession);
   ipcMain.handle("netcatty:mosh:start", startMoshSession);
+  ipcMain.handle("netcatty:serial:start", startSerialSession);
+  ipcMain.handle("netcatty:serial:list", listSerialPorts);
   ipcMain.handle("netcatty:local:defaultShell", getDefaultShell);
   ipcMain.handle("netcatty:local:validatePath", validatePath);
   ipcMain.on("netcatty:write", writeToSession);
@@ -631,6 +734,12 @@ function cleanupAllSessions() {
         }
       } else if (session.socket) {
         session.socket.destroy();
+      } else if (session.serialPort) {
+        try {
+          session.serialPort.close();
+        } catch (e) {
+          // Ignore errors during cleanup
+        }
       }
       if (session.chainConnections) {
         for (const c of session.chainConnections) {
@@ -651,6 +760,8 @@ module.exports = {
   startLocalSession,
   startTelnetSession,
   startMoshSession,
+  startSerialSession,
+  listSerialPorts,
   writeToSession,
   resizeSession,
   closeSession,

@@ -23,7 +23,20 @@ export interface EnvVar {
 }
 
 // Protocol type for connections
-export type HostProtocol = 'ssh' | 'telnet' | 'mosh' | 'local';
+export type HostProtocol = 'ssh' | 'telnet' | 'mosh' | 'local' | 'serial';
+
+// Serial port configuration
+export type SerialParity = 'none' | 'even' | 'odd' | 'mark' | 'space';
+export type SerialFlowControl = 'none' | 'xon/xoff' | 'rts/cts';
+
+export interface SerialConfig {
+  path: string; // Serial port path (e.g., /dev/ttyUSB0, COM1)
+  baudRate: number; // Baud rate (e.g., 9600, 115200)
+  dataBits?: 5 | 6 | 7 | 8; // Data bits (default: 8)
+  stopBits?: 1 | 1.5 | 2; // Stop bits (default: 1)
+  parity?: SerialParity; // Parity (default: 'none')
+  flowControl?: SerialFlowControl; // Flow control (default: 'none')
+}
 
 // Per-protocol configuration
 export interface ProtocolConfig {
@@ -440,9 +453,11 @@ export interface TerminalSession {
   workspaceId?: string;
   startupCommand?: string; // Command to run after connection (for snippet runner)
   // Connection-time protocol overrides (used instead of looking up from hosts)
-  protocol?: 'ssh' | 'telnet' | 'local';
+  protocol?: 'ssh' | 'telnet' | 'local' | 'serial';
   port?: number;
   moshEnabled?: boolean;
+  // Serial-specific connection settings
+  serialConfig?: SerialConfig;
 }
 
 export interface RemoteFile {

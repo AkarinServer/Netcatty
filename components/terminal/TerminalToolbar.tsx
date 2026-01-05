@@ -58,6 +58,8 @@ export const TerminalToolbar: React.FC<TerminalToolbarProps> = ({
     const buttonBase = "h-6 w-6 p-0 shadow-none border-none text-[color:var(--terminal-toolbar-fg)] bg-transparent hover:bg-transparent";
 
     const isLocalTerminal = host?.protocol === 'local' || host?.id?.startsWith('local-');
+    const isSerialTerminal = host?.protocol === 'serial' || host?.id?.startsWith('serial-');
+    const hidesSftp = isLocalTerminal || isSerialTerminal;
 
     const currentThemeId = host?.theme || defaultThemeId;
     const currentFontFamilyId = host?.fontFamily || defaultFontFamilyId;
@@ -95,17 +97,19 @@ export const TerminalToolbar: React.FC<TerminalToolbarProps> = ({
 
     return (
         <>
-            <Button
-                variant="secondary"
-                size="icon"
-                className={buttonBase}
-                disabled={status !== 'connected'}
-                title={status === 'connected' ? t("terminal.toolbar.openSftp") : t("terminal.toolbar.availableAfterConnect")}
-                aria-label={t("terminal.toolbar.openSftp")}
-                onClick={onOpenSFTP}
-            >
-                <FolderInput size={12} />
-            </Button>
+            {!hidesSftp && (
+                <Button
+                    variant="secondary"
+                    size="icon"
+                    className={buttonBase}
+                    disabled={status !== 'connected'}
+                    title={status === 'connected' ? t("terminal.toolbar.openSftp") : t("terminal.toolbar.availableAfterConnect")}
+                    aria-label={t("terminal.toolbar.openSftp")}
+                    onClick={onOpenSFTP}
+                >
+                    <FolderInput size={12} />
+                </Button>
+            )}
 
             <Popover open={isScriptsOpen} onOpenChange={setIsScriptsOpen}>
                 <PopoverTrigger asChild>

@@ -3,7 +3,7 @@ import type { SerializeAddon } from "@xterm/addon-serialize";
 import type { Terminal as XTerm } from "@xterm/xterm";
 import type { Dispatch, RefObject, SetStateAction } from "react";
 import { logger } from "../../../lib/logger";
-import type { Host, Identity, SSHKey, TerminalSession, TerminalSettings } from "../../../types";
+import type { Host, Identity, SerialConfig, SSHKey, TerminalSession, TerminalSettings } from "../../../types";
 import { resolveHostAuth } from "../../../domain/sshAuth";
 
 type TerminalBackendApi = {
@@ -11,6 +11,7 @@ type TerminalBackendApi = {
   telnetAvailable: () => boolean;
   moshAvailable: () => boolean;
   localAvailable: () => boolean;
+  serialAvailable: () => boolean;
   execAvailable: () => boolean;
   startSSHSession: (options: NetcattySSHOptions) => Promise<string>;
   startTelnetSession: (
@@ -21,6 +22,9 @@ type TerminalBackendApi = {
   ) => Promise<string>;
   startLocalSession: (
     options: Parameters<NonNullable<NetcattyBridge["startLocalSession"]>>[0],
+  ) => Promise<string>;
+  startSerialSession: (
+    options: Parameters<NonNullable<NetcattyBridge["startSerialSession"]>>[0],
   ) => Promise<string>;
   execCommand: (options: Parameters<NetcattyBridge["execCommand"]>[0]) => Promise<{
     stdout?: string;
@@ -61,6 +65,7 @@ export type TerminalSessionStartersContext = {
   startupCommand?: string;
   terminalSettings?: TerminalSettings;
   terminalBackend: TerminalBackendApi;
+  serialConfig?: SerialConfig;
 
   sessionRef: RefObject<string | null>;
   hasConnectedRef: RefObject<boolean>;
@@ -590,5 +595,42 @@ export const createTerminalSessionStarters = (ctx: TerminalSessionStartersContex
     }
   };
 
-  return { startSSH, startTelnet, startMosh, startLocal };
+  // Start Serial session
+  const startSerial = async (term: XTerm) => {
+    if (!ctx.serialConfig) {
+      ctx.setError("No serial configuration provided");
+      term.writeln("\r\n[Error: No serial configuration provided]");
+      ctx.updateStatus("disconnected");
+      return;
+    }
+
+    try {
+      logger.info("[Serial] Starting serial session", {
+        port: ctx.serialConfig.path,
+        baudRate: ctx.serialConfig.baudRate,
+      });
+
+      const id = await ctx.terminalBackend.startSerialSession({
+        sessionId: ctx.sessionId,
+        path: ctx.serialConfig.path,
+        baudRate: ctx.serialConfig.baudRate,
+        dataBits: ctx.serialConfig.dataBits,
+        stopBits: ctx.serialConfig.stopBits,
+        parity: ctx.serialConfig.parity,
+        flowControl: ctx.serialConfig.flowControl,
+      });
+
+      attachSessionToTerminal(ctx, term, id, {
+        onExitMessage: (evt) =>
+          `\r\n[serial port closed${evt?.exitCode !== undefined ? ` (code ${evt.exitCode})` : ""}]`,
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      ctx.setError(message);
+      term.writeln(`\r\n[Failed to connect to serial port: ${message}]`);
+      ctx.updateStatus("disconnected");
+    }
+  };
+
+  return { startSSH, startTelnet, startMosh, startLocal, startSerial };
 };

@@ -12,6 +12,7 @@ import {
   Host,
   Identity,
   KnownHost,
+  SerialConfig,
   SSHKey,
   Snippet,
   TerminalSession,
@@ -58,6 +59,7 @@ interface TerminalProps {
   terminalSettings?: TerminalSettings;
   sessionId: string;
   startupCommand?: string;
+  serialConfig?: SerialConfig;
   onUpdateTerminalThemeId?: (themeId: string) => void;
   onUpdateTerminalFontFamilyId?: (fontFamilyId: string) => void;
   onUpdateTerminalFontSize?: (fontSize: number) => void;
@@ -103,6 +105,7 @@ const TerminalComponent: React.FC<TerminalProps> = ({
   terminalSettings,
   sessionId,
   startupCommand,
+  serialConfig,
   onUpdateTerminalThemeId,
   onUpdateTerminalFontFamilyId,
   onUpdateTerminalFontSize,
@@ -280,6 +283,7 @@ const TerminalComponent: React.FC<TerminalProps> = ({
     startupCommand,
     terminalSettings,
     terminalBackend,
+    serialConfig,
     sessionRef,
     hasConnectedRef,
     hasRunStartupCommandRef,
@@ -346,7 +350,11 @@ const TerminalComponent: React.FC<TerminalProps> = ({
 
         const term = runtime.term;
 
-        if (host.protocol === "local" || host.hostname === "localhost") {
+        if (host.protocol === "serial") {
+          setStatus("connecting");
+          setProgressLogs(["Initializing serial connection..."]);
+          await sessionStarters.startSerial(term);
+        } else if (host.protocol === "local" || host.hostname === "localhost") {
           setStatus("connecting");
           setProgressLogs(["Initializing local shell..."]);
           await sessionStarters.startLocal(term);

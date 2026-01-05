@@ -944,6 +944,28 @@ const zhCN: Messages = {
   'snippets.packageDialog.root': '根目录',
   'snippets.packageDialog.placeholder': '例如：ops/maintenance',
   'snippets.packageDialog.hint': '使用 "/" 创建嵌套代码包。',
+
+  // Serial Port
+  'serial.button': '串口',
+  'serial.modal.title': '连接串口',
+  'serial.modal.desc': '配置串口连接参数',
+  'serial.field.port': '串口',
+  'serial.field.selectPort': '选择串口...',
+  'serial.field.baudRate': '波特率',
+  'serial.field.dataBits': '数据位',
+  'serial.field.stopBits': '停止位',
+  'serial.field.parity': '校验位',
+  'serial.field.flowControl': '流控制',
+  'serial.noPorts': '未检测到串口设备。请连接设备后刷新。',
+  'serial.parity.none': '无',
+  'serial.parity.even': '偶校验',
+  'serial.parity.odd': '奇校验',
+  'serial.parity.mark': 'Mark',
+  'serial.parity.space': 'Space',
+  'serial.flowControl.none': '无',
+  'serial.flowControl.xon/xoff': 'XON/XOFF (软件)',
+  'serial.flowControl.rts/cts': 'RTS/CTS (硬件)',
+  'serial.connectionError': '连接串口失败',
 };
 
 export default zhCN;

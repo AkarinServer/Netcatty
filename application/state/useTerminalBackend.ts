@@ -17,6 +17,11 @@ export const useTerminalBackend = () => {
     return !!bridge?.startLocalSession;
   }, []);
 
+  const serialAvailable = useCallback(() => {
+    const bridge = netcattyBridge.get();
+    return !!bridge?.startSerialSession;
+  }, []);
+
   const execAvailable = useCallback(() => {
     const bridge = netcattyBridge.get();
     return !!bridge?.execCommand;
@@ -44,6 +49,12 @@ export const useTerminalBackend = () => {
     const bridge = netcattyBridge.get();
     if (!bridge?.startLocalSession) throw new Error("startLocalSession unavailable");
     return bridge.startLocalSession(options);
+  }, []);
+
+  const startSerialSession = useCallback(async (options: Parameters<NonNullable<NetcattyBridge["startSerialSession"]>>[0]) => {
+    const bridge = netcattyBridge.get();
+    if (!bridge?.startSerialSession) throw new Error("startSerialSession unavailable");
+    return bridge.startSerialSession(options);
   }, []);
 
   const execCommand = useCallback(async (options: Parameters<NetcattyBridge["execCommand"]>[0]) => {
@@ -99,17 +110,26 @@ export const useTerminalBackend = () => {
     return !!bridge?.startSSHSession;
   }, []);
 
+  const listSerialPorts = useCallback(async () => {
+    const bridge = netcattyBridge.get();
+    if (!bridge?.listSerialPorts) return [];
+    return bridge.listSerialPorts();
+  }, []);
+
   return {
     backendAvailable,
     telnetAvailable,
     moshAvailable,
     localAvailable,
+    serialAvailable,
     execAvailable,
     openExternalAvailable,
     startSSHSession,
     startTelnetSession,
     startMoshSession,
     startLocalSession,
+    startSerialSession,
+    listSerialPorts,
     execCommand,
     writeToSession,
     resizeSession,

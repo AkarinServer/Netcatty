@@ -208,6 +208,7 @@ function App({ settings }: { settings: SettingsState }) {
     submitWorkspaceRename,
     resetWorkspaceRename,
     createLocalTerminal,
+    createSerialSession,
     connectToHost,
     closeSession,
     closeWorkspace,
@@ -764,6 +765,7 @@ function App({ settings }: { settings: SettingsState }) {
             onOpenSettings={handleOpenSettings}
             onOpenQuickSwitcher={handleOpenQuickSwitcher}
             onCreateLocalTerminal={handleCreateLocalTerminal}
+            onConnectSerial={createSerialSession}
             onDeleteHost={handleDeleteHost}
             onConnect={handleConnectToHost}
             onUpdateHosts={updateHosts}

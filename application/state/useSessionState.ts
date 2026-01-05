@@ -1,5 +1,5 @@
 import { MouseEvent,useCallback,useMemo,useState } from 'react';
-import { ConnectionLog,Host,Snippet,TerminalSession,Workspace,WorkspaceViewMode } from '../../domain/models';
+import { ConnectionLog,Host,SerialConfig,Snippet,TerminalSession,Workspace,WorkspaceViewMode } from '../../domain/models';
 import {
 collectSessionIds,
 createWorkspaceFromSessions as createWorkspaceEntity,
@@ -52,6 +52,24 @@ export const useSessionState = () => {
 	    setSessions(prev => [...prev, newSession]);
 	    setActiveTabId(sessionId);
 	  }, [setActiveTabId]);
+
+  const createSerialSession = useCallback((config: SerialConfig) => {
+    const sessionId = crypto.randomUUID();
+    const serialHostId = `serial-${sessionId}`;
+    const portName = config.path.split('/').pop() || config.path;
+    const newSession: TerminalSession = {
+      id: sessionId,
+      hostId: serialHostId,
+      hostLabel: `Serial: ${portName}`,
+      hostname: config.path,
+      username: '',
+      status: 'connecting',
+      protocol: 'serial',
+      serialConfig: config,
+    };
+    setSessions(prev => [...prev, newSession]);
+    setActiveTabId(sessionId);
+  }, [setActiveTabId]);
 
   const connectToHost = useCallback((host: Host) => {
     const newSession: TerminalSession = {
@@ -590,6 +608,7 @@ export const useSessionState = () => {
     submitWorkspaceRename,
     resetWorkspaceRename,
     createLocalTerminal,
+    createSerialSession,
     connectToHost,
     closeSession,
     closeWorkspace,

@@ -955,6 +955,28 @@ const en: Messages = {
   'snippets.packageDialog.root': 'Root',
   'snippets.packageDialog.placeholder': 'e.g. ops/maintenance',
   'snippets.packageDialog.hint': 'Use "/" to create nested packages.',
+
+  // Serial Port
+  'serial.button': 'Serial',
+  'serial.modal.title': 'Connect to Serial Port',
+  'serial.modal.desc': 'Configure serial port connection settings',
+  'serial.field.port': 'Serial Port',
+  'serial.field.selectPort': 'Select a port...',
+  'serial.field.baudRate': 'Baud Rate',
+  'serial.field.dataBits': 'Data Bits',
+  'serial.field.stopBits': 'Stop Bits',
+  'serial.field.parity': 'Parity',
+  'serial.field.flowControl': 'Flow Control',
+  'serial.noPorts': 'No serial ports detected. Connect a device and refresh.',
+  'serial.parity.none': 'None',
+  'serial.parity.even': 'Even',
+  'serial.parity.odd': 'Odd',
+  'serial.parity.mark': 'Mark',
+  'serial.parity.space': 'Space',
+  'serial.flowControl.none': 'None',
+  'serial.flowControl.xon/xoff': 'XON/XOFF (Software)',
+  'serial.flowControl.rts/cts': 'RTS/CTS (Hardware)',
+  'serial.connectionError': 'Failed to connect to serial port',
 };
 
 export default en;
