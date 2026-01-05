@@ -166,6 +166,13 @@ const en: Messages = {
   'settings.terminal.scrollback.rows': 'Number of rows *',
   'settings.terminal.keywordHighlight.title': 'Keyword highlighting',
   'settings.terminal.keywordHighlight.resetColors': 'Reset to default colors',
+  'settings.terminal.section.localShell': 'Local Shell',
+  'settings.terminal.localShell.shell': 'Shell executable',
+  'settings.terminal.localShell.shell.desc': 'Path to the shell executable (e.g., /bin/zsh, pwsh.exe). Leave empty for system default.',
+  'settings.terminal.localShell.shell.placeholder': 'System default',
+  'settings.terminal.localShell.startDir': 'Starting directory',
+  'settings.terminal.localShell.startDir.desc': 'Directory to start in when opening a local terminal. Leave empty for home directory.',
+  'settings.terminal.localShell.startDir.placeholder': 'Home directory',
 
   // Settings > Shortcuts
   'settings.shortcuts.section.scheme': 'Hotkey Scheme',

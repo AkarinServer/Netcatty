@@ -134,7 +134,7 @@ interface NetcattyBridge {
     charset?: string;
     env?: Record<string, string>;
   }): Promise<string>;
-  startLocalSession?(options: { sessionId?: string; cols?: number; rows?: number; shell?: string; env?: Record<string, string> }): Promise<string>;
+  startLocalSession?(options: { sessionId?: string; cols?: number; rows?: number; shell?: string; cwd?: string; env?: Record<string, string> }): Promise<string>;
   generateKeyPair?(options: {
     type: 'RSA' | 'ECDSA' | 'ED25519';
     bits?: number;

@@ -741,6 +741,13 @@ const zhCN: Messages = {
   'settings.terminal.scrollback.rows': '行数 *',
   'settings.terminal.keywordHighlight.title': '关键字高亮',
   'settings.terminal.keywordHighlight.resetColors': '重置为默认颜色',
+  'settings.terminal.section.localShell': '本地 Shell',
+  'settings.terminal.localShell.shell': 'Shell 可执行文件',
+  'settings.terminal.localShell.shell.desc': 'Shell 可执行文件的路径（例如 /bin/zsh、pwsh.exe）。留空使用系统默认。',
+  'settings.terminal.localShell.shell.placeholder': '系统默认',
+  'settings.terminal.localShell.startDir': '起始目录',
+  'settings.terminal.localShell.startDir.desc': '打开本地终端时的起始目录。留空使用用户主目录。',
+  'settings.terminal.localShell.startDir.placeholder': '用户主目录',
 
   // Settings > Shortcuts
   'settings.shortcuts.section.scheme': '快捷键方案',

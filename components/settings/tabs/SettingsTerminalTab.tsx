@@ -443,6 +443,33 @@ export default function SettingsTerminalTab(props: {
           </div>
         )}
       </div>
+
+      <SectionHeader title={t("settings.terminal.section.localShell")} />
+      <div className="space-y-0 divide-y divide-border rounded-lg border bg-card px-4">
+        <SettingRow
+          label={t("settings.terminal.localShell.shell")}
+          description={t("settings.terminal.localShell.shell.desc")}
+        >
+          <Input
+            value={terminalSettings.localShell}
+            placeholder={t("settings.terminal.localShell.shell.placeholder")}
+            onChange={(e) => updateTerminalSetting("localShell", e.target.value)}
+            className="w-48"
+          />
+        </SettingRow>
+
+        <SettingRow
+          label={t("settings.terminal.localShell.startDir")}
+          description={t("settings.terminal.localShell.startDir.desc")}
+        >
+          <Input
+            value={terminalSettings.localStartDir}
+            placeholder={t("settings.terminal.localShell.startDir.placeholder")}
+            onChange={(e) => updateTerminalSetting("localStartDir", e.target.value)}
+            className="w-48"
+          />
+        </SettingRow>
+      </div>
     </SettingsTabContent>
   );
 }

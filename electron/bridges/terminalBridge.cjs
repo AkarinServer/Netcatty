@@ -107,10 +107,16 @@ function startLocalSession(event, payload) {
     COLORTERM: "truecolor",
   });
   
+  // Determine the starting directory
+  // Default to home directory if not specified
+  const defaultCwd = os.homedir();
+  const cwd = payload?.cwd || defaultCwd;
+  
   const proc = pty.spawn(shell, shellArgs, {
     cols: payload?.cols || 80,
     rows: payload?.rows || 24,
     env,
+    cwd,
   });
   
   const session = {
