@@ -370,6 +370,7 @@ export const useSftpState = (hosts: Host[], keys: SSHKey[], identities: Identity
         sizeFormatted: f.size,
         lastModified: new Date(f.lastModified).getTime(),
         lastModifiedFormatted: f.lastModified,
+        linkTarget: f.linkTarget as "file" | "directory" | null | undefined,
       }));
     },
     [getMockLocalFiles],
@@ -387,6 +388,7 @@ export const useSftpState = (hosts: Host[], keys: SSHKey[], identities: Identity
         sizeFormatted: f.size,
         lastModified: new Date(f.lastModified).getTime(),
         lastModifiedFormatted: f.lastModified,
+        linkTarget: f.linkTarget as "file" | "directory" | null | undefined,
       }));
     },
     [],
@@ -1338,7 +1340,8 @@ export const useSftpState = (hosts: Host[], keys: SSHKey[], identities: Identity
         return;
       }
 
-      if (entry.type === "directory") {
+      // Navigate into directories, or symlinks that point to directories
+      if (entry.type === "directory" || (entry.type === "symlink" && entry.linkTarget === "directory")) {
         const newPath = joinPath(pane.connection.currentPath, entry.name);
         await navigateTo(side, newPath);
       }

@@ -9,6 +9,7 @@ const os = require("node:os");
 
 /**
  * List files in a local directory
+ * Properly handles symlinks by resolving their target type
  */
 async function listLocalDir(event, payload) {
   const dirPath = payload.path;
@@ -27,19 +28,53 @@ async function listLocalDir(event, payload) {
       const entry = entries[i];
       try {
         const fullPath = path.join(dirPath, entry.name);
+        // fs.promises.stat follows symlinks, so we get the target's stats
         const stat = await fs.promises.stat(fullPath);
+        
+        let type;
+        let linkTarget = null;
+        
+        if (entry.isSymbolicLink()) {
+          // This is a symlink - mark it as such and record the target type
+          type = "symlink";
+          // stat follows symlinks, so stat.isDirectory() tells us if target is a directory
+          linkTarget = stat.isDirectory() ? "directory" : "file";
+        } else if (entry.isDirectory()) {
+          type = "directory";
+        } else {
+          type = "file";
+        }
+        
         result[i] = {
           name: entry.name,
-          type: entry.isDirectory()
-            ? "directory"
-            : entry.isSymbolicLink()
-              ? "symlink"
-              : "file",
+          type,
+          linkTarget,
           size: `${stat.size} bytes`,
           lastModified: stat.mtime.toISOString(),
         };
       } catch (err) {
-        console.warn(`Could not stat ${entry.name}:`, err.message);
+        // Handle broken symlinks - lstat doesn't follow symlinks
+        if (err.code === 'ENOENT' || err.code === 'ELOOP') {
+          const entry = entries[i];
+          try {
+            const fullPath = path.join(dirPath, entry.name);
+            const lstat = await fs.promises.lstat(fullPath);
+            if (lstat.isSymbolicLink()) {
+              // Broken symlink
+              result[i] = {
+                name: entry.name,
+                type: "symlink",
+                linkTarget: null, // Broken link - target unknown
+                size: `${lstat.size} bytes`,
+                lastModified: lstat.mtime.toISOString(),
+              };
+              return;
+            }
+          } catch (lstatErr) {
+            console.warn(`Could not lstat ${entry.name}:`, lstatErr.message);
+          }
+        }
+        console.warn(`Could not stat ${entries[i].name}:`, err.message);
         result[i] = null;
       }
     }

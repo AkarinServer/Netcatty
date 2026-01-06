@@ -871,9 +871,11 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
   // Sorted files
   const sortedFiles = useMemo(() => {
     return [...files].sort((a, b) => {
-      // Directories always first
-      if (a.type === "directory" && b.type !== "directory") return -1;
-      if (a.type !== "directory" && b.type === "directory") return 1;
+      // Directories and symlinks pointing to directories come first
+      const aIsDir = a.type === "directory" || (a.type === "symlink" && a.linkTarget === "directory");
+      const bIsDir = b.type === "directory" || (b.type === "symlink" && b.linkTarget === "directory");
+      if (aIsDir && !bIsDir) return -1;
+      if (!aIsDir && bIsDir) return 1;
 
       let cmp = 0;
       switch (sortField) {
@@ -1037,7 +1039,8 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
   };
 
   const handleFileDoubleClick = (file: RemoteFile) => {
-    if (file.type === "directory") {
+    // Navigate into directories, or symlinks that point to directories
+    if (file.type === "directory" || (file.type === "symlink" && file.linkTarget === "directory")) {
       handleNavigate(joinPath(currentPath, file.name));
     } else {
       handleDownload(file);
@@ -1304,7 +1307,12 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
           <ContextMenu>
             <ContextMenuTrigger asChild>
               <div className="divide-y divide-border/30">
-                {sortedFiles.map((file, idx) => (
+                {sortedFiles.map((file, idx) => {
+                  // Check if this entry is navigable like a directory
+                  const isNavigableDirectory = file.type === "directory" || (file.type === "symlink" && file.linkTarget === "directory");
+                  const isDownloadableFile = file.type === "file" || (file.type === "symlink" && file.linkTarget === "file");
+                  
+                  return (
                   <ContextMenu key={idx}>
                     <ContextMenuTrigger>
                       <div
@@ -1321,18 +1329,21 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
                       >
                         <div className="flex items-center gap-3 min-w-0">
                           <div className="shrink-0">
-                            {getFileIcon(file.name, file.type === "directory")}
+                            {getFileIcon(file.name, isNavigableDirectory)}
                           </div>
-                          <span className="truncate font-medium">{file.name}</span>
+                          <span className={cn("truncate font-medium", file.type === "symlink" && "italic")}>{file.name}</span>
+                          {file.type === "symlink" && (
+                            <span className="text-xs text-muted-foreground shrink-0">→</span>
+                          )}
                         </div>
                         <div className="text-xs text-muted-foreground">
-                          {file.type === "directory" ? "--" : formatBytes(file.size)}
+                          {isNavigableDirectory ? "--" : formatBytes(file.size)}
                         </div>
                         <div className="text-xs text-muted-foreground truncate">
                           {formatDate(file.lastModified, resolvedLocale)}
                         </div>
                         <div className="flex items-center justify-end gap-1">
-                          {file.type === "file" && (
+                          {isDownloadableFile && (
                             <Button
                               variant="ghost"
                               size="icon"
@@ -1362,7 +1373,7 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
                       </div>
                     </ContextMenuTrigger>
                     <ContextMenuContent>
-                      {file.type === "directory" && (
+                      {(file.type === "directory" || (file.type === "symlink" && file.linkTarget === "directory")) && (
                         <ContextMenuItem
                           onClick={() =>
                             handleNavigate(
@@ -1375,7 +1386,7 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
                           {t("sftp.context.open")}
                         </ContextMenuItem>
                       )}
-                      {file.type === "file" && (
+                      {(file.type === "file" || (file.type === "symlink" && file.linkTarget === "file")) && (
                         <ContextMenuItem onClick={() => handleDownload(file)}>
                           <Download size={14} className="mr-2" /> {t("sftp.context.download")}
                         </ContextMenuItem>
@@ -1388,7 +1399,8 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
                       </ContextMenuItem>
                     </ContextMenuContent>
                   </ContextMenu>
-                ))}
+                );
+                })}
               </div>
             </ContextMenuTrigger>
             <ContextMenuContent>

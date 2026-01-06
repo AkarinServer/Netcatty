@@ -464,9 +464,10 @@ export interface TerminalSession {
 
 export interface RemoteFile {
   name: string;
-  type: 'file' | 'directory';
+  type: 'file' | 'directory' | 'symlink';
   size: string;
   lastModified: string;
+  linkTarget?: 'file' | 'directory' | null; // For symlinks: the type of the target, or null if broken
 }
 
 export type WorkspaceNode =
@@ -505,6 +506,7 @@ export interface SftpFileEntry {
   permissions?: string;
   owner?: string;
   group?: string;
+  linkTarget?: 'file' | 'directory' | null; // For symlinks: the type of the target, or null if broken
 }
 
 export interface SftpConnection {

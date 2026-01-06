@@ -385,18 +385,54 @@ async function openSftp(event, options) {
 
 /**
  * List files in a directory
+ * Properly handles symlinks by resolving their target type
  */
 async function listSftp(event, payload) {
   const client = sftpClients.get(payload.sftpId);
   if (!client) throw new Error("SFTP session not found");
   
   const list = await client.list(payload.path || ".");
-  return list.map((item) => ({
-    name: item.name,
-    type: item.type === "d" ? "directory" : "file",
-    size: `${item.size} bytes`,
-    lastModified: new Date(item.modifyTime || Date.now()).toISOString(),
+  const basePath = payload.path || ".";
+  
+  // Process items and resolve symlinks
+  const results = await Promise.all(list.map(async (item) => {
+    let type;
+    let linkTarget = null;
+    
+    if (item.type === "d") {
+      type = "directory";
+    } else if (item.type === "l") {
+      // This is a symlink - try to resolve its target type
+      type = "symlink";
+      try {
+        const fullPath = basePath === "." || basePath === "/" 
+          ? `/${item.name}` 
+          : `${basePath}/${item.name}`;
+        const stat = await client.stat(fullPath);
+        // stat follows symlinks, so we get the target's type
+        if (stat.isDirectory) {
+          linkTarget = "directory";
+        } else {
+          linkTarget = "file";
+        }
+      } catch (err) {
+        // If we can't stat the symlink target (broken link), keep it as symlink
+        console.warn(`Could not resolve symlink target for ${item.name}:`, err.message);
+      }
+    } else {
+      type = "file";
+    }
+    
+    return {
+      name: item.name,
+      type,
+      linkTarget,
+      size: `${item.size} bytes`,
+      lastModified: new Date(item.modifyTime || Date.now()).toISOString(),
+    };
   }));
+  
+  return results;
 }
 
 /**

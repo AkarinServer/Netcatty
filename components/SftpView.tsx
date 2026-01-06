@@ -181,8 +181,9 @@ const SftpPaneViewInner: React.FC<SftpPaneViewProps> = ({
     const currentValue = editingPathValue.trim().toLowerCase();
     const suggestions: { path: string; type: "folder" | "history" }[] = [];
 
+    // Include both directories and symlinks pointing to directories
     const folders = filteredFiles.filter(
-      (f) => f.type === "directory" && f.name !== "..",
+      (f) => (f.type === "directory" || (f.type === "symlink" && f.linkTarget === "directory")) && f.name !== "..",
     );
     folders.forEach((f) => {
       const fullPath =
@@ -455,10 +456,10 @@ const SftpPaneViewInner: React.FC<SftpPaneViewProps> = ({
         .filter((f) => selectedNames.includes(f.name))
         .map((f) => ({
           name: f.name,
-          isDirectory: f.type === "directory",
+          isDirectory: f.type === "directory" || (f.type === "symlink" && f.linkTarget === "directory"),
           side,
         }))
-      : [{ name: entry.name, isDirectory: entry.type === "directory", side }];
+      : [{ name: entry.name, isDirectory: entry.type === "directory" || (entry.type === "symlink" && entry.linkTarget === "directory"), side }];
     e.dataTransfer.effectAllowed = "copy";
     e.dataTransfer.setData("text/plain", files.map((f) => f.name).join("\n"));
     onDragStart(files, side);
@@ -466,7 +467,9 @@ const SftpPaneViewInner: React.FC<SftpPaneViewProps> = ({
 
   const handleEntryDragOver = (entry: SftpFileEntry, e: React.DragEvent) => {
     if (!draggedFiles || draggedFiles[0]?.side === side) return;
-    if (entry.type === "directory" && entry.name !== "..") {
+    // Allow drag over for directories and symlinks pointing to directories
+    const isNavigableDirectory = entry.type === "directory" || (entry.type === "symlink" && entry.linkTarget === "directory");
+    if (isNavigableDirectory && entry.name !== "..") {
       e.preventDefault();
       e.stopPropagation();
       setDragOverEntry(entry.name);
@@ -475,7 +478,9 @@ const SftpPaneViewInner: React.FC<SftpPaneViewProps> = ({
 
   const handleEntryDrop = (entry: SftpFileEntry, e: React.DragEvent) => {
     if (!draggedFiles || draggedFiles[0]?.side === side) return;
-    if (entry.type === "directory" && entry.name !== "..") {
+    // Allow drop on directories and symlinks pointing to directories
+    const isNavigableDirectory = entry.type === "directory" || (entry.type === "symlink" && entry.linkTarget === "directory");
+    if (isNavigableDirectory && entry.name !== "..") {
       e.preventDefault();
       e.stopPropagation();
       setDragOverEntry(null);
@@ -851,7 +856,7 @@ const SftpPaneViewInner: React.FC<SftpPaneViewProps> = ({
                 {entry.name !== ".." && (
                   <ContextMenuContent>
                     <ContextMenuItem onClick={() => onOpenEntry(entry)}>
-                      {entry.type === "directory"
+                      {(entry.type === "directory" || (entry.type === "symlink" && entry.linkTarget === "directory"))
                         ? t("sftp.context.open")
                         : t("sftp.context.download")}
                     </ContextMenuItem>
@@ -867,7 +872,7 @@ const SftpPaneViewInner: React.FC<SftpPaneViewProps> = ({
                           );
                           return {
                             name,
-                            isDirectory: file?.type === "directory" || false,
+                            isDirectory: file?.type === "directory" || (file?.type === "symlink" && file?.linkTarget === "directory") || false,
                           };
                         });
                         onCopyToOtherPane(fileData);
