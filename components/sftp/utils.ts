@@ -173,3 +173,11 @@ export interface ColumnWidths {
     size: number;
     type: number;
 }
+
+/**
+ * Check if an entry is navigable like a directory
+ * This includes regular directories and symlinks that point to directories
+ */
+export const isNavigableDirectory = (entry: SftpFileEntry): boolean => {
+    return entry.type === 'directory' || (entry.type === 'symlink' && entry.linkTarget === 'directory');
+};

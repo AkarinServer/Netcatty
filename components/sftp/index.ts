@@ -7,7 +7,7 @@
 // Utilities
 export {
 formatBytes,formatDate,
-formatSpeed,formatTransferBytes,getFileIcon,type ColumnWidths,type SortField,
+formatSpeed,formatTransferBytes,getFileIcon,isNavigableDirectory,type ColumnWidths,type SortField,
 type SortOrder
 } from './utils';
 

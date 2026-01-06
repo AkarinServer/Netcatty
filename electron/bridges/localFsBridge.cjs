@@ -55,14 +55,14 @@ async function listLocalDir(event, payload) {
       } catch (err) {
         // Handle broken symlinks - lstat doesn't follow symlinks
         if (err.code === 'ENOENT' || err.code === 'ELOOP') {
-          const entry = entries[i];
+          const brokenEntry = entries[i];
           try {
-            const fullPath = path.join(dirPath, entry.name);
+            const fullPath = path.join(dirPath, brokenEntry.name);
             const lstat = await fs.promises.lstat(fullPath);
             if (lstat.isSymbolicLink()) {
               // Broken symlink
               result[i] = {
-                name: entry.name,
+                name: brokenEntry.name,
                 type: "symlink",
                 linkTarget: null, // Broken link - target unknown
                 size: `${lstat.size} bytes`,
@@ -71,7 +71,7 @@ async function listLocalDir(event, payload) {
               return;
             }
           } catch (lstatErr) {
-            console.warn(`Could not lstat ${entry.name}:`, lstatErr.message);
+            console.warn(`Could not lstat ${brokenEntry.name}:`, lstatErr.message);
           }
         }
         console.warn(`Could not stat ${entries[i].name}:`, err.message);

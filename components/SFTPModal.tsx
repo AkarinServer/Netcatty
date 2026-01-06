@@ -1331,9 +1331,12 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
                           <div className="shrink-0">
                             {getFileIcon(file.name, isNavigableDirectory)}
                           </div>
-                          <span className={cn("truncate font-medium", file.type === "symlink" && "italic")}>{file.name}</span>
+                          <span className={cn("truncate font-medium", file.type === "symlink" && "italic")}>
+                            {file.name}
+                            {file.type === "symlink" && <span className="sr-only"> (symbolic link)</span>}
+                          </span>
                           {file.type === "symlink" && (
-                            <span className="text-xs text-muted-foreground shrink-0">→</span>
+                            <span className="text-xs text-muted-foreground shrink-0" aria-hidden="true">→</span>
                           )}
                         </div>
                         <div className="text-xs text-muted-foreground">

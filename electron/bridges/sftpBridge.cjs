@@ -405,9 +405,8 @@ async function listSftp(event, payload) {
       // This is a symlink - try to resolve its target type
       type = "symlink";
       try {
-        const fullPath = basePath === "." || basePath === "/" 
-          ? `/${item.name}` 
-          : `${basePath}/${item.name}`;
+        // Use path.posix.join to properly construct the path and avoid double slashes
+        const fullPath = path.posix.join(basePath === "." ? "/" : basePath, item.name);
         const stat = await client.stat(fullPath);
         // stat follows symlinks, so we get the target's type
         if (stat.isDirectory) {

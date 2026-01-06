@@ -41,6 +41,11 @@ const getFileExtension = (name: string): string => {
   return ext || "file";
 };
 
+// Check if an entry is navigable like a directory (directories or symlinks pointing to directories)
+const isNavigableDirectory = (entry: SftpFileEntry): boolean => {
+  return entry.type === "directory" || (entry.type === "symlink" && entry.linkTarget === "directory");
+};
+
 // Check if path is Windows-style
 const isWindowsPath = (path: string): boolean => /^[A-Za-z]:/.test(path);
 
@@ -1341,7 +1346,7 @@ export const useSftpState = (hosts: Host[], keys: SSHKey[], identities: Identity
       }
 
       // Navigate into directories, or symlinks that point to directories
-      if (entry.type === "directory" || (entry.type === "symlink" && entry.linkTarget === "directory")) {
+      if (isNavigableDirectory(entry)) {
         const newPath = joinPath(pane.connection.currentPath, entry.name);
         await navigateTo(side, newPath);
       }
