@@ -272,7 +272,7 @@ const zhCN: Messages = {
   'sftp.itemsCount': '{count} 个项目',
   'sftp.selectedCount': '已选 {count} 个',
   'sftp.path.doubleClickToEdit': '双击编辑路径',
-  'sftp.showHiddenPaths': '点击显示隐藏的路径',
+  'sftp.showHiddenPaths': '隐藏的路径',
   'sftp.task.waiting': '等待中...',
   'sftp.status.loading': '加载中...',
   'sftp.status.uploading': '上传中...',

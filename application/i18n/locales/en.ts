@@ -398,7 +398,7 @@ const en: Messages = {
   'sftp.itemsCount': '{count} items',
   'sftp.selectedCount': '{count} selected',
   'sftp.path.doubleClickToEdit': 'Double-click to edit path',
-  'sftp.showHiddenPaths': 'Click to show hidden paths',
+  'sftp.showHiddenPaths': 'Hidden paths',
   'sftp.task.waiting': 'Waiting...',
   'sftp.status.loading': 'Loading...',
   'sftp.status.uploading': 'Uploading...',
