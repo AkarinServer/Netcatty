@@ -738,6 +738,14 @@ const zhCN: Messages = {
   'settings.sftpFileAssociations.noAssociations': '未配置文件关联',
   'settings.sftpFileAssociations.remove': '移除',
   'settings.sftpFileAssociations.removeConfirm': '确定移除 .{ext} 的关联吗？',
+  
+  // Settings > SFTP Behavior
+  'settings.sftp.doubleClickBehavior': '双击行为',
+  'settings.sftp.doubleClickBehavior.desc': '选择在 SFTP 视图中双击文件时的操作',
+  'settings.sftp.doubleClickBehavior.open': '打开文件',
+  'settings.sftp.doubleClickBehavior.transfer': '传输到另一侧',
+  'settings.sftp.doubleClickBehavior.openDesc': '使用默认应用程序打开文件',
+  'settings.sftp.doubleClickBehavior.transferDesc': '将文件传输到另一窗格的活动主机',
 
   // Settings > Terminal
   'settings.terminal.section.theme': '终端主题',

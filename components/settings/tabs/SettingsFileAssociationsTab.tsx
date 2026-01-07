@@ -1,13 +1,16 @@
 /**
- * SettingsFileAssociationsTab - Manage SFTP file opener associations
+ * SettingsFileAssociationsTab - Manage SFTP file opener associations and behavior
  */
 import { FileType, Pencil, Trash2 } from "lucide-react";
 import React, { useCallback, useState } from "react";
 import { useI18n } from "../../../application/i18n/I18nProvider";
 import { useSftpFileAssociations } from "../../../application/state/useSftpFileAssociations";
+import { useSettingsState } from "../../../application/state/useSettingsState";
 import type { FileOpenerType, SystemAppInfo } from "../../../lib/sftpFileUtils";
 import { netcattyBridge } from "../../../infrastructure/services/netcattyBridge";
+import { cn } from "../../../lib/utils";
 import { Button } from "../../ui/button";
+import { Label } from "../../ui/label";
 import { SectionHeader, SettingsTabContent } from "../settings-ui";
 
 const getOpenerLabel = (
@@ -26,6 +29,7 @@ const getOpenerLabel = (
 export default function SettingsFileAssociationsTab() {
   const { t } = useI18n();
   const { getAllAssociations, removeAssociation, setOpenerForExtension } = useSftpFileAssociations();
+  const { sftpDoubleClickBehavior, setSftpDoubleClickBehavior } = useSettingsState();
   const associations = getAllAssociations();
   const [editingExtension, setEditingExtension] = useState<string | null>(null);
 
@@ -58,11 +62,83 @@ export default function SettingsFileAssociationsTab() {
 
   return (
     <SettingsTabContent value="file-associations">
-      <div className="space-y-6">
-        <SectionHeader title={t('settings.sftpFileAssociations.title')} />
-        <p className="text-sm text-muted-foreground mb-4">
-          {t('settings.sftpFileAssociations.desc')}
-        </p>
+      <div className="space-y-8">
+        {/* Double-click behavior section */}
+        <div className="space-y-4">
+          <SectionHeader title={t('settings.sftp.doubleClickBehavior')} />
+          <p className="text-sm text-muted-foreground">
+            {t('settings.sftp.doubleClickBehavior.desc')}
+          </p>
+          <div className="space-y-3">
+            <button
+              onClick={() => setSftpDoubleClickBehavior('open')}
+              className={cn(
+                "w-full text-left p-4 rounded-lg border-2 transition-colors",
+                sftpDoubleClickBehavior === 'open'
+                  ? "border-primary bg-primary/5"
+                  : "border-border hover:border-primary/50 hover:bg-secondary/50"
+              )}
+            >
+              <div className="flex items-start gap-3">
+                <div className={cn(
+                  "h-5 w-5 rounded-full border-2 flex items-center justify-center mt-0.5 shrink-0",
+                  sftpDoubleClickBehavior === 'open'
+                    ? "border-primary"
+                    : "border-muted-foreground/30"
+                )}>
+                  {sftpDoubleClickBehavior === 'open' && (
+                    <div className="h-2.5 w-2.5 rounded-full bg-primary" />
+                  )}
+                </div>
+                <div className="space-y-1">
+                  <Label className="font-medium cursor-pointer">
+                    {t('settings.sftp.doubleClickBehavior.open')}
+                  </Label>
+                  <p className="text-sm text-muted-foreground">
+                    {t('settings.sftp.doubleClickBehavior.openDesc')}
+                  </p>
+                </div>
+              </div>
+            </button>
+            <button
+              onClick={() => setSftpDoubleClickBehavior('transfer')}
+              className={cn(
+                "w-full text-left p-4 rounded-lg border-2 transition-colors",
+                sftpDoubleClickBehavior === 'transfer'
+                  ? "border-primary bg-primary/5"
+                  : "border-border hover:border-primary/50 hover:bg-secondary/50"
+              )}
+            >
+              <div className="flex items-start gap-3">
+                <div className={cn(
+                  "h-5 w-5 rounded-full border-2 flex items-center justify-center mt-0.5 shrink-0",
+                  sftpDoubleClickBehavior === 'transfer'
+                    ? "border-primary"
+                    : "border-muted-foreground/30"
+                )}>
+                  {sftpDoubleClickBehavior === 'transfer' && (
+                    <div className="h-2.5 w-2.5 rounded-full bg-primary" />
+                  )}
+                </div>
+                <div className="space-y-1">
+                  <Label className="font-medium cursor-pointer">
+                    {t('settings.sftp.doubleClickBehavior.transfer')}
+                  </Label>
+                  <p className="text-sm text-muted-foreground">
+                    {t('settings.sftp.doubleClickBehavior.transferDesc')}
+                  </p>
+                </div>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        {/* File associations section */}
+        <div className="space-y-4">
+          <SectionHeader title={t('settings.sftpFileAssociations.title')} />
+          <p className="text-sm text-muted-foreground">
+            {t('settings.sftpFileAssociations.desc')}
+          </p>
 
         {associations.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
@@ -127,6 +203,7 @@ export default function SettingsFileAssociationsTab() {
             </table>
           </div>
         )}
+        </div>
       </div>
     </SettingsTabContent>
   );

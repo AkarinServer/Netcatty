@@ -1579,7 +1579,8 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
     if (file.type === "directory" || (file.type === "symlink" && file.linkTarget === "directory")) {
       handleNavigate(joinPath(currentPath, file.name));
     } else {
-      handleDownload(file);
+      // For files: open them (equivalent to clicking the "Open" button)
+      handleOpenFile(file);
     }
   };
 

@@ -499,6 +499,14 @@ const en: Messages = {
   'settings.sftpFileAssociations.noAssociations': 'No file associations configured',
   'settings.sftpFileAssociations.remove': 'Remove',
   'settings.sftpFileAssociations.removeConfirm': 'Remove association for .{ext}?',
+  
+  // Settings > SFTP Behavior
+  'settings.sftp.doubleClickBehavior': 'Double-click behavior',
+  'settings.sftp.doubleClickBehavior.desc': 'Choose the action when double-clicking a file in SFTP View',
+  'settings.sftp.doubleClickBehavior.open': 'Open file',
+  'settings.sftp.doubleClickBehavior.transfer': 'Transfer to other pane',
+  'settings.sftp.doubleClickBehavior.openDesc': 'Open the file in the default application',
+  'settings.sftp.doubleClickBehavior.transferDesc': 'Transfer the file to the other pane\'s active host',
 
   // Quick Switcher
   'qs.search.placeholder': 'Search hosts or tabs',

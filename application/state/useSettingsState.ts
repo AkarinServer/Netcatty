@@ -16,6 +16,7 @@ STORAGE_KEY_UI_LANGUAGE,
 STORAGE_KEY_ACCENT_MODE,
 STORAGE_KEY_UI_THEME_LIGHT,
 STORAGE_KEY_UI_THEME_DARK,
+STORAGE_KEY_SFTP_DOUBLE_CLICK_BEHAVIOR,
 } from '../../infrastructure/config/storageKeys';
 import { DEFAULT_UI_LOCALE, resolveSupportedLocale } from '../../infrastructure/config/i18n';
 import { TERMINAL_THEMES } from '../../infrastructure/config/terminalThemes';
@@ -36,6 +37,7 @@ const DEFAULT_HOTKEY_SCHEME: HotkeyScheme =
   typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/i.test(navigator.platform) 
     ? 'mac' 
     : 'pc';
+const DEFAULT_SFTP_DOUBLE_CLICK_BEHAVIOR: 'open' | 'transfer' = 'open';
 
 const readStoredString = (key: string): string | null => {
   const raw = localStorageAdapter.readString(key);
@@ -153,6 +155,10 @@ export const useSettingsState = () => {
   const [customCSS, setCustomCSS] = useState<string>(() => 
     localStorageAdapter.readString(STORAGE_KEY_CUSTOM_CSS) || ''
   );
+  const [sftpDoubleClickBehavior, setSftpDoubleClickBehavior] = useState<'open' | 'transfer'>(() => {
+    const stored = readStoredString(STORAGE_KEY_SFTP_DOUBLE_CLICK_BEHAVIOR);
+    return (stored === 'open' || stored === 'transfer') ? stored : DEFAULT_SFTP_DOUBLE_CLICK_BEHAVIOR;
+  });
 
   // Helper to notify other windows about settings changes via IPC
   const notifySettingsChanged = useCallback((key: string, value: unknown) => {
@@ -371,11 +377,17 @@ export const useSettingsState = () => {
           setTerminalFontSize(newSize);
         }
       }
+      // Sync SFTP double-click behavior from other windows
+      if (e.key === STORAGE_KEY_SFTP_DOUBLE_CLICK_BEHAVIOR && e.newValue) {
+        if ((e.newValue === 'open' || e.newValue === 'transfer') && e.newValue !== sftpDoubleClickBehavior) {
+          setSftpDoubleClickBehavior(e.newValue);
+        }
+      }
     };
 
     window.addEventListener('storage', handleStorageChange);
     return () => window.removeEventListener('storage', handleStorageChange);
-  }, [theme, lightUiThemeId, darkUiThemeId, accentMode, customAccent, customCSS, hotkeyScheme, uiLanguage, terminalThemeId, terminalFontFamilyId, terminalFontSize]);
+  }, [theme, lightUiThemeId, darkUiThemeId, accentMode, customAccent, customCSS, hotkeyScheme, uiLanguage, terminalThemeId, terminalFontFamilyId, terminalFontSize, sftpDoubleClickBehavior]);
 
   useEffect(() => {
     localStorageAdapter.writeString(STORAGE_KEY_TERM_THEME, terminalThemeId);
@@ -425,6 +437,12 @@ export const useSettingsState = () => {
     }
     styleEl.textContent = customCSS;
   }, [customCSS, notifySettingsChanged]);
+
+  // Persist SFTP double-click behavior
+  useEffect(() => {
+    localStorageAdapter.writeString(STORAGE_KEY_SFTP_DOUBLE_CLICK_BEHAVIOR, sftpDoubleClickBehavior);
+    notifySettingsChanged(STORAGE_KEY_SFTP_DOUBLE_CLICK_BEHAVIOR, sftpDoubleClickBehavior);
+  }, [sftpDoubleClickBehavior, notifySettingsChanged]);
 
   // Get merged key bindings (defaults + custom overrides)
   const keyBindings = useMemo((): KeyBinding[] => {
@@ -532,5 +550,7 @@ export const useSettingsState = () => {
     setIsHotkeyRecording,
     customCSS,
     setCustomCSS,
+    sftpDoubleClickBehavior,
+    setSftpDoubleClickBehavior,
   };
 };
