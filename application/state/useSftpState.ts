@@ -81,6 +81,7 @@ const getFileName = (path: string): string => {
 };
 
 export interface SftpPane {
+  id: string;
   connection: SftpConnection | null;
   files: SftpFileEntry[];
   loading: boolean;
@@ -90,27 +91,168 @@ export interface SftpPane {
   filter: string;
 }
 
+// Multi-tab state for left and right sides
+export interface SftpSideTabs {
+  tabs: SftpPane[];
+  activeTabId: string | null;
+}
+
+const createEmptyPane = (id?: string): SftpPane => ({
+  id: id || crypto.randomUUID(),
+  connection: null,
+  files: [],
+  loading: false,
+  reconnecting: false,
+  error: null,
+  selectedFiles: new Set(),
+  filter: "",
+});
+
 export const useSftpState = (hosts: Host[], keys: SSHKey[], identities: Identity[]) => {
-  // Connections
-  const [leftPane, setLeftPane] = useState<SftpPane>({
-    connection: null,
-    files: [],
-    loading: false,
-    reconnecting: false,
-    error: null,
-    selectedFiles: new Set(),
-    filter: "",
+  // Multi-tab state: left and right sides each have multiple tabs
+  const [leftTabs, setLeftTabs] = useState<SftpSideTabs>({
+    tabs: [],
+    activeTabId: null,
   });
 
-  const [rightPane, setRightPane] = useState<SftpPane>({
-    connection: null,
-    files: [],
-    loading: false,
-    reconnecting: false,
-    error: null,
-    selectedFiles: new Set(),
-    filter: "",
+  const [rightTabs, setRightTabs] = useState<SftpSideTabs>({
+    tabs: [],
+    activeTabId: null,
   });
+
+  // Helper to get active pane for a side
+  const getActivePane = useCallback((side: "left" | "right"): SftpPane | null => {
+    const sideTabs = side === "left" ? leftTabs : rightTabs;
+    if (!sideTabs.activeTabId) return null;
+    return sideTabs.tabs.find((t) => t.id === sideTabs.activeTabId) || null;
+  }, [leftTabs, rightTabs]);
+
+  // For backward compatibility - return active pane or a default empty pane-like object
+  const leftPane = getActivePane("left") || createEmptyPane("__empty_left__");
+  const rightPane = getActivePane("right") || createEmptyPane("__empty_right__");
+
+  // Helper to update a specific tab in a side
+  const updateTab = useCallback(
+    (side: "left" | "right", tabId: string, updater: (pane: SftpPane) => SftpPane) => {
+      const setTabs = side === "left" ? setLeftTabs : setRightTabs;
+      setTabs((prev) => ({
+        ...prev,
+        tabs: prev.tabs.map((t) => (t.id === tabId ? updater(t) : t)),
+      }));
+    },
+    [],
+  );
+
+  // Helper to update active tab on a side
+  const updateActiveTab = useCallback(
+    (side: "left" | "right", updater: (pane: SftpPane) => SftpPane) => {
+      const sideTabs = side === "left" ? leftTabs : rightTabs;
+      if (!sideTabs.activeTabId) return;
+      updateTab(side, sideTabs.activeTabId, updater);
+    },
+    [leftTabs, rightTabs, updateTab],
+  );
+
+  // Tab management functions
+  const addTab = useCallback(
+    (side: "left" | "right") => {
+      const newPane = createEmptyPane();
+      const setTabs = side === "left" ? setLeftTabs : setRightTabs;
+      setTabs((prev) => ({
+        tabs: [...prev.tabs, newPane],
+        activeTabId: newPane.id,
+      }));
+      return newPane.id;
+    },
+    [],
+  );
+
+  const closeTab = useCallback(
+    (side: "left" | "right", tabId: string) => {
+      const setTabs = side === "left" ? setLeftTabs : setRightTabs;
+      const sideTabs = side === "left" ? leftTabs : rightTabs;
+      
+      // Find the tab to close
+      const tabIndex = sideTabs.tabs.findIndex((t) => t.id === tabId);
+      if (tabIndex === -1) return;
+
+      // Determine new active tab after closing
+      let newActiveTabId: string | null = null;
+      if (sideTabs.tabs.length > 1) {
+        if (sideTabs.activeTabId === tabId) {
+          // Select next tab, or previous if closing last
+          const nextIndex = tabIndex < sideTabs.tabs.length - 1 ? tabIndex + 1 : tabIndex - 1;
+          newActiveTabId = sideTabs.tabs[nextIndex]?.id || null;
+        } else {
+          newActiveTabId = sideTabs.activeTabId;
+        }
+      }
+
+      setTabs((prev) => ({
+        tabs: prev.tabs.filter((t) => t.id !== tabId),
+        activeTabId: newActiveTabId,
+      }));
+    },
+    [leftTabs, rightTabs],
+  );
+
+  const selectTab = useCallback(
+    (side: "left" | "right", tabId: string) => {
+      const setTabs = side === "left" ? setLeftTabs : setRightTabs;
+      setTabs((prev) => ({
+        ...prev,
+        activeTabId: tabId,
+      }));
+    },
+    [],
+  );
+
+  const reorderTabs = useCallback(
+    (
+      side: "left" | "right",
+      draggedId: string,
+      targetId: string,
+      position: "before" | "after",
+    ) => {
+      const setTabs = side === "left" ? setLeftTabs : setRightTabs;
+      setTabs((prev) => {
+        const tabs = [...prev.tabs];
+        const draggedIndex = tabs.findIndex((t) => t.id === draggedId);
+        const targetIndex = tabs.findIndex((t) => t.id === targetId);
+        
+        if (draggedIndex === -1 || targetIndex === -1) return prev;
+        
+        const [draggedTab] = tabs.splice(draggedIndex, 1);
+        const insertIndex = position === "before" ? targetIndex : targetIndex + 1;
+        const adjustedIndex = draggedIndex < targetIndex ? insertIndex - 1 : insertIndex;
+        tabs.splice(adjustedIndex, 0, draggedTab);
+        
+        return { ...prev, tabs };
+      });
+    },
+    [],
+  );
+
+  // Get tab info for tab bar display
+  const getTabsInfo = useCallback(
+    (side: "left" | "right") => {
+      const sideTabs = side === "left" ? leftTabs : rightTabs;
+      return sideTabs.tabs.map((pane) => ({
+        id: pane.id,
+        label: pane.connection?.hostLabel || "New Tab",
+        isLocal: pane.connection?.isLocal || false,
+        hostId: pane.connection?.hostId || null,
+      }));
+    },
+    [leftTabs, rightTabs],
+  );
+
+  const getActiveTabId = useCallback(
+    (side: "left" | "right") => {
+      return side === "left" ? leftTabs.activeTabId : rightTabs.activeTabId;
+    },
+    [leftTabs.activeTabId, rightTabs.activeTabId],
+  );
 
   // Transfer management
   const [transfers, setTransfers] = useState<TransferTask[]>([]);
@@ -229,8 +371,10 @@ export const useSftpState = (hosts: Host[], keys: SSHKey[], identities: Identity
   // Handle session error - will trigger auto-reconnect if host info is available
   const handleSessionError = useCallback(
     (side: "left" | "right", _error: Error) => {
-      const pane = side === "left" ? leftPane : rightPane;
-      const setPane = side === "left" ? setLeftPane : setRightPane;
+      const pane = getActivePane(side);
+      const sideTabs = side === "left" ? leftTabs : rightTabs;
+
+      if (!pane || !sideTabs.activeTabId) return;
 
       if (pane.connection) {
         // Clean up stale session reference
@@ -246,14 +390,15 @@ export const useSftpState = (hosts: Host[], keys: SSHKey[], identities: Identity
       if (lastHost && pane.files.length > 0 && !reconnectingRef.current[side]) {
         // We have files displayed, try to auto-reconnect
         reconnectingRef.current[side] = true;
-        setPane((prev) => ({
+        updateActiveTab(side, (prev) => ({
           ...prev,
           reconnecting: true,
           error: "Connection lost. Reconnecting...",
         }));
       } else {
         // No host info or empty files, just clear the connection
-        setPane({
+        updateActiveTab(side, (prev) => ({
+          ...prev,
           connection: null,
           files: [],
           loading: false,
@@ -261,10 +406,10 @@ export const useSftpState = (hosts: Host[], keys: SSHKey[], identities: Identity
           error: "SFTP session lost. Please reconnect.",
           selectedFiles: new Set(),
           filter: "",
-        });
+        }));
       }
     },
-    [leftPane, rightPane, clearCacheForConnection],
+    [getActivePane, leftTabs, rightTabs, clearCacheForConnection, updateActiveTab],
   );
 
   // Cleanup on unmount
@@ -399,11 +544,15 @@ export const useSftpState = (hosts: Host[], keys: SSHKey[], identities: Identity
     [],
   );
 
-  // Connect to a host
+  // Connect to a host - connects in the active tab of the specified side
   const connect = useCallback(
     async (side: "left" | "right", host: Host | "local") => {
-      const currentPane = side === "left" ? leftPane : rightPane;
-      const setPane = side === "left" ? setLeftPane : setRightPane;
+      const sideTabs = side === "left" ? leftTabs : rightTabs;
+      const currentPane = getActivePane(side);
+      const activeTabId = sideTabs.activeTabId;
+      
+      if (!activeTabId) return;
+      
       const connectionId = `${side}-${Date.now()}`;
 
       // Invalidate any pending navigation for this side
@@ -414,10 +563,10 @@ export const useSftpState = (hosts: Host[], keys: SSHKey[], identities: Identity
       lastConnectedHostRef.current[side] = host;
 
       // First, disconnect any existing connection
-      if (currentPane.connection) {
+      if (currentPane?.connection) {
         clearCacheForConnection(currentPane.connection.id);
       }
-      if (currentPane.connection && !currentPane.connection.isLocal) {
+      if (currentPane?.connection && !currentPane.connection.isLocal) {
         const oldSftpId = sftpSessionsRef.current.get(
           currentPane.connection.id,
         );
@@ -451,7 +600,7 @@ export const useSftpState = (hosts: Host[], keys: SSHKey[], identities: Identity
           homeDir,
         };
 
-        setPane((prev) => ({
+        updateTab(side, activeTabId, (prev) => ({
           ...prev,
           connection,
           loading: true,
@@ -468,7 +617,7 @@ export const useSftpState = (hosts: Host[], keys: SSHKey[], identities: Identity
           });
           // Clear reconnecting flag on success
           reconnectingRef.current[side] = false;
-          setPane((prev) => ({
+          updateTab(side, activeTabId, (prev) => ({
             ...prev,
             files,
             loading: false,
@@ -477,7 +626,7 @@ export const useSftpState = (hosts: Host[], keys: SSHKey[], identities: Identity
         } catch (err) {
           if (navSeqRef.current[side] !== connectRequestId) return;
           reconnectingRef.current[side] = false;
-          setPane((prev) => ({
+          updateTab(side, activeTabId, (prev) => ({
             ...prev,
             error:
               err instanceof Error ? err.message : "Failed to list directory",
@@ -496,7 +645,7 @@ export const useSftpState = (hosts: Host[], keys: SSHKey[], identities: Identity
           currentPath: "/",
         };
 
-        setPane((prev) => ({
+        updateTab(side, activeTabId, (prev) => ({
           ...prev,
           connection,
           loading: true,
@@ -615,7 +764,7 @@ export const useSftpState = (hosts: Host[], keys: SSHKey[], identities: Identity
           // Clear reconnecting flag on success
           reconnectingRef.current[side] = false;
 
-          setPane((prev) => ({
+          updateTab(side, activeTabId, (prev) => ({
             ...prev,
             connection: prev.connection
               ? {
@@ -632,7 +781,7 @@ export const useSftpState = (hosts: Host[], keys: SSHKey[], identities: Identity
         } catch (err) {
           if (navSeqRef.current[side] !== connectRequestId) return;
           reconnectingRef.current[side] = false;
-          setPane((prev) => ({
+          updateTab(side, activeTabId, (prev) => ({
             ...prev,
             connection: prev.connection
               ? {
@@ -651,8 +800,10 @@ export const useSftpState = (hosts: Host[], keys: SSHKey[], identities: Identity
     },
     [
       getHostCredentials,
-      leftPane,
-      rightPane,
+      leftTabs,
+      rightTabs,
+      getActivePane,
+      updateTab,
       clearCacheForConnection,
       makeCacheKey,
       listLocalFiles,
@@ -662,14 +813,18 @@ export const useSftpState = (hosts: Host[], keys: SSHKey[], identities: Identity
 
   // Auto-connect left pane to local filesystem on first mount
   useEffect(() => {
-    if (!initialConnectDoneRef.current && !leftPane.connection) {
+    if (!initialConnectDoneRef.current && leftTabs.tabs.length === 0) {
       initialConnectDoneRef.current = true;
-      // Use setTimeout to ensure connect is defined before calling
+      // Use setTimeout to ensure addTab and connect are defined before calling
       setTimeout(() => {
-        connect("left", "local");
+        // Add first tab and connect to local
+        const tabId = addTab("left");
+        if (tabId) {
+          setTimeout(() => connect("left", "local"), 0);
+        }
       }, 0);
     }
-  }, [connect, leftPane.connection]);
+  }, [connect, addTab, leftTabs.tabs.length]);
 
   // Auto-reconnect when reconnecting flag is set
   useEffect(() => {
@@ -692,11 +847,14 @@ export const useSftpState = (hosts: Host[], keys: SSHKey[], identities: Identity
     }
   }, [leftPane.reconnecting, rightPane.reconnecting, connect]);
 
-  // Disconnect
+  // Disconnect the active tab on a side
   const disconnect = useCallback(
     async (side: "left" | "right") => {
-      const pane = side === "left" ? leftPane : rightPane;
-      const setPane = side === "left" ? setLeftPane : setRightPane;
+      const pane = getActivePane(side);
+      const sideTabs = side === "left" ? leftTabs : rightTabs;
+      const activeTabId = sideTabs.activeTabId;
+
+      if (!pane || !activeTabId) return;
 
       // Invalidate any pending navigation for this side
       navSeqRef.current[side] += 1;
@@ -721,17 +879,9 @@ export const useSftpState = (hosts: Host[], keys: SSHKey[], identities: Identity
 	        }
 	      }
 
-      setPane({
-        connection: null,
-        files: [],
-        loading: false,
-        reconnecting: false,
-        error: null,
-        selectedFiles: new Set(),
-        filter: "",
-      });
+      updateTab(side, activeTabId, () => createEmptyPane(activeTabId));
     },
-    [leftPane, rightPane, clearCacheForConnection],
+    [getActivePane, leftTabs, rightTabs, clearCacheForConnection, updateTab],
   );
 
   // Mock local file data for development (when backend is not available)
@@ -1193,10 +1343,11 @@ export const useSftpState = (hosts: Host[], keys: SSHKey[], identities: Identity
       path: string,
       options?: { force?: boolean },
     ) => {
-      const pane = side === "left" ? leftPane : rightPane;
-      const setPane = side === "left" ? setLeftPane : setRightPane;
+      const pane = getActivePane(side);
+      const sideTabs = side === "left" ? leftTabs : rightTabs;
+      const activeTabId = sideTabs.activeTabId;
 
-      if (!pane.connection) return;
+      if (!pane?.connection || !activeTabId) return;
 
       const requestId = ++navSeqRef.current[side];
       const cacheKey = makeCacheKey(pane.connection.id, path);
@@ -1209,7 +1360,7 @@ export const useSftpState = (hosts: Host[], keys: SSHKey[], identities: Identity
         Date.now() - cached.timestamp < DIR_CACHE_TTL_MS &&
         cached.files
       ) {
-        setPane((prev) => ({
+        updateTab(side, activeTabId, (prev) => ({
           ...prev,
           connection: prev.connection
             ? { ...prev.connection, currentPath: path }
@@ -1222,7 +1373,7 @@ export const useSftpState = (hosts: Host[], keys: SSHKey[], identities: Identity
         return;
       }
 
-      setPane((prev) => ({ ...prev, loading: true, error: null }));
+      updateTab(side, activeTabId, (prev) => ({ ...prev, loading: true, error: null }));
 
       try {
         let files: SftpFileEntry[];
@@ -1234,7 +1385,8 @@ export const useSftpState = (hosts: Host[], keys: SSHKey[], identities: Identity
           if (!sftpId) {
             // Session lost - clear connection state
             clearCacheForConnection(pane.connection.id);
-            setPane({
+            updateTab(side, activeTabId, (prev) => ({
+              ...prev,
               connection: null,
               files: [],
               loading: false,
@@ -1242,7 +1394,7 @@ export const useSftpState = (hosts: Host[], keys: SSHKey[], identities: Identity
               error: "SFTP session lost. Please reconnect.",
               selectedFiles: new Set(),
               filter: "",
-            });
+            }));
             return;
           }
 
@@ -1253,7 +1405,8 @@ export const useSftpState = (hosts: Host[], keys: SSHKey[], identities: Identity
               // Clean up stale session reference
               sftpSessionsRef.current.delete(pane.connection.id);
               clearCacheForConnection(pane.connection.id);
-              setPane({
+              updateTab(side, activeTabId, (prev) => ({
+                ...prev,
                 connection: null,
                 files: [],
                 loading: false,
@@ -1261,7 +1414,7 @@ export const useSftpState = (hosts: Host[], keys: SSHKey[], identities: Identity
                 error: "SFTP session expired. Please reconnect.",
                 selectedFiles: new Set(),
                 filter: "",
-              });
+              }));
               return;
             }
             throw err as Error;
@@ -1275,7 +1428,7 @@ export const useSftpState = (hosts: Host[], keys: SSHKey[], identities: Identity
           timestamp: Date.now(),
         });
 
-        setPane((prev) => ({
+        updateTab(side, activeTabId, (prev) => ({
           ...prev,
           connection: prev.connection
             ? { ...prev.connection, currentPath: path }
@@ -1286,7 +1439,7 @@ export const useSftpState = (hosts: Host[], keys: SSHKey[], identities: Identity
         }));
       } catch (err) {
         if (navSeqRef.current[side] !== requestId) return;
-        setPane((prev) => ({
+        updateTab(side, activeTabId, (prev) => ({
           ...prev,
           error:
             err instanceof Error ? err.message : "Failed to list directory",
@@ -1295,8 +1448,10 @@ export const useSftpState = (hosts: Host[], keys: SSHKey[], identities: Identity
       }
     },
     [
-      leftPane,
-      rightPane,
+      getActivePane,
+      leftTabs,
+      rightTabs,
+      updateTab,
       makeCacheKey,
       clearCacheForConnection,
       listLocalFiles,
@@ -1307,19 +1462,19 @@ export const useSftpState = (hosts: Host[], keys: SSHKey[], identities: Identity
   // Refresh current directory
   const refresh = useCallback(
     async (side: "left" | "right") => {
-      const pane = side === "left" ? leftPane : rightPane;
-      if (pane.connection) {
+      const pane = getActivePane(side);
+      if (pane?.connection) {
         await navigateTo(side, pane.connection.currentPath, { force: true });
       }
     },
-    [leftPane, rightPane, navigateTo],
+    [getActivePane, navigateTo],
   );
 
   // Navigate up
   const navigateUp = useCallback(
     async (side: "left" | "right") => {
-      const pane = side === "left" ? leftPane : rightPane;
-      if (!pane.connection) return;
+      const pane = getActivePane(side);
+      if (!pane?.connection) return;
 
       const currentPath = pane.connection.currentPath;
       // Check if we're at root (Unix "/" or Windows "C:")
@@ -1331,14 +1486,14 @@ export const useSftpState = (hosts: Host[], keys: SSHKey[], identities: Identity
         await navigateTo(side, parentPath);
       }
     },
-    [leftPane, rightPane, navigateTo],
+    [getActivePane, navigateTo],
   );
 
   // Open file/directory
   const openEntry = useCallback(
     async (side: "left" | "right", entry: SftpFileEntry) => {
-      const pane = side === "left" ? leftPane : rightPane;
-      if (!pane.connection) return;
+      const pane = getActivePane(side);
+      if (!pane?.connection) return;
 
       if (entry.name === "..") {
         await navigateUp(side);
@@ -1352,15 +1507,13 @@ export const useSftpState = (hosts: Host[], keys: SSHKey[], identities: Identity
       }
       // TODO: Handle file open/preview
     },
-    [leftPane, rightPane, navigateTo, navigateUp],
+    [getActivePane, navigateTo, navigateUp],
   );
 
   // Selection management
   const toggleSelection = useCallback(
     (side: "left" | "right", fileName: string, multiSelect: boolean) => {
-      const setPane = side === "left" ? setLeftPane : setRightPane;
-
-      setPane((prev) => {
+      updateActiveTab(side, (prev) => {
         const newSelection = new Set(multiSelect ? prev.selectedFiles : []);
         if (newSelection.has(fileName)) {
           newSelection.delete(fileName);
@@ -1370,15 +1523,13 @@ export const useSftpState = (hosts: Host[], keys: SSHKey[], identities: Identity
         return { ...prev, selectedFiles: newSelection };
       });
     },
-    [],
+    [updateActiveTab],
   );
 
   // Range selection for shift-click
   // Now accepts the actual file names to select directly from the UI
   const rangeSelect = useCallback(
     (side: "left" | "right", fileNames: string[]) => {
-      const setPane = side === "left" ? setLeftPane : setRightPane;
-
       const newSelection = new Set<string>();
       for (const name of fileNames) {
         if (name && name !== "..") {
@@ -1386,42 +1537,40 @@ export const useSftpState = (hosts: Host[], keys: SSHKey[], identities: Identity
         }
       }
 
-      setPane((prev) => ({ ...prev, selectedFiles: newSelection }));
+      updateActiveTab(side, (prev) => ({ ...prev, selectedFiles: newSelection }));
     },
-    [],
+    [updateActiveTab],
   );
 
   const clearSelection = useCallback((side: "left" | "right") => {
-    const setPane = side === "left" ? setLeftPane : setRightPane;
-    setPane((prev) => ({ ...prev, selectedFiles: new Set() }));
-  }, []);
+    updateActiveTab(side, (prev) => ({ ...prev, selectedFiles: new Set() }));
+  }, [updateActiveTab]);
 
   const selectAll = useCallback(
     (side: "left" | "right") => {
-      const pane = side === "left" ? leftPane : rightPane;
-      const setPane = side === "left" ? setLeftPane : setRightPane;
+      const pane = getActivePane(side);
+      if (!pane) return;
 
-      setPane((prev) => ({
+      updateActiveTab(side, (prev) => ({
         ...prev,
         selectedFiles: new Set(
           pane.files.filter((f) => f.name !== "..").map((f) => f.name),
         ),
       }));
     },
-    [leftPane, rightPane],
+    [getActivePane, updateActiveTab],
   );
 
   // Filter
   const setFilter = useCallback((side: "left" | "right", filter: string) => {
-    const setPane = side === "left" ? setLeftPane : setRightPane;
-    setPane((prev) => ({ ...prev, filter }));
-  }, []);
+    updateActiveTab(side, (prev) => ({ ...prev, filter }));
+  }, [updateActiveTab]);
 
   // Create directory
   const createDirectory = useCallback(
     async (side: "left" | "right", name: string) => {
-      const pane = side === "left" ? leftPane : rightPane;
-      if (!pane.connection) return;
+      const pane = getActivePane(side);
+      if (!pane?.connection) return;
 
       const fullPath = joinPath(pane.connection.currentPath, name);
 
@@ -1445,14 +1594,14 @@ export const useSftpState = (hosts: Host[], keys: SSHKey[], identities: Identity
         throw err;
       }
     },
-    [leftPane, rightPane, refresh, handleSessionError],
+    [getActivePane, refresh, handleSessionError],
   );
 
   // Delete files
   const deleteFiles = useCallback(
     async (side: "left" | "right", fileNames: string[]) => {
-      const pane = side === "left" ? leftPane : rightPane;
-      if (!pane.connection) return;
+      const pane = getActivePane(side);
+      if (!pane?.connection) return;
 
 	      try {
 	        for (const name of fileNames) {
@@ -1478,14 +1627,14 @@ export const useSftpState = (hosts: Host[], keys: SSHKey[], identities: Identity
         throw err;
       }
     },
-    [leftPane, rightPane, refresh, handleSessionError],
+    [getActivePane, refresh, handleSessionError],
   );
 
   // Rename file
   const renameFile = useCallback(
     async (side: "left" | "right", oldName: string, newName: string) => {
-      const pane = side === "left" ? leftPane : rightPane;
-      if (!pane.connection) return;
+      const pane = getActivePane(side);
+      if (!pane?.connection) return;
 
       const oldPath = joinPath(pane.connection.currentPath, oldName);
       const newPath = joinPath(pane.connection.currentPath, newName);
@@ -1510,7 +1659,7 @@ export const useSftpState = (hosts: Host[], keys: SSHKey[], identities: Identity
         throw err;
       }
     },
-    [leftPane, rightPane, refresh, handleSessionError],
+    [getActivePane, refresh, handleSessionError],
   );
 
   // Transfer files
@@ -1520,10 +1669,10 @@ export const useSftpState = (hosts: Host[], keys: SSHKey[], identities: Identity
       sourceSide: "left" | "right",
       targetSide: "left" | "right",
     ) => {
-      const sourcePane = sourceSide === "left" ? leftPane : rightPane;
-      const targetPane = targetSide === "left" ? leftPane : rightPane;
+      const sourcePane = getActivePane(sourceSide);
+      const targetPane = getActivePane(targetSide);
 
-      if (!sourcePane.connection || !targetPane.connection) return;
+      if (!sourcePane?.connection || !targetPane?.connection) return;
 
       const sourcePath = sourcePane.connection.currentPath;
       const targetPath = targetPane.connection.currentPath;
@@ -1589,7 +1738,7 @@ export const useSftpState = (hosts: Host[], keys: SSHKey[], identities: Identity
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps -- processTransfer is defined inline, not a dependency
-    [leftPane, rightPane],
+    [getActivePane],
   );
 
   // Process a single transfer
@@ -2011,14 +2160,12 @@ export const useSftpState = (hosts: Host[], keys: SSHKey[], identities: Identity
       const task = transfers.find((t) => t.id === transferId);
       if (!task) return;
 
-      const sourcePane = task.sourceConnectionId.startsWith("left")
-        ? leftPane
-        : rightPane;
-      const targetPane = task.targetConnectionId.startsWith("left")
-        ? leftPane
-        : rightPane;
+      const sourceSide = task.sourceConnectionId.startsWith("left") ? "left" : "right";
+      const targetSide = task.targetConnectionId.startsWith("left") ? "left" : "right";
+      const sourcePane = getActivePane(sourceSide as "left" | "right");
+      const targetPane = getActivePane(targetSide as "left" | "right");
 
-      if (sourcePane.connection && targetPane.connection) {
+      if (sourcePane?.connection && targetPane?.connection) {
         setTransfers((prev) =>
           prev.map((t) =>
             t.id === transferId
@@ -2030,7 +2177,7 @@ export const useSftpState = (hosts: Host[], keys: SSHKey[], identities: Identity
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps -- processTransfer is defined inline, not a dependency
-    [transfers, leftPane, rightPane],
+    [transfers, getActivePane],
   );
 
   // Clear completed transfers
@@ -2107,14 +2254,12 @@ export const useSftpState = (hosts: Host[], keys: SSHKey[], identities: Identity
       );
 
       // Find source and target panes and re-process transfer
-      const sourcePane = updatedTask.sourceConnectionId.startsWith("left")
-        ? leftPane
-        : rightPane;
-      const targetPane = updatedTask.targetConnectionId.startsWith("left")
-        ? leftPane
-        : rightPane;
+      const sourceSide = updatedTask.sourceConnectionId.startsWith("left") ? "left" : "right";
+      const targetSide = updatedTask.targetConnectionId.startsWith("left") ? "left" : "right";
+      const sourcePane = getActivePane(sourceSide as "left" | "right");
+      const targetPane = getActivePane(targetSide as "left" | "right");
 
-      if (sourcePane.connection && targetPane.connection) {
+      if (sourcePane?.connection && targetPane?.connection) {
         // Small delay to ensure state is updated
         setTimeout(async () => {
           await processTransfer(updatedTask, sourcePane, targetPane);
@@ -2122,7 +2267,7 @@ export const useSftpState = (hosts: Host[], keys: SSHKey[], identities: Identity
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps -- processTransfer is defined inline, not a dependency
-    [conflicts, transfers, leftPane, rightPane],
+    [conflicts, transfers, getActivePane],
   );
 
   // Get filtered files
@@ -2146,8 +2291,8 @@ export const useSftpState = (hosts: Host[], keys: SSHKey[], identities: Identity
       filePath: string,
       mode: string, // octal string like "755"
     ) => {
-      const pane = side === "left" ? leftPane : rightPane;
-      if (!pane.connection || pane.connection.isLocal) {
+      const pane = getActivePane(side);
+      if (!pane?.connection || pane.connection.isLocal) {
         logger.warn("Cannot change permissions on local files");
         return;
 	      }
@@ -2169,14 +2314,25 @@ export const useSftpState = (hosts: Host[], keys: SSHKey[], identities: Identity
         logger.error("Failed to change permissions:", err);
       }
     },
-    [leftPane, rightPane, refresh, handleSessionError],
+    [getActivePane, refresh, handleSessionError],
   );
 
   return {
-    // Panes
+    // Panes (backward compatible - returns active tab's pane)
     leftPane,
     rightPane,
     getFilteredFiles,
+
+    // Multi-tab management
+    leftTabs,
+    rightTabs,
+    addTab,
+    closeTab,
+    selectTab,
+    reorderTabs,
+    getTabsInfo,
+    getActiveTabId,
+    getActivePane,
 
     // Connection
     connect,

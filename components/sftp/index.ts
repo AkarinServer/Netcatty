@@ -17,4 +17,5 @@ export { SftpConflictDialog } from './SftpConflictDialog';
 export { SftpFileRow } from './SftpFileRow';
 export { SftpHostPicker } from './SftpHostPicker';
 export { SftpPermissionsDialog } from './SftpPermissionsDialog';
+export { SftpTabBar, type SftpTab } from './SftpTabBar';
 export { SftpTransferItem } from './SftpTransferItem';
