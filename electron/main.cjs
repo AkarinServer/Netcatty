@@ -432,6 +432,90 @@ const registerBridges = (win) => {
     };
   });
 
+  // Select an application from system file picker
+  ipcMain.handle("netcatty:selectApplication", async () => {
+    const { dialog } = electronModule;
+    
+    let filters = [];
+    let defaultPath;
+    
+    if (process.platform === "darwin") {
+      filters = [{ name: "Applications", extensions: ["app"] }];
+      defaultPath = "/Applications";
+    } else if (process.platform === "win32") {
+      filters = [{ name: "Executables", extensions: ["exe", "com", "bat", "cmd"] }];
+      defaultPath = "C:\\Program Files";
+    } else {
+      // Linux - no specific filter, user can pick any executable
+      filters = [{ name: "All Files", extensions: ["*"] }];
+      defaultPath = "/usr/bin";
+    }
+    
+    const result = await dialog.showOpenDialog({
+      title: "Select Application",
+      defaultPath,
+      filters,
+      properties: ["openFile"],
+    });
+    
+    if (result.canceled || !result.filePaths.length) {
+      return null;
+    }
+    
+    const appPath = result.filePaths[0];
+    const appName = path.basename(appPath).replace(/\.[^.]+$/, "");
+    
+    return { path: appPath, name: appName };
+  });
+
+  // Open a file with a specific application
+  ipcMain.handle("netcatty:openWithApplication", async (_event, { filePath, appPath }) => {
+    const { shell, spawn } = electronModule;
+    const { spawn: cpSpawn } = require("node:child_process");
+    
+    if (process.platform === "darwin") {
+      // On macOS, use 'open' command with -a flag for specific app
+      cpSpawn("open", ["-a", appPath, filePath], { detached: true, stdio: "ignore" }).unref();
+    } else if (process.platform === "win32") {
+      // On Windows, just spawn the exe with the file as argument
+      cpSpawn(appPath, [filePath], { detached: true, stdio: "ignore", shell: true }).unref();
+    } else {
+      // On Linux, spawn the app with the file
+      cpSpawn(appPath, [filePath], { detached: true, stdio: "ignore" }).unref();
+    }
+    
+    return true;
+  });
+
+  // Download SFTP file to temp and return local path
+  ipcMain.handle("netcatty:sftp:downloadToTemp", async (_event, { sftpId, remotePath, fileName }) => {
+    const client = require("./bridges/sftpBridge.cjs");
+    const tempDir = os.tmpdir();
+    const tempFileName = `netcatty_${Date.now()}_${fileName}`;
+    const localPath = path.join(tempDir, tempFileName);
+    
+    // Get the sftp client and download file
+    const sftpClients = client.getSftpClients ? client.getSftpClients() : null;
+    if (!sftpClients) {
+      // Fallback: use readSftp and write to temp file
+      const content = await client.readSftp(null, { sftpId, path: remotePath });
+      if (typeof content === "string") {
+        await fs.promises.writeFile(localPath, content, "utf-8");
+      } else {
+        await fs.promises.writeFile(localPath, content);
+      }
+      return localPath;
+    }
+    
+    const sftpClient = sftpClients.get(sftpId);
+    if (!sftpClient) {
+      throw new Error("SFTP session not found");
+    }
+    
+    await sftpClient.fastGet(remotePath, localPath);
+    return localPath;
+  });
+
   console.log('[Main] All bridges registered successfully');
 };
 

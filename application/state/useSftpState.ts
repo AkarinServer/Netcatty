@@ -2571,6 +2571,51 @@ export const useSftpState = (hosts: Host[], keys: SSHKey[], identities: Identity
     [getActivePane],
   );
 
+  // Download file to temp directory and open with external application
+  const downloadToTempAndOpen = useCallback(
+    async (side: "left" | "right", remotePath: string, fileName: string, appPath: string): Promise<void> => {
+      const pane = getActivePane(side);
+      if (!pane?.connection) {
+        throw new Error("No connection available");
+      }
+
+      const bridge = netcattyBridge.get();
+      if (!bridge?.downloadSftpToTemp || !bridge?.openWithApplication) {
+        throw new Error("System app opening not supported");
+      }
+
+      if (pane.connection.isLocal) {
+        // For local files, just open directly
+        await bridge.openWithApplication(remotePath, appPath);
+        return;
+      }
+
+      const sftpId = sftpSessionsRef.current.get(pane.connection.id);
+      if (!sftpId) {
+        throw new Error("SFTP session not found");
+      }
+
+      // Download to temp directory
+      const localTempPath = await bridge.downloadSftpToTemp(sftpId, remotePath, fileName);
+      
+      // Open with the selected application
+      await bridge.openWithApplication(localTempPath, appPath);
+    },
+    [getActivePane],
+  );
+
+  // Select an application from system file picker
+  const selectApplication = useCallback(
+    async (): Promise<{ path: string; name: string } | null> => {
+      const bridge = netcattyBridge.get();
+      if (!bridge?.selectApplication) {
+        return null;
+      }
+      return await bridge.selectApplication();
+    },
+    [],
+  );
+
   // Store methods in a ref to create stable wrapper functions
   // This prevents callback reference changes from causing re-renders in consumers
   const methodsRef = useRef({
@@ -2601,6 +2646,8 @@ export const useSftpState = (hosts: Host[], keys: SSHKey[], identities: Identity
     readTextFile,
     readBinaryFile,
     writeTextFile,
+    downloadToTempAndOpen,
+    selectApplication,
     startTransfer,
     cancelTransfer,
     retryTransfer,
@@ -2636,6 +2683,8 @@ export const useSftpState = (hosts: Host[], keys: SSHKey[], identities: Identity
     readTextFile,
     readBinaryFile,
     writeTextFile,
+    downloadToTempAndOpen,
+    selectApplication,
     startTransfer,
     cancelTransfer,
     retryTransfer,
@@ -2674,6 +2723,8 @@ export const useSftpState = (hosts: Host[], keys: SSHKey[], identities: Identity
     readTextFile: (...args: Parameters<typeof readTextFile>) => methodsRef.current.readTextFile(...args),
     readBinaryFile: (...args: Parameters<typeof readBinaryFile>) => methodsRef.current.readBinaryFile(...args),
     writeTextFile: (...args: Parameters<typeof writeTextFile>) => methodsRef.current.writeTextFile(...args),
+    downloadToTempAndOpen: (...args: Parameters<typeof downloadToTempAndOpen>) => methodsRef.current.downloadToTempAndOpen(...args),
+    selectApplication: () => methodsRef.current.selectApplication(),
     startTransfer: (...args: Parameters<typeof startTransfer>) => methodsRef.current.startTransfer(...args),
     cancelTransfer: (...args: Parameters<typeof cancelTransfer>) => methodsRef.current.cancelTransfer(...args),
     retryTransfer: (...args: Parameters<typeof retryTransfer>) => methodsRef.current.retryTransfer(...args),

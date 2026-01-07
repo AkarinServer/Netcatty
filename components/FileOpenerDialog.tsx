@@ -1,22 +1,20 @@
 /**
  * FileOpenerDialog - Dialog for choosing how to open a file
  */
-import { Edit2, Eye, ExternalLink } from 'lucide-react';
+import { Edit2, Eye, FolderOpen } from 'lucide-react';
 import React, { useCallback, useState } from 'react';
 import { useI18n } from '../application/i18n/I18nProvider';
-import type { FileOpenerType } from '../lib/sftpFileUtils';
-import { getFileExtension, isImageFile, isTextFile } from '../lib/sftpFileUtils';
+import type { FileOpenerType, SystemAppInfo } from '../lib/sftpFileUtils';
+import { getFileExtension, isImageFile, isKnownBinaryFile } from '../lib/sftpFileUtils';
 import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog';
-
-// Extended opener types
-export type ExtendedFileOpenerType = FileOpenerType | 'system-app';
 
 interface FileOpenerDialogProps {
   open: boolean;
   onClose: () => void;
   fileName: string;
-  onSelect: (openerType: ExtendedFileOpenerType, setAsDefault: boolean) => void;
+  onSelect: (openerType: FileOpenerType, setAsDefault: boolean, systemApp?: SystemAppInfo) => void;
+  onSelectSystemApp: () => Promise<SystemAppInfo | null>;
 }
 
 export const FileOpenerDialog: React.FC<FileOpenerDialogProps> = ({
@@ -24,20 +22,48 @@ export const FileOpenerDialog: React.FC<FileOpenerDialogProps> = ({
   onClose,
   fileName,
   onSelect,
+  onSelectSystemApp,
 }) => {
   const { t } = useI18n();
-  const [setAsDefault, setSetAsDefault] = useState(false);
+  const [isSelectingApp, setIsSelectingApp] = useState(false);
+  const [rememberChoice, setRememberChoice] = useState(true);
+  
   const extension = getFileExtension(fileName);
-  const canEdit = isTextFile(fileName);
+  // Show edit option for files that are not known binary formats
+  const canEdit = !isKnownBinaryFile(fileName);
   const canPreview = isImageFile(fileName);
+  // For files without extension, we use 'file' as virtual extension
+  // So we always allow setting default (hasExtension is always true)
+  const displayExtension = extension === 'file' ? t('sftp.opener.noExtension') : `.${extension}`;
 
-  const handleSelect = useCallback((openerType: ExtendedFileOpenerType) => {
-    onSelect(openerType, setAsDefault);
+  const handleSelectBuiltIn = useCallback((openerType: FileOpenerType) => {
+    onSelect(openerType, rememberChoice);
     onClose();
-  }, [onSelect, setAsDefault, onClose]);
+  }, [rememberChoice, onSelect, onClose]);
+
+  const handleSelectSystemApp = useCallback(async () => {
+    setIsSelectingApp(true);
+    try {
+      const result = await onSelectSystemApp();
+      if (result) {
+        console.log('[FileOpenerDialog] Calling onSelect with rememberChoice:', rememberChoice, 'result:', result);
+        onSelect('system-app', rememberChoice, result);
+        onClose();
+      }
+    } catch (e) {
+      console.error('Failed to select application:', e);
+    } finally {
+      setIsSelectingApp(false);
+    }
+  }, [onSelectSystemApp, rememberChoice, onSelect, onClose]);
 
   return (
-    <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
+    <Dialog open={open} onOpenChange={(isOpen) => {
+      // Don't close while selecting system app
+      if (!isOpen && !isSelectingApp) {
+        onClose();
+      }
+    }}>
       <DialogContent className="sm:max-w-[400px]">
         <DialogHeader>
           <DialogTitle>{t('sftp.opener.title')}</DialogTitle>
@@ -51,12 +77,12 @@ export const FileOpenerDialog: React.FC<FileOpenerDialogProps> = ({
             <Button
               variant="outline"
               className="w-full justify-start gap-3 h-12"
-              onClick={() => handleSelect('builtin-editor')}
+              onClick={() => handleSelectBuiltIn('builtin-editor')}
             >
               <Edit2 size={18} className="text-primary" />
               <div className="text-left">
                 <div className="font-medium text-sm">{t('sftp.opener.builtInEditor')}</div>
-                <div className="text-xs text-muted-foreground">Edit text files</div>
+                <div className="text-xs text-muted-foreground">{t('sftp.opener.editDescription')}</div>
               </div>
             </Button>
           )}
@@ -65,26 +91,27 @@ export const FileOpenerDialog: React.FC<FileOpenerDialogProps> = ({
             <Button
               variant="outline"
               className="w-full justify-start gap-3 h-12"
-              onClick={() => handleSelect('builtin-image-viewer')}
+              onClick={() => handleSelectBuiltIn('builtin-image-viewer')}
             >
               <Eye size={18} className="text-primary" />
               <div className="text-left">
                 <div className="font-medium text-sm">{t('sftp.opener.builtInImageViewer')}</div>
-                <div className="text-xs text-muted-foreground">Preview images</div>
+                <div className="text-xs text-muted-foreground">{t('sftp.opener.previewDescription')}</div>
               </div>
             </Button>
           )}
 
-          {/* System application option - TODO: Full implementation needed */}
+          {/* System application option */}
           <Button
             variant="outline"
             className="w-full justify-start gap-3 h-12"
-            onClick={() => handleSelect('system-app')}
+            onClick={handleSelectSystemApp}
+            disabled={isSelectingApp}
           >
-            <ExternalLink size={18} className="text-primary" />
+            <FolderOpen size={18} className="text-primary" />
             <div className="text-left">
               <div className="font-medium text-sm">{t('sftp.opener.systemApp')}</div>
-              <div className="text-xs text-muted-foreground">Open with system application</div>
+              <div className="text-xs text-muted-foreground">{t('sftp.opener.systemAppDescription')}</div>
             </div>
           </Button>
 
@@ -95,20 +122,22 @@ export const FileOpenerDialog: React.FC<FileOpenerDialogProps> = ({
           )}
         </div>
 
-        {(canEdit || canPreview) && extension !== 'file' && (
-          <div className="flex items-center gap-2 pb-2">
-            <input
-              type="checkbox"
-              id="set-as-default"
-              checked={setAsDefault}
-              onChange={(e) => setSetAsDefault(e.target.checked)}
-              className="rounded border-border"
-            />
-            <label htmlFor="set-as-default" className="text-sm text-muted-foreground cursor-pointer">
-              {t('sftp.opener.setDefault', { ext: extension })}
-            </label>
-          </div>
-        )}
+        {/* Remember choice checkbox - always show, use 'file' for no extension */}
+        <div className="flex items-center gap-2 pb-2">
+          <input
+            type="checkbox"
+            id="remember-choice"
+            checked={rememberChoice}
+            onChange={(e) => setRememberChoice(e.target.checked)}
+            className="rounded border-border h-4 w-4 accent-primary"
+          />
+          <label 
+            htmlFor="remember-choice" 
+            className="text-sm text-muted-foreground cursor-pointer select-none"
+          >
+            {t('sftp.opener.setDefault', { ext: displayExtension })}
+          </label>
+        </div>
 
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>

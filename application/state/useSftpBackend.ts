@@ -174,6 +174,28 @@ export const useSftpBackend = () => {
     return bridge.onTransferProgress(transferId, cb);
   }, []);
 
+  const selectApplication = useCallback(async () => {
+    const bridge = netcattyBridge.get();
+    if (!bridge?.selectApplication) return undefined;
+    return bridge.selectApplication();
+  }, []);
+
+  const downloadSftpToTempAndOpen = useCallback(async (
+    sftpId: string,
+    remotePath: string,
+    fileName: string,
+    appPath: string
+  ) => {
+    const bridge = netcattyBridge.get();
+    if (!bridge?.downloadSftpToTemp || !bridge?.openWithApplication) {
+      throw new Error("Download to temp / open with unavailable");
+    }
+    // Download the file to temp
+    const tempPath = await bridge.downloadSftpToTemp(sftpId, remotePath, fileName);
+    // Open with the selected application
+    await bridge.openWithApplication(tempPath, appPath);
+  }, []);
+
   return {
     openSftp,
     closeSftp,
@@ -201,6 +223,8 @@ export const useSftpBackend = () => {
     startStreamTransfer,
     cancelTransfer,
     onTransferProgress,
+    selectApplication,
+    downloadSftpToTempAndOpen,
   };
 };
 

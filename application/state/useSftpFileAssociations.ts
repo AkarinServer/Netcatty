@@ -1,31 +1,94 @@
 /**
  * useSftpFileAssociations - Hook for managing SFTP file opener associations
+ * Uses a shared state pattern to sync across components
  */
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useSyncExternalStore } from 'react';
 import { STORAGE_KEY_SFTP_FILE_ASSOCIATIONS } from '../../infrastructure/config/storageKeys';
 import { localStorageAdapter } from '../../infrastructure/persistence/localStorageAdapter';
-import type { FileAssociation, FileOpenerType } from '../../lib/sftpFileUtils';
+import type { FileAssociation, FileOpenerType, SystemAppInfo } from '../../lib/sftpFileUtils';
 import { getFileExtension } from '../../lib/sftpFileUtils';
 
+export interface FileAssociationEntry {
+  openerType: FileOpenerType;
+  systemApp?: SystemAppInfo;
+}
+
 export interface FileAssociationsMap {
-  [extension: string]: FileOpenerType;
+  [extension: string]: FileAssociationEntry;
+}
+
+// Shared state and subscribers for cross-component synchronization
+const subscribers = new Set<() => void>();
+
+// Use a wrapper object so we can update the reference for useSyncExternalStore
+let snapshotRef: { associations: FileAssociationsMap } = { associations: {} };
+
+function loadFromStorage(): FileAssociationsMap {
+  const stored = localStorageAdapter.read<FileAssociationsMap>(STORAGE_KEY_SFTP_FILE_ASSOCIATIONS);
+  console.log('[SftpFileAssociations] Loading from storage:', stored);
+  if (stored) {
+    const migrated: FileAssociationsMap = {};
+    for (const [ext, value] of Object.entries(stored)) {
+      if (typeof value === 'string') {
+        migrated[ext] = { openerType: value as FileOpenerType };
+      } else {
+        migrated[ext] = value as FileAssociationEntry;
+      }
+    }
+    console.log('[SftpFileAssociations] Migrated associations:', migrated);
+    return migrated;
+  }
+  return {};
+}
+
+// Initialize from storage
+snapshotRef = { associations: loadFromStorage() };
+
+function saveToStorage(associations: FileAssociationsMap) {
+  console.log('[SftpFileAssociations] saveToStorage called with:', associations);
+  localStorageAdapter.write(STORAGE_KEY_SFTP_FILE_ASSOCIATIONS, associations);
+  // Verify it was saved
+  const verify = localStorageAdapter.read(STORAGE_KEY_SFTP_FILE_ASSOCIATIONS);
+  console.log('[SftpFileAssociations] Verification read from storage:', verify);
+}
+
+function updateAssociations(newAssociations: FileAssociationsMap) {
+  console.log('[SftpFileAssociations] Updating associations:', newAssociations);
+  // Create new reference so useSyncExternalStore detects change
+  snapshotRef = { associations: newAssociations };
+  saveToStorage(newAssociations);
+  console.log('[SftpFileAssociations] Notifying', subscribers.size, 'subscribers');
+  subscribers.forEach(callback => callback());
+}
+
+function subscribe(callback: () => void) {
+  subscribers.add(callback);
+  return () => subscribers.delete(callback);
+}
+
+function getSnapshot() {
+  return snapshotRef;
 }
 
 export function useSftpFileAssociations() {
-  const [associations, setAssociations] = useState<FileAssociationsMap>(() => {
-    const stored = localStorageAdapter.read<FileAssociationsMap>(STORAGE_KEY_SFTP_FILE_ASSOCIATIONS);
-    return stored || {};
-  });
+  const snapshot = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+  const associations = snapshot.associations;
 
-  // Persist associations to localStorage
+  // Listen for storage events from other tabs/windows
   useEffect(() => {
-    localStorageAdapter.write(STORAGE_KEY_SFTP_FILE_ASSOCIATIONS, associations);
-  }, [associations]);
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === STORAGE_KEY_SFTP_FILE_ASSOCIATIONS) {
+        updateAssociations(loadFromStorage());
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
+  }, []);
 
   /**
-   * Get the opener type for a file based on its extension
+   * Get the opener entry for a file based on its extension
    */
-  const getOpenerForFile = useCallback((fileName: string): FileOpenerType | null => {
+  const getOpenerForFile = useCallback((fileName: string): FileAssociationEntry | null => {
     const ext = getFileExtension(fileName);
     return associations[ext] || null;
   }, [associations]);
@@ -33,39 +96,46 @@ export function useSftpFileAssociations() {
   /**
    * Set the opener type for a specific extension
    */
-  const setOpenerForExtension = useCallback((extension: string, openerType: FileOpenerType) => {
-    setAssociations(prev => ({
-      ...prev,
-      [extension.toLowerCase()]: openerType,
-    }));
+  const setOpenerForExtension = useCallback((
+    extension: string, 
+    openerType: FileOpenerType,
+    systemApp?: SystemAppInfo
+  ) => {
+    console.log('[SftpFileAssociations] setOpenerForExtension called with:', { extension, openerType, systemApp });
+    console.log('[SftpFileAssociations] Current associations before update:', snapshotRef.associations);
+    updateAssociations({
+      ...snapshotRef.associations,
+      [extension.toLowerCase()]: { openerType, systemApp },
+    });
   }, []);
 
   /**
    * Remove the association for a specific extension
    */
   const removeAssociation = useCallback((extension: string) => {
-    setAssociations(prev => {
-      const next = { ...prev };
-      delete next[extension.toLowerCase()];
-      return next;
-    });
+    const next = { ...snapshotRef.associations };
+    delete next[extension.toLowerCase()];
+    updateAssociations(next);
   }, []);
 
   /**
    * Get all associations as an array
    */
   const getAllAssociations = useCallback((): FileAssociation[] => {
-    return Object.entries(associations).map(([extension, openerType]) => ({
+    const result = Object.entries(associations).map(([extension, entry]: [string, FileAssociationEntry]) => ({
       extension,
-      openerType: openerType as FileOpenerType,
+      openerType: entry.openerType,
+      systemApp: entry.systemApp,
     }));
+    console.log('[SftpFileAssociations] getAllAssociations called, returning', result.length, 'items:', result);
+    return result;
   }, [associations]);
 
   /**
    * Clear all associations
    */
   const clearAllAssociations = useCallback(() => {
-    setAssociations({});
+    updateAssociations({});
   }, []);
 
   return {

@@ -504,6 +504,14 @@ const api = {
     ipcRenderer.invoke("netcatty:onedrive:drive:downloadSyncFile", options),
   onedriveDeleteSyncFile: (options) =>
     ipcRenderer.invoke("netcatty:onedrive:drive:deleteSyncFile", options),
+
+  // File opener helpers (for "Open With" feature)
+  selectApplication: () =>
+    ipcRenderer.invoke("netcatty:selectApplication"),
+  openWithApplication: (filePath, appPath) =>
+    ipcRenderer.invoke("netcatty:openWithApplication", { filePath, appPath }),
+  downloadSftpToTemp: (sftpId, remotePath, fileName) =>
+    ipcRenderer.invoke("netcatty:sftp:downloadToTemp", { sftpId, remotePath, fileName }),
 };
 
 // Merge with existing netcatty (if any) to avoid stale objects on hot reload

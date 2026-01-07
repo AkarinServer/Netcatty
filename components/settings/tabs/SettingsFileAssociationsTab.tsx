@@ -1,37 +1,66 @@
 /**
  * SettingsFileAssociationsTab - Manage SFTP file opener associations
  */
-import { FileType, Trash2 } from "lucide-react";
-import React, { useCallback } from "react";
+import { FileType, Pencil, Trash2 } from "lucide-react";
+import React, { useCallback, useState } from "react";
 import { useI18n } from "../../../application/i18n/I18nProvider";
 import { useSftpFileAssociations } from "../../../application/state/useSftpFileAssociations";
-import type { FileOpenerType } from "../../../lib/sftpFileUtils";
+import type { FileOpenerType, SystemAppInfo } from "../../../lib/sftpFileUtils";
+import { netcattyBridge } from "../../../infrastructure/services/netcattyBridge";
 import { Button } from "../../ui/button";
 import { SectionHeader, SettingsTabContent } from "../settings-ui";
 
-const getOpenerLabel = (openerType: FileOpenerType, t: (key: string) => string): string => {
+const getOpenerLabel = (
+  openerType: FileOpenerType, 
+  systemApp: SystemAppInfo | undefined,
+  t: (key: string) => string
+): string => {
   if (openerType === 'builtin-editor') {
     return t('sftp.opener.builtInEditor');
   } else if (openerType === 'builtin-image-viewer') {
     return t('sftp.opener.builtInImageViewer');
+  } else if (openerType === 'system-app' && systemApp) {
+    return systemApp.name;
   }
   return openerType;
 };
 
 export default function SettingsFileAssociationsTab() {
   const { t } = useI18n();
-  const { getAllAssociations, removeAssociation } = useSftpFileAssociations();
+  const { getAllAssociations, removeAssociation, setOpenerForExtension } = useSftpFileAssociations();
   const associations = getAllAssociations();
+  const [editingExtension, setEditingExtension] = useState<string | null>(null);
+
+  // Debug log for Settings page
+  console.log('[SettingsFileAssociationsTab] Rendering with', associations.length, 'associations:', associations);
 
   const handleRemove = useCallback((extension: string) => {
-    if (confirm(t('settings.sftpFileAssociations.removeConfirm', { ext: extension }))) {
+    if (confirm(t('settings.sftpFileAssociations.removeConfirm', { ext: extension === 'file' ? t('sftp.opener.noExtension') : extension }))) {
       removeAssociation(extension);
     }
   }, [removeAssociation, t]);
 
+  const handleEdit = useCallback(async (extension: string) => {
+    setEditingExtension(extension);
+    try {
+      const bridge = netcattyBridge.get();
+      if (!bridge?.selectApplication) {
+        return;
+      }
+      const result = await bridge.selectApplication();
+      if (result) {
+        setOpenerForExtension(extension, 'system-app', { path: result.path, name: result.name });
+      }
+    } catch (e) {
+      console.error('Failed to select application:', e);
+    } finally {
+      setEditingExtension(null);
+    }
+  }, [setOpenerForExtension]);
+
   return (
-    <SettingsTabContent tabValue="file-associations" className="space-y-6">
-      <div>
+    <SettingsTabContent value="file-associations">
+      <div className="space-y-6">
         <SectionHeader title={t('settings.sftpFileAssociations.title')} />
         <p className="text-sm text-muted-foreground mb-4">
           {t('settings.sftpFileAssociations.desc')}
@@ -53,21 +82,37 @@ export default function SettingsFileAssociationsTab() {
                   <th className="text-left px-4 py-2 font-medium">
                     {t('settings.sftpFileAssociations.application')}
                   </th>
-                  <th className="text-right px-4 py-2 font-medium w-24">
+                  <th className="text-right px-4 py-2 font-medium w-28">
                     {/* Actions */}
                   </th>
                 </tr>
               </thead>
               <tbody>
-                {associations.map(({ extension, openerType }) => (
+                {associations.map(({ extension, openerType, systemApp }) => (
                   <tr key={extension} className="border-b border-border last:border-b-0 hover:bg-muted/30">
                     <td className="px-4 py-3">
-                      <code className="text-xs bg-muted px-1.5 py-0.5 rounded">.{extension}</code>
+                      <code className="text-xs bg-muted px-1.5 py-0.5 rounded">
+                        {extension === 'file' ? t('sftp.opener.noExtension') : `.${extension}`}
+                      </code>
                     </td>
                     <td className="px-4 py-3 text-muted-foreground">
-                      {getOpenerLabel(openerType, t)}
+                      {openerType === 'system-app' && systemApp ? (
+                        <span title={systemApp.path}>{systemApp.name}</span>
+                      ) : (
+                        getOpenerLabel(openerType, systemApp, t)
+                      )}
                     </td>
-                    <td className="px-4 py-3 text-right">
+                    <td className="px-4 py-3 text-right space-x-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        onClick={() => handleEdit(extension)}
+                        disabled={editingExtension === extension}
+                        title={t('common.edit')}
+                      >
+                        <Pencil size={14} />
+                      </Button>
                       <Button
                         variant="ghost"
                         size="icon"

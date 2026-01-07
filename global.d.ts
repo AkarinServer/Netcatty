@@ -410,6 +410,11 @@ interface NetcattyBridge {
   onedriveUploadSyncFile?(options: { accessToken: string; fileName?: string; syncedFile: unknown }): Promise<{ fileId: string | null }>;
   onedriveDownloadSyncFile?(options: { accessToken: string; fileId?: string; fileName?: string }): Promise<{ syncedFile: unknown | null }>;
   onedriveDeleteSyncFile?(options: { accessToken: string; fileId: string }): Promise<{ ok: true }>;
+
+  // File opener helpers (for "Open With" feature)
+  selectApplication?(): Promise<{ path: string; name: string } | null>;
+  openWithApplication?(filePath: string, appPath: string): Promise<boolean>;
+  downloadSftpToTemp?(sftpId: string, remotePath: string, fileName: string): Promise<string>;
 }
 
 interface Window {

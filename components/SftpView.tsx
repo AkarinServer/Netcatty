@@ -28,7 +28,7 @@ import { useI18n } from "../application/i18n/I18nProvider";
 import { useIsSftpActive } from "../application/state/activeTabStore";
 import { SftpPane, useSftpState } from "../application/state/useSftpState";
 import { logger } from "../lib/logger";
-import { isTextFile, isImageFile, isKnownBinaryFile, getFileExtension, FileOpenerType } from "../lib/sftpFileUtils";
+import { isImageFile, isKnownBinaryFile, getFileExtension, FileOpenerType, SystemAppInfo } from "../lib/sftpFileUtils";
 import { useRenderTracker } from "../lib/useRenderTracker";
 import { cn } from "../lib/utils";
 import { Host, Identity, SftpFileEntry, SSHKey } from "../types";
@@ -1725,7 +1725,7 @@ const SftpViewInner: React.FC<SftpViewProps> = ({ hosts, keys, identities }) => 
   );
 
   const handleOpenFileForSide = useCallback(
-    (side: "left" | "right", file: SftpFileEntry) => {
+    async (side: "left" | "right", file: SftpFileEntry) => {
       const pane = side === "left" ? sftpRef.current.leftPane : sftpRef.current.rightPane;
       if (!pane.connection) return;
 
@@ -1733,10 +1733,25 @@ const SftpViewInner: React.FC<SftpViewProps> = ({ hosts, keys, identities }) => 
       const savedOpener = getOpenerForFile(file.name);
 
       if (savedOpener) {
-        if (savedOpener === 'builtin-editor' && isTextFile(file.name)) {
+        if (savedOpener.openerType === 'builtin-editor') {
           handleEditFileForSide(side, file);
-        } else if (savedOpener === 'builtin-image-viewer' && isImageFile(file.name)) {
+        } else if (savedOpener.openerType === 'builtin-image-viewer' && isImageFile(file.name)) {
           handlePreviewFileForSide(side, file);
+        } else if (savedOpener.openerType === 'system-app' && savedOpener.systemApp) {
+          // Open with saved system application
+          try {
+            await sftpRef.current.downloadToTempAndOpen(
+              side, 
+              fullPath, 
+              file.name, 
+              savedOpener.systemApp.path
+            );
+          } catch (e) {
+            toast.error(
+              e instanceof Error ? e.message : "Failed to open file",
+              "SFTP"
+            );
+          }
         }
       } else {
         // Show opener dialog
@@ -1748,13 +1763,13 @@ const SftpViewInner: React.FC<SftpViewProps> = ({ hosts, keys, identities }) => 
   );
 
   const handleFileOpenerSelect = useCallback(
-    (openerType: FileOpenerType, setAsDefault: boolean) => {
+    async (openerType: FileOpenerType, setAsDefault: boolean, systemApp?: SystemAppInfo) => {
       if (!fileOpenerTarget) return;
 
       if (setAsDefault) {
         const ext = getFileExtension(fileOpenerTarget.file.name);
         if (ext !== 'file') {
-          setOpenerForExtension(ext, openerType);
+          setOpenerForExtension(ext, openerType, systemApp);
         }
       }
 
@@ -1764,10 +1779,36 @@ const SftpViewInner: React.FC<SftpViewProps> = ({ hosts, keys, identities }) => 
         handleEditFileForSide(fileOpenerTarget.side, fileOpenerTarget.file);
       } else if (openerType === 'builtin-image-viewer') {
         handlePreviewFileForSide(fileOpenerTarget.side, fileOpenerTarget.file);
+      } else if (openerType === 'system-app' && systemApp) {
+        // Download and open with system application
+        try {
+          await sftpRef.current.downloadToTempAndOpen(
+            fileOpenerTarget.side,
+            fileOpenerTarget.fullPath,
+            fileOpenerTarget.file.name,
+            systemApp.path
+          );
+        } catch (e) {
+          toast.error(
+            e instanceof Error ? e.message : "Failed to open file",
+            "SFTP"
+          );
+        }
       }
+
+      setFileOpenerTarget(null);
     },
     [fileOpenerTarget, setOpenerForExtension, handleEditFileForSide, handlePreviewFileForSide],
   );
+
+  // Callback for FileOpenerDialog to select a system application
+  const handleSelectSystemApp = useCallback(async (): Promise<SystemAppInfo | null> => {
+    const result = await sftpRef.current.selectApplication();
+    if (result) {
+      return { path: result.path, name: result.name };
+    }
+    return null;
+  }, []);
 
   const handleSaveTextFile = useCallback(
     async (content: string) => {
@@ -2192,6 +2233,7 @@ const SftpViewInner: React.FC<SftpViewProps> = ({ hosts, keys, identities }) => 
           }}
           fileName={fileOpenerTarget?.file.name || ""}
           onSelect={handleFileOpenerSelect}
+          onSelectSystemApp={handleSelectSystemApp}
         />
       </div>
     </SftpContextProvider>

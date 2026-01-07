@@ -45,7 +45,7 @@ import { useI18n } from "../application/i18n/I18nProvider";
 import { useSftpBackend } from "../application/state/useSftpBackend";
 import { useSftpFileAssociations } from "../application/state/useSftpFileAssociations";
 import { logger } from "../lib/logger";
-import { getFileExtension, isImageFile, isTextFile, FileOpenerType } from "../lib/sftpFileUtils";
+import { getFileExtension, isImageFile, isKnownBinaryFile, FileOpenerType, SystemAppInfo } from "../lib/sftpFileUtils";
 import { cn } from "../lib/utils";
 import { Host, RemoteFile } from "../types";
 import { DistroAvatar } from "./DistroAvatar";
@@ -304,6 +304,8 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
     deleteLocalFile,
     mkdirLocal,
     getHomeDir,
+    selectApplication,
+    downloadSftpToTempAndOpen,
   } = useSftpBackend();
   const { t, resolvedLocale } = useI18n();
   const isLocalSession = host.protocol === "local";
@@ -1183,34 +1185,86 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
     const savedOpener = getOpenerForFile(file.name);
 
     if (savedOpener) {
-      // Use saved opener
-      if (savedOpener === 'builtin-editor') {
+      // Use saved opener based on openerType
+      if (savedOpener.openerType === 'builtin-editor') {
         handleEditFile(file);
-      } else if (savedOpener === 'builtin-image-viewer') {
+      } else if (savedOpener.openerType === 'builtin-image-viewer' && isImageFile(file.name)) {
         handlePreviewImage(file);
+      } else if (savedOpener.openerType === 'system-app' && savedOpener.systemApp) {
+        // Open with saved system application
+        try {
+          const fullPath = joinPath(currentPath, file.name);
+          if (isLocalSession) {
+            // For local files, open directly
+            const bridge = (window as unknown as { netcatty?: NetcattyBridge }).netcatty;
+            if (bridge?.openWithApplication) {
+              await bridge.openWithApplication(fullPath, savedOpener.systemApp.path);
+            }
+          } else {
+            const sftpId = await ensureSftp();
+            await downloadSftpToTempAndOpen(sftpId, fullPath, file.name, savedOpener.systemApp.path);
+          }
+        } catch (e) {
+          toast.error(
+            e instanceof Error ? e.message : t("sftp.error.openFailed"),
+            "SFTP"
+          );
+        }
       }
     } else {
       // Show opener dialog
       openFileOpenerDialog(file);
     }
-  }, [getOpenerForFile, handleEditFile, handlePreviewImage, openFileOpenerDialog]);
+  }, [getOpenerForFile, handleEditFile, handlePreviewImage, openFileOpenerDialog, joinPath, currentPath, isLocalSession, ensureSftp, downloadSftpToTempAndOpen, t]);
 
-  const handleFileOpenerSelect = useCallback((openerType: FileOpenerType, setAsDefault: boolean) => {
+  const handleFileOpenerSelect = useCallback(async (openerType: FileOpenerType, setAsDefault: boolean, systemApp?: SystemAppInfo) => {
     if (!fileOpenerTarget) return;
 
     if (setAsDefault) {
       const ext = getFileExtension(fileOpenerTarget.name);
-      if (ext !== 'file') {
-        setOpenerForExtension(ext, openerType);
-      }
+      console.log('[SFTPModal] Saving file association for extension:', ext, 'openerType:', openerType, 'systemApp:', systemApp);
+      setOpenerForExtension(ext, openerType, systemApp);
     }
+
+    setShowFileOpenerDialog(false);
 
     if (openerType === 'builtin-editor') {
       handleEditFile(fileOpenerTarget);
     } else if (openerType === 'builtin-image-viewer') {
       handlePreviewImage(fileOpenerTarget);
+    } else if (openerType === 'system-app' && systemApp) {
+      // Download and open with system application
+      try {
+        const fullPath = joinPath(currentPath, fileOpenerTarget.name);
+        if (isLocalSession) {
+          // For local files, open directly
+          const bridge = (window as unknown as { netcatty?: NetcattyBridge }).netcatty;
+          if (bridge?.openWithApplication) {
+            await bridge.openWithApplication(fullPath, systemApp.path);
+          }
+        } else {
+          const sftpId = await ensureSftp();
+          await downloadSftpToTempAndOpen(sftpId, fullPath, fileOpenerTarget.name, systemApp.path);
+        }
+      } catch (e) {
+        toast.error(
+          e instanceof Error ? e.message : t("sftp.error.openFailed"),
+          "SFTP"
+        );
+      }
     }
-  }, [fileOpenerTarget, setOpenerForExtension, handleEditFile, handlePreviewImage]);
+
+    setFileOpenerTarget(null);
+  }, [fileOpenerTarget, setOpenerForExtension, handleEditFile, handlePreviewImage, joinPath, currentPath, isLocalSession, ensureSftp, downloadSftpToTempAndOpen, t]);
+
+  // Callback for FileOpenerDialog to select a system application
+  const handleSelectSystemApp = useCallback(async (): Promise<SystemAppInfo | null> => {
+    const result = await selectApplication();
+    if (result) {
+      return { path: result.path, name: result.name };
+    }
+    return null;
+  }, [selectApplication]);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
@@ -1968,8 +2022,8 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
                                 <ContextMenuItem onClick={() => openFileOpenerDialog(file)}>
                                   <MoreHorizontal size={14} className="mr-2" /> {t("sftp.context.openWith")}
                                 </ContextMenuItem>
-                                {/* Edit - for text files */}
-                                {isTextFile(file.name) && (
+                                {/* Edit - for text files (not known binary) */}
+                                {!isKnownBinaryFile(file.name) && (
                                   <ContextMenuItem onClick={() => handleEditFile(file)}>
                                     <Edit2 size={14} className="mr-2" /> {t("sftp.context.edit")}
                                   </ContextMenuItem>
@@ -2295,6 +2349,7 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
         }}
         fileName={fileOpenerTarget?.name || ""}
         onSelect={handleFileOpenerSelect}
+        onSelectSystemApp={handleSelectSystemApp}
       />
 
       {/* Text Editor Modal */}

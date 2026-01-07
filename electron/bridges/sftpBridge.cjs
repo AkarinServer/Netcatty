@@ -651,9 +651,17 @@ function registerHandlers(ipcMain) {
   ipcMain.handle("netcatty:sftp:chmod", chmodSftp);
 }
 
+/**
+ * Get the SFTP clients map (for external access)
+ */
+function getSftpClients() {
+  return sftpClients;
+}
+
 module.exports = {
   init,
   registerHandlers,
+  getSftpClients,
   openSftp,
   listSftp,
   readSftp,
