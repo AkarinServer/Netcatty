@@ -839,10 +839,15 @@ export const useSftpState = (hosts: Host[], keys: SSHKey[], identities: Identity
 	          const statSftp = netcattyBridge.get()?.statSftp;
 	          if (statSftp) {
             const candidates: string[] = [];
-            if (credentials.username) {
+            if (credentials.username === "root") {
+              // Root user's home is /root, not /home/root
+              candidates.push("/root");
+            } else if (credentials.username) {
               candidates.push(`/home/${credentials.username}`);
+              candidates.push("/root");
+            } else {
+              candidates.push("/root");
             }
-            candidates.push("/root");
             for (const candidate of candidates) {
               try {
                 const stat = await statSftp(sftpId, candidate);
@@ -855,7 +860,18 @@ export const useSftpState = (hosts: Host[], keys: SSHKey[], identities: Identity
               }
             }
 	          } else {
-	            if (credentials.username) {
+	            if (credentials.username === "root") {
+	              // Root user's home is /root, not /home/root
+	              try {
+	                const rootFiles = await netcattyBridge.get()?.listSftp(
+	                  sftpId,
+	                  "/root",
+	                );
+	                if (rootFiles) startPath = "/root";
+	              } catch {
+                // Fallback path not available, use default
+              }
+	            } else if (credentials.username) {
 	              try {
 	                const homeFiles = await netcattyBridge.get()?.listSftp(
 	                  sftpId,
@@ -865,8 +881,18 @@ export const useSftpState = (hosts: Host[], keys: SSHKey[], identities: Identity
 	              } catch {
                 // Fall through to /root check
               }
-            }
-	            if (startPath === "/") {
+	              if (startPath === "/") {
+	                try {
+	                  const rootFiles = await netcattyBridge.get()?.listSftp(
+	                    sftpId,
+	                    "/root",
+	                  );
+	                  if (rootFiles) startPath = "/root";
+	                } catch {
+                  // Fallback path not available, use default
+                }
+              }
+            } else {
 	              try {
 	                const rootFiles = await netcattyBridge.get()?.listSftp(
 	                  sftpId,
