@@ -287,7 +287,6 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
     closeSftp: closeSftpBackend,
     listSftp,
     readSftp,
-    readSftpBinary,
     writeSftpBinaryWithProgress,
     writeSftpBinary,
     writeSftp,
