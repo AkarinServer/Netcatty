@@ -239,6 +239,11 @@ export const TextEditorModal: React.FC<TextEditorModalProps> = ({
             onChange={handleEditorChange}
             onMount={handleEditorMount}
             theme="vs-dark"
+            loading={
+              <div className="flex items-center justify-center h-full bg-[#1e1e1e]">
+                <Loader2 size={32} className="animate-spin text-muted-foreground" />
+              </div>
+            }
             options={{
               minimap: { enabled: true },
               fontSize: 14,

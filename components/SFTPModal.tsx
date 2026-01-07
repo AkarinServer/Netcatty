@@ -345,7 +345,7 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
   const [showTextEditor, setShowTextEditor] = useState(false);
   const [textEditorTarget, setTextEditorTarget] = useState<RemoteFile | null>(null);
   const [textEditorContent, setTextEditorContent] = useState("");
-  const [_loadingTextContent, setLoadingTextContent] = useState(false);
+  const [loadingTextContent, setLoadingTextContent] = useState(false);
 
   // Virtual scrolling refs and state
   const fileListRef = useRef<HTMLDivElement>(null);
@@ -1852,6 +1852,15 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
           {loading && files.length === 0 && (
             <div className="absolute inset-0 flex items-center justify-center bg-background/80">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+          )}
+
+          {loadingTextContent && (
+            <div className="absolute inset-0 flex items-center justify-center bg-background/80 z-20">
+              <div className="flex flex-col items-center gap-2">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                <span className="text-sm text-muted-foreground">{t("sftp.status.loading")}</span>
+              </div>
             </div>
           )}
 

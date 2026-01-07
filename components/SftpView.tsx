@@ -144,6 +144,7 @@ interface SftpPaneViewProps {
   pane: SftpPane;
   showHeader?: boolean;
   showEmptyHeader?: boolean;
+  loadingTextContent?: boolean;
 }
 
 const SftpPaneViewInner: React.FC<SftpPaneViewProps> = ({
@@ -151,6 +152,7 @@ const SftpPaneViewInner: React.FC<SftpPaneViewProps> = ({
   pane,
   showHeader = true,
   showEmptyHeader = true,
+  loadingTextContent = false,
 }) => {
   // NOTE: We don't subscribe to activeTabId here!
   // Visibility is controlled by parent SftpPaneWrapper via CSS (visibility: hidden)
@@ -1270,6 +1272,15 @@ const SftpPaneViewInner: React.FC<SftpPaneViewProps> = ({
           </div>
         )}
 
+        {loadingTextContent && (
+          <div className="absolute inset-0 flex items-center justify-center bg-background/80 z-20">
+            <div className="flex flex-col items-center gap-2">
+              <Loader2 size={24} className="animate-spin text-muted-foreground" />
+              <span className="text-sm text-muted-foreground">{t("sftp.status.loading")}</span>
+            </div>
+          </div>
+        )}
+
         {/* Drop overlay */}
         {isDragOverPane && draggedFiles && draggedFiles[0]?.side !== side && (
           <div className="absolute inset-0 flex items-center justify-center bg-primary/5 pointer-events-none">
@@ -1511,6 +1522,7 @@ const SftpViewInner: React.FC<SftpViewProps> = ({ hosts, keys, identities }) => 
     fullPath: string;
   } | null>(null);
   const [textEditorContent, setTextEditorContent] = useState("");
+  const [loadingTextContent, setLoadingTextContent] = useState(false);
 
   const [showFileOpenerDialog, setShowFileOpenerDialog] = useState(false);
   const [fileOpenerTarget, setFileOpenerTarget] = useState<{
@@ -1673,6 +1685,7 @@ const SftpViewInner: React.FC<SftpViewProps> = ({ hosts, keys, identities }) => 
       const fullPath = sftpRef.current.joinPath(pane.connection.currentPath, file.name);
 
       try {
+        setLoadingTextContent(true);
         setTextEditorTarget({ file, side, fullPath });
 
         // Read file as text - if it's binary, user will see garbled content
@@ -1687,6 +1700,8 @@ const SftpViewInner: React.FC<SftpViewProps> = ({ hosts, keys, identities }) => 
           "SFTP"
         );
         setTextEditorTarget(null);
+      } finally {
+        setLoadingTextContent(false);
       }
     },
     [],
@@ -2114,6 +2129,7 @@ const SftpViewInner: React.FC<SftpViewProps> = ({ hosts, keys, identities }) => 
                     pane={pane}
                     showHeader
                     showEmptyHeader={false}
+                    loadingTextContent={loadingTextContent && textEditorTarget?.side === "left"}
                   />
                 </SftpPaneWrapper>
               ))}
@@ -2145,6 +2161,7 @@ const SftpViewInner: React.FC<SftpViewProps> = ({ hosts, keys, identities }) => 
                     pane={pane}
                     showHeader
                     showEmptyHeader={false}
+                    loadingTextContent={loadingTextContent && textEditorTarget?.side === "right"}
                   />
                 </SftpPaneWrapper>
               ))}
