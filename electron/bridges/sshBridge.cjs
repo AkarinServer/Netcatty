@@ -32,6 +32,15 @@ function resolveLangFromCharset(charset) {
   return trimmed;
 }
 
+function safeSend(sender, channel, payload) {
+  try {
+    if (!sender || sender.isDestroyed()) return;
+    sender.send(channel, payload);
+  } catch {
+    // Ignore destroyed webContents during shutdown.
+  }
+}
+
 /**
  * Initialize the SSH bridge with dependencies
  */
@@ -497,8 +506,8 @@ async function startSSHSession(event, options) {
             
             const flushBuffer = () => {
               if (dataBuffer.length > 0) {
-                const contents = electronModule.BrowserWindow.fromWebContents(event.sender)?.webContents;
-                contents?.send("netcatty:data", { sessionId, data: dataBuffer });
+                const contents = event.sender;
+                safeSend(contents, "netcatty:data", { sessionId, data: dataBuffer });
                 dataBuffer = '';
               }
               flushTimeout = null;
@@ -533,8 +542,8 @@ async function startSSHSession(event, options) {
                 clearTimeout(flushTimeout);
               }
               flushBuffer();
-              const contents = electronModule.BrowserWindow.fromWebContents(event.sender)?.webContents;
-              contents?.send("netcatty:exit", { sessionId, exitCode: 0 });
+              const contents = event.sender;
+              safeSend(contents, "netcatty:exit", { sessionId, exitCode: 0 });
               sessions.delete(sessionId);
               conn.end();
               for (const c of chainConnections) {
@@ -555,7 +564,7 @@ async function startSSHSession(event, options) {
       });
 
       conn.on("error", (err) => {
-        const contents = electronModule.BrowserWindow.fromWebContents(event.sender)?.webContents;
+        const contents = event.sender;
         
         const isAuthError = err.message?.toLowerCase().includes('authentication') ||
                            err.message?.toLowerCase().includes('auth') ||
@@ -565,7 +574,7 @@ async function startSSHSession(event, options) {
         // Use log instead of error for auth failures (normal fallback scenario)
         if (isAuthError) {
           console.log(`${logPrefix} ${options.hostname} auth failed:`, err.message);
-          contents?.send("netcatty:auth:failed", { 
+          safeSend(contents, "netcatty:auth:failed", { 
             sessionId, 
             error: err.message,
             hostname: options.hostname 
@@ -574,7 +583,7 @@ async function startSSHSession(event, options) {
           console.error(`${logPrefix} ${options.hostname} error:`, err.message);
         }
         
-        contents?.send("netcatty:exit", { sessionId, exitCode: 1, error: err.message });
+        safeSend(contents, "netcatty:exit", { sessionId, exitCode: 1, error: err.message });
         sessions.delete(sessionId);
         for (const c of chainConnections) {
           try { c.end(); } catch {}
@@ -585,8 +594,8 @@ async function startSSHSession(event, options) {
       conn.on("timeout", () => {
         console.error(`${logPrefix} ${options.hostname} connection timeout`);
         const err = new Error(`Connection timeout to ${options.hostname}`);
-        const contents = electronModule.BrowserWindow.fromWebContents(event.sender)?.webContents;
-        contents?.send("netcatty:exit", { sessionId, exitCode: 1, error: err.message });
+        const contents = event.sender;
+        safeSend(contents, "netcatty:exit", { sessionId, exitCode: 1, error: err.message });
         sessions.delete(sessionId);
         for (const c of chainConnections) {
           try { c.end(); } catch {}
@@ -595,8 +604,8 @@ async function startSSHSession(event, options) {
       });
 
       conn.on("close", () => {
-        const contents = electronModule.BrowserWindow.fromWebContents(event.sender)?.webContents;
-        contents?.send("netcatty:exit", { sessionId, exitCode: 0 });
+        const contents = event.sender;
+        safeSend(contents, "netcatty:exit", { sessionId, exitCode: 0 });
         sessions.delete(sessionId);
         for (const c of chainConnections) {
           try { c.end(); } catch {}
@@ -608,8 +617,8 @@ async function startSSHSession(event, options) {
     });
   } catch (err) {
     console.error("[Chain] SSH chain connection error:", err.message);
-    const contents = electronModule.BrowserWindow.fromWebContents(event.sender)?.webContents;
-    contents?.send("netcatty:exit", { sessionId, exitCode: 1, error: err.message });
+    const contents = event.sender;
+    safeSend(contents, "netcatty:exit", { sessionId, exitCode: 1, error: err.message });
     throw err;
   }
 }

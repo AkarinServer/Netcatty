@@ -18,6 +18,7 @@ import {
   Globe,
   Home,
   Key,
+  Link,
   Loader2,
   Lock,
   MoreHorizontal,
@@ -1710,16 +1711,14 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
                           onDoubleClick={() => handleFileDoubleClick(file)}
                         >
                           <div className="flex items-center gap-3 min-w-0">
-                            <div className="shrink-0">
+                            <div className="relative shrink-0 h-7 w-7 flex items-center justify-center">
                               {getFileIcon(file.name, isNavigableDirectory, file.type === "symlink" && !isNavigableDirectory)}
+                              {file.type === "symlink" && <Link size={10} className="absolute -bottom-0.5 -right-0.5 text-muted-foreground" aria-hidden="true" />}
                             </div>
                             <span className={cn("truncate font-medium", file.type === "symlink" && "italic pr-1")}>
                               {file.name}
                               {file.type === "symlink" && <span className="sr-only"> (symbolic link)</span>}
                             </span>
-                            {file.type === "symlink" && (
-                              <span className="text-xs text-muted-foreground shrink-0" aria-hidden="true">→</span>
-                            )}
                           </div>
                           <div className="text-xs text-muted-foreground">
                             {isNavigableDirectory ? "--" : formatBytes(file.size)}
@@ -1951,7 +1950,7 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
                       )}
                       {task.status === "completed" && (
                         <div className="text-[10px] text-green-600 mt-0.5">
-                          Completed • {formatBytes(task.totalBytes)}
+                          Completed �?{formatBytes(task.totalBytes)}
                         </div>
                       )}
                       {task.status === "failed" && task.error && (
@@ -1976,7 +1975,7 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
             {t("sftp.itemsCount", { count: files.length })}
             {selectedFiles.size > 0 && (
               <>
-                <span className="mx-2">•</span>
+                <span className="mx-2">|</span>
                 <span className="text-primary">
                   {t("sftp.selectedCount", { count: selectedFiles.size })}
                 </span>
