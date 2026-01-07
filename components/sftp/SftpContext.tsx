@@ -27,6 +27,10 @@ export interface SftpPaneCallbacks {
     onCopyToOtherPane: (files: { name: string; isDirectory: boolean }[]) => void;
     onReceiveFromOtherPane: (files: { name: string; isDirectory: boolean }[]) => void;
     onEditPermissions?: (file: SftpFileEntry) => void;
+    // File operations - edit and preview
+    onEditFile?: (entry: SftpFileEntry) => void;
+    onPreviewFile?: (entry: SftpFileEntry) => void;
+    onOpenFile?: (entry: SftpFileEntry) => void;
 }
 
 export interface SftpDragCallbacks {

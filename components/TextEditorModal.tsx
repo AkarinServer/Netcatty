@@ -140,6 +140,12 @@ export const TextEditorModal: React.FC<TextEditorModalProps> = ({
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
       handleSave();
     });
+
+    // Add find shortcut (Ctrl+F / Cmd+F)
+    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyF, () => {
+      // Trigger Monaco's built-in find widget
+      editor.trigger('keyboard', 'actions.find', null);
+    });
   }, [handleSave]);
 
   const supportedLanguages = useMemo(() => getSupportedLanguages(), []);
@@ -223,6 +229,11 @@ export const TextEditorModal: React.FC<TextEditorModalProps> = ({
               folding: true,
               renderWhitespace: 'selection',
               bracketPairColorization: { enabled: true },
+              find: {
+                addExtraSpaceOnTop: false,
+                autoFindInSelection: 'never',
+                seedSearchStringFromSelection: 'selection',
+              },
             }}
           />
         </div>

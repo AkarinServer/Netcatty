@@ -139,7 +139,7 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
             <DialogTitle className="text-sm font-semibold truncate max-w-[400px]">
               {fileName}
             </DialogTitle>
-            <div className="flex items-center gap-1">"
+            <div className="flex items-center gap-1">
               <Button
                 variant="ghost"
                 size="icon"

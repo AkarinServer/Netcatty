@@ -26,18 +26,59 @@ const TEXT_EXTENSIONS = new Set([
   'md', 'markdown', 'mdx', 'txt', 'text', 'log', 'rst', 'adoc', 'asciidoc',
   'tex', 'latex', 'bib',
   // Data formats
-  'csv', 'tsv',
+  'csv', 'tsv', 'psv',
   // System
-  'rc', 'bashrc', 'zshrc', 'profile', 'vimrc', 'tmux.conf',
-  'dockerfile', 'containerfile', 'makefile', 'cmakelists',
-  // Other
-  'diff', 'patch', 'htaccess', 'gitmodules',
+  'rc', 'bashrc', 'zshrc', 'profile', 'vimrc', 'tmux', 'nanorc',
+  'dockerfile', 'containerfile', 'makefile', 'cmake', 'mak',
+  // Version control & Git
+  'gitconfig', 'gitmodules', 'gitkeep',
+  // Other common text formats
+  'diff', 'patch', 'htaccess', 'lock', 'sum',
+  // Service/System files
+  'service', 'socket', 'timer', 'mount', 'automount', 'target',
+  // Shell history and data
+  'history', 'zsh_history', 'bash_history',
+]);
+
+// Additional filenames (no extension) that are always text
+const TEXT_FILENAMES = new Set([
+  'readme', 'license', 'licence', 'changelog', 'authors', 'contributors',
+  'copying', 'install', 'news', 'todo', 'history', 'makefile', 'dockerfile',
+  'gemfile', 'rakefile', 'brewfile', 'procfile', 'vagrantfile',
+  'cmakelists.txt', 'cmakelists',
 ]);
 
 // Common image file extensions
 const IMAGE_EXTENSIONS = new Set([
   'jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg',
   'ico', 'tiff', 'tif', 'heic', 'heif', 'avif', 'jfif',
+]);
+
+// Known binary file extensions - files that should never be opened as text
+const BINARY_EXTENSIONS = new Set([
+  // Images
+  'jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'ico', 'tiff', 'tif',
+  'heic', 'heif', 'avif', 'jfif', 'psd', 'ai', 'eps', 'raw', 'cr2', 'nef',
+  // Audio
+  'mp3', 'wav', 'flac', 'aac', 'ogg', 'wma', 'm4a', 'aiff', 'opus',
+  // Video
+  'mp4', 'avi', 'mkv', 'mov', 'wmv', 'flv', 'webm', 'm4v', '3gp', 'mpeg', 'mpg',
+  // Archives
+  'zip', 'rar', '7z', 'tar', 'gz', 'bz2', 'xz', 'lz', 'lzma', 'zst',
+  'tgz', 'tbz2', 'txz', 'cab', 'iso', 'dmg',
+  // Executables
+  'exe', 'dll', 'so', 'dylib', 'bin', 'app', 'msi', 'deb', 'rpm',
+  'apk', 'ipa', 'jar', 'war', 'ear',
+  // Documents (binary formats)
+  'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'odt', 'ods', 'odp',
+  // Fonts
+  'ttf', 'otf', 'woff', 'woff2', 'eot',
+  // Database
+  'db', 'sqlite', 'sqlite3', 'mdb', 'accdb',
+  // Object files
+  'o', 'obj', 'pyc', 'pyo', 'class', 'beam',
+  // Other binary
+  'swf', 'fla', 'blend', 'unity3d', 'unitypackage',
 ]);
 
 // MIME types for images (for creating blob URLs)
@@ -147,7 +188,7 @@ export function getFileExtension(fileName: string): string {
 }
 
 /**
- * Check if a file is a text file based on its extension
+ * Check if a file is a text file based on its extension and name
  */
 export function isTextFile(fileName: string): boolean {
   const ext = getFileExtension(fileName);
@@ -158,16 +199,27 @@ export function isTextFile(fileName: string): boolean {
   }
   
   // Check common filenames that are text but have no extension
-  const baseName = fileName.toLowerCase();
-  const textFileNames = [
-    'readme', 'license', 'licence', 'changelog', 'authors', 'contributors',
-    'copying', 'install', 'news', 'todo', 'history', 'makefile', 'dockerfile',
-    '.gitignore', '.gitattributes', '.editorconfig', '.eslintrc', '.prettierrc',
-    '.npmrc', '.yarnrc', '.env', '.env.local', '.env.example',
-    'procfile', 'gemfile', 'rakefile', 'brewfile',
-  ];
+  const baseName = fileName.toLowerCase().split('/').pop() || '';
+  const nameWithoutExt = baseName.replace(/\.[^.]+$/, '');
   
-  return textFileNames.some(name => baseName === name || baseName.endsWith('/' + name));
+  // Check exact filename matches
+  if (TEXT_FILENAMES.has(baseName) || TEXT_FILENAMES.has(nameWithoutExt)) {
+    return true;
+  }
+  
+  // Check dot-files that are typically text config files
+  if (baseName.startsWith('.')) {
+    const dotConfigPatterns = [
+      /^\.(git|npm|yarn|docker|eslint|prettier|babel|env)/,
+      /^\.(nvmrc|ruby-version|python-version|node-version)$/,
+      /rc$/, // Files ending with 'rc' like .bashrc, .vimrc
+    ];
+    if (dotConfigPatterns.some(pattern => pattern.test(baseName))) {
+      return true;
+    }
+  }
+  
+  return false;
 }
 
 /**
@@ -235,6 +287,30 @@ export function isTextFileEnhanced(fileName: string, data?: ArrayBuffer | Uint8A
   
   // Fall back to extension-only check
   return extCheck;
+}
+
+/**
+ * Check if a file is definitely a binary file based on its extension.
+ * Used to exclude files from "Edit" option in context menu.
+ */
+export function isKnownBinaryFile(fileName: string): boolean {
+  const ext = getFileExtension(fileName);
+  return BINARY_EXTENSIONS.has(ext);
+}
+
+/**
+ * Check if a file could potentially be opened as text.
+ * This is more permissive than isTextFile - it returns true for any file
+ * that is not a known binary file. Used for showing "Edit" in context menu.
+ * Actual text detection should be done by reading file content.
+ */
+export function couldBeTextFile(fileName: string): boolean {
+  // If it's a known binary file, definitely not text
+  if (isKnownBinaryFile(fileName)) {
+    return false;
+  }
+  // Otherwise, it could be text - we'll verify when actually opening
+  return true;
 }
 
 /**

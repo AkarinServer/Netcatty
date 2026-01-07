@@ -2475,6 +2475,102 @@ export const useSftpState = (hosts: Host[], keys: SSHKey[], identities: Identity
     [getActivePane, refresh, handleSessionError],
   );
 
+  // Read text file content
+  const readTextFile = useCallback(
+    async (side: "left" | "right", filePath: string): Promise<string> => {
+      const pane = getActivePane(side);
+      if (!pane?.connection) {
+        throw new Error("No connection available");
+      }
+
+      if (pane.connection.isLocal) {
+        const bridge = netcattyBridge.get();
+        if (bridge?.readLocalFile) {
+          const buffer = await bridge.readLocalFile(filePath);
+          return new TextDecoder().decode(buffer);
+        }
+        throw new Error("Local file reading not supported");
+      }
+
+      const sftpId = sftpSessionsRef.current.get(pane.connection.id);
+      if (!sftpId) {
+        throw new Error("SFTP session not found");
+      }
+
+      const bridge = netcattyBridge.get();
+      if (!bridge) {
+        throw new Error("Bridge not available");
+      }
+
+      return await bridge.readSftp(sftpId, filePath);
+    },
+    [getActivePane],
+  );
+
+  // Read binary file content
+  const readBinaryFile = useCallback(
+    async (side: "left" | "right", filePath: string): Promise<ArrayBuffer> => {
+      const pane = getActivePane(side);
+      if (!pane?.connection) {
+        throw new Error("No connection available");
+      }
+
+      if (pane.connection.isLocal) {
+        const bridge = netcattyBridge.get();
+        if (bridge?.readLocalFile) {
+          return await bridge.readLocalFile(filePath);
+        }
+        throw new Error("Local file reading not supported");
+      }
+
+      const sftpId = sftpSessionsRef.current.get(pane.connection.id);
+      if (!sftpId) {
+        throw new Error("SFTP session not found");
+      }
+
+      const bridge = netcattyBridge.get();
+      if (!bridge?.readSftpBinary) {
+        throw new Error("Binary file reading not supported");
+      }
+
+      return await bridge.readSftpBinary(sftpId, filePath);
+    },
+    [getActivePane],
+  );
+
+  // Write text file content
+  const writeTextFile = useCallback(
+    async (side: "left" | "right", filePath: string, content: string): Promise<void> => {
+      const pane = getActivePane(side);
+      if (!pane?.connection) {
+        throw new Error("No connection available");
+      }
+
+      if (pane.connection.isLocal) {
+        const bridge = netcattyBridge.get();
+        if (bridge?.writeLocalFile) {
+          const data = new TextEncoder().encode(content);
+          await bridge.writeLocalFile(filePath, data.buffer);
+          return;
+        }
+        throw new Error("Local file writing not supported");
+      }
+
+      const sftpId = sftpSessionsRef.current.get(pane.connection.id);
+      if (!sftpId) {
+        throw new Error("SFTP session not found");
+      }
+
+      const bridge = netcattyBridge.get();
+      if (!bridge) {
+        throw new Error("Bridge not available");
+      }
+
+      await bridge.writeSftp(sftpId, filePath, content);
+    },
+    [getActivePane],
+  );
+
   // Store methods in a ref to create stable wrapper functions
   // This prevents callback reference changes from causing re-renders in consumers
   const methodsRef = useRef({
@@ -2502,6 +2598,9 @@ export const useSftpState = (hosts: Host[], keys: SSHKey[], identities: Identity
     deleteFiles,
     renameFile,
     changePermissions,
+    readTextFile,
+    readBinaryFile,
+    writeTextFile,
     startTransfer,
     cancelTransfer,
     retryTransfer,
@@ -2534,6 +2633,9 @@ export const useSftpState = (hosts: Host[], keys: SSHKey[], identities: Identity
     deleteFiles,
     renameFile,
     changePermissions,
+    readTextFile,
+    readBinaryFile,
+    writeTextFile,
     startTransfer,
     cancelTransfer,
     retryTransfer,
@@ -2569,6 +2671,9 @@ export const useSftpState = (hosts: Host[], keys: SSHKey[], identities: Identity
     deleteFiles: (...args: Parameters<typeof deleteFiles>) => methodsRef.current.deleteFiles(...args),
     renameFile: (...args: Parameters<typeof renameFile>) => methodsRef.current.renameFile(...args),
     changePermissions: (...args: Parameters<typeof changePermissions>) => methodsRef.current.changePermissions(...args),
+    readTextFile: (...args: Parameters<typeof readTextFile>) => methodsRef.current.readTextFile(...args),
+    readBinaryFile: (...args: Parameters<typeof readBinaryFile>) => methodsRef.current.readBinaryFile(...args),
+    writeTextFile: (...args: Parameters<typeof writeTextFile>) => methodsRef.current.writeTextFile(...args),
     startTransfer: (...args: Parameters<typeof startTransfer>) => methodsRef.current.startTransfer(...args),
     cancelTransfer: (...args: Parameters<typeof cancelTransfer>) => methodsRef.current.cancelTransfer(...args),
     retryTransfer: (...args: Parameters<typeof retryTransfer>) => methodsRef.current.retryTransfer(...args),

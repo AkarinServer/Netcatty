@@ -28,10 +28,16 @@ import { useI18n } from "../application/i18n/I18nProvider";
 import { useIsSftpActive } from "../application/state/activeTabStore";
 import { SftpPane, useSftpState } from "../application/state/useSftpState";
 import { logger } from "../lib/logger";
+import { isTextFile, isImageFile, isKnownBinaryFile, getFileExtension, FileOpenerType } from "../lib/sftpFileUtils";
 import { useRenderTracker } from "../lib/useRenderTracker";
 import { cn } from "../lib/utils";
 import { Host, Identity, SftpFileEntry, SSHKey } from "../types";
+import { useSftpFileAssociations } from "../application/state/useSftpFileAssociations";
+import FileOpenerDialog from "./FileOpenerDialog";
+import ImagePreviewModal from "./ImagePreviewModal";
+import TextEditorModal from "./TextEditorModal";
 import { Button } from "./ui/button";
+import { toast } from "./ui/toast";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -70,6 +76,9 @@ import {
   ArrowDown,
   ChevronLeft,
   Copy,
+  Edit2,
+  Eye,
+  ExternalLink,
   Folder,
   FolderPlus,
   HardDrive,
@@ -172,6 +181,9 @@ const SftpPaneViewInner: React.FC<SftpPaneViewProps> = ({
     onCopyToOtherPane,
     onReceiveFromOtherPane,
     onEditPermissions,
+    onEditFile,
+    onPreviewFile,
+    onOpenFile,
   } = callbacks;
 
   // 渲染追踪 - 只追踪数据 props（回调来自 context，引用稳定）
@@ -800,6 +812,25 @@ const SftpPaneViewInner: React.FC<SftpPaneViewProps> = ({
                 ? t("sftp.context.open")
                 : t("sftp.context.download")}
             </ContextMenuItem>
+            {/* File operations - only for files, not directories */}
+            {!isNavigableDirectory(entry) && onOpenFile && (
+              <ContextMenuItem onClick={() => onOpenFile(entry)}>
+                <ExternalLink size={14} className="mr-2" />{" "}
+                {t("sftp.context.openWith")}
+              </ContextMenuItem>
+            )}
+            {!isNavigableDirectory(entry) && !isKnownBinaryFile(entry.name) && onEditFile && (
+              <ContextMenuItem onClick={() => onEditFile(entry)}>
+                <Edit2 size={14} className="mr-2" />{" "}
+                {t("sftp.context.edit")}
+              </ContextMenuItem>
+            )}
+            {!isNavigableDirectory(entry) && isImageFile(entry.name) && onPreviewFile && (
+              <ContextMenuItem onClick={() => onPreviewFile(entry)}>
+                <Eye size={14} className="mr-2" />{" "}
+                {t("sftp.context.preview")}
+              </ContextMenuItem>
+            )}
             <ContextMenuSeparator />
             <ContextMenuItem
               onClick={() => {
@@ -864,7 +895,10 @@ const SftpPaneViewInner: React.FC<SftpPaneViewProps> = ({
       handleRowSelect,
       onCopyToOtherPane,
       onDragEnd,
+      onEditFile,
       onEditPermissions,
+      onOpenFile,
+      onPreviewFile,
       onRefresh,
       openDeleteConfirm,
       openRenameDialog,
@@ -1454,6 +1488,32 @@ const SftpViewInner: React.FC<SftpViewProps> = ({ hosts, keys, identities }) => 
     { name: string; isDirectory: boolean; side: "left" | "right" }[] | null
   >(null);
 
+  // File operations state
+  const { getOpenerForFile, setOpenerForExtension } = useSftpFileAssociations();
+  const [showTextEditor, setShowTextEditor] = useState(false);
+  const [textEditorTarget, setTextEditorTarget] = useState<{
+    file: SftpFileEntry;
+    side: "left" | "right";
+    fullPath: string;
+  } | null>(null);
+  const [textEditorContent, setTextEditorContent] = useState("");
+
+  const [showImagePreview, setShowImagePreview] = useState(false);
+  const [imagePreviewTarget, setImagePreviewTarget] = useState<{
+    file: SftpFileEntry;
+    side: "left" | "right";
+    fullPath: string;
+  } | null>(null);
+  const [imagePreviewData, setImagePreviewData] = useState<ArrayBuffer | null>(null);
+  const [loadingImageData, setLoadingImageData] = useState(false);
+
+  const [showFileOpenerDialog, setShowFileOpenerDialog] = useState(false);
+  const [fileOpenerTarget, setFileOpenerTarget] = useState<{
+    file: SftpFileEntry;
+    side: "left" | "right";
+    fullPath: string;
+  } | null>(null);
+
   // Memoized callbacks
   const handleDragStart = useCallback(
     (
@@ -1607,6 +1667,146 @@ const SftpViewInner: React.FC<SftpViewProps> = ({ hosts, keys, identities }) => 
     [],
   );
 
+  // File operation callbacks
+  const handleEditFileForSide = useCallback(
+    async (side: "left" | "right", file: SftpFileEntry) => {
+      const pane = side === "left" ? sftpRef.current.leftPane : sftpRef.current.rightPane;
+      if (!pane.connection) return;
+
+      const fullPath = sftpRef.current.joinPath(pane.connection.currentPath, file.name);
+      
+      try {
+        setTextEditorTarget({ file, side, fullPath });
+
+        // Read file as text - if it's binary, user will see garbled content
+        // but it won't cause any harm unless they save it
+        const content = await sftpRef.current.readTextFile(side, fullPath);
+
+        setTextEditorContent(content);
+        setShowTextEditor(true);
+      } catch (e) {
+        toast.error(
+          e instanceof Error ? e.message : "Failed to load file",
+          "SFTP"
+        );
+        setTextEditorTarget(null);
+      }
+    },
+    [],
+  );
+
+  const handlePreviewFileForSide = useCallback(
+    async (side: "left" | "right", file: SftpFileEntry) => {
+      const pane = side === "left" ? sftpRef.current.leftPane : sftpRef.current.rightPane;
+      if (!pane.connection) return;
+
+      const fullPath = sftpRef.current.joinPath(pane.connection.currentPath, file.name);
+
+      try {
+        setLoadingImageData(true);
+        setImagePreviewTarget({ file, side, fullPath });
+        setShowImagePreview(true);
+
+        const data = await sftpRef.current.readBinaryFile(side, fullPath);
+
+        setImagePreviewData(data);
+      } catch (e) {
+        toast.error(
+          e instanceof Error ? e.message : "Failed to load image",
+          "SFTP"
+        );
+        setShowImagePreview(false);
+        setImagePreviewTarget(null);
+      } finally {
+        setLoadingImageData(false);
+      }
+    },
+    [],
+  );
+
+  const handleOpenFileForSide = useCallback(
+    (side: "left" | "right", file: SftpFileEntry) => {
+      const pane = side === "left" ? sftpRef.current.leftPane : sftpRef.current.rightPane;
+      if (!pane.connection) return;
+
+      const fullPath = sftpRef.current.joinPath(pane.connection.currentPath, file.name);
+      const savedOpener = getOpenerForFile(file.name);
+
+      if (savedOpener) {
+        if (savedOpener === 'builtin-editor' && isTextFile(file.name)) {
+          handleEditFileForSide(side, file);
+        } else if (savedOpener === 'builtin-image-viewer' && isImageFile(file.name)) {
+          handlePreviewFileForSide(side, file);
+        }
+      } else {
+        // Show opener dialog
+        setFileOpenerTarget({ file, side, fullPath });
+        setShowFileOpenerDialog(true);
+      }
+    },
+    [getOpenerForFile, handleEditFileForSide, handlePreviewFileForSide],
+  );
+
+  const handleFileOpenerSelect = useCallback(
+    (openerType: FileOpenerType, setAsDefault: boolean) => {
+      if (!fileOpenerTarget) return;
+
+      if (setAsDefault) {
+        const ext = getFileExtension(fileOpenerTarget.file.name);
+        if (ext !== 'file') {
+          setOpenerForExtension(ext, openerType);
+        }
+      }
+
+      setShowFileOpenerDialog(false);
+
+      if (openerType === 'builtin-editor') {
+        handleEditFileForSide(fileOpenerTarget.side, fileOpenerTarget.file);
+      } else if (openerType === 'builtin-image-viewer') {
+        handlePreviewFileForSide(fileOpenerTarget.side, fileOpenerTarget.file);
+      }
+    },
+    [fileOpenerTarget, setOpenerForExtension, handleEditFileForSide, handlePreviewFileForSide],
+  );
+
+  const handleSaveTextFile = useCallback(
+    async (content: string) => {
+      if (!textEditorTarget) return;
+
+      await sftpRef.current.writeTextFile(
+        textEditorTarget.side,
+        textEditorTarget.fullPath,
+        content
+      );
+    },
+    [textEditorTarget],
+  );
+
+  const handleEditFileLeft = useCallback(
+    (file: SftpFileEntry) => handleEditFileForSide("left", file),
+    [handleEditFileForSide],
+  );
+  const handleEditFileRight = useCallback(
+    (file: SftpFileEntry) => handleEditFileForSide("right", file),
+    [handleEditFileForSide],
+  );
+  const handlePreviewFileLeft = useCallback(
+    (file: SftpFileEntry) => handlePreviewFileForSide("left", file),
+    [handlePreviewFileForSide],
+  );
+  const handlePreviewFileRight = useCallback(
+    (file: SftpFileEntry) => handlePreviewFileForSide("right", file),
+    [handlePreviewFileForSide],
+  );
+  const handleOpenFileLeft = useCallback(
+    (file: SftpFileEntry) => handleOpenFileForSide("left", file),
+    [handleOpenFileForSide],
+  );
+  const handleOpenFileRight = useCallback(
+    (file: SftpFileEntry) => handleOpenFileForSide("right", file),
+    [handleOpenFileForSide],
+  );
+
   // Create stable callback objects for context
   // All handlers now use sftpRef, so these objects never change
   /* eslint-disable react-hooks/exhaustive-deps -- Handlers use sftpRef.current internally, so they are stable */
@@ -1628,6 +1828,9 @@ const SftpViewInner: React.FC<SftpViewProps> = ({ hosts, keys, identities }) => 
       onCopyToOtherPane: handleCopyToOtherPaneLeft,
       onReceiveFromOtherPane: handleReceiveFromOtherPaneLeft,
       onEditPermissions: handleEditPermissionsLeft,
+      onEditFile: handleEditFileLeft,
+      onPreviewFile: handlePreviewFileLeft,
+      onOpenFile: handleOpenFileLeft,
     }),
     [],
   );
@@ -1650,6 +1853,9 @@ const SftpViewInner: React.FC<SftpViewProps> = ({ hosts, keys, identities }) => 
       onCopyToOtherPane: handleCopyToOtherPaneRight,
       onReceiveFromOtherPane: handleReceiveFromOtherPaneRight,
       onEditPermissions: handleEditPermissionsRight,
+      onEditFile: handleEditFileRight,
+      onPreviewFile: handlePreviewFileRight,
+      onOpenFile: handleOpenFileRight,
     }),
     [],
   );
@@ -1949,6 +2155,43 @@ const SftpViewInner: React.FC<SftpViewProps> = ({ hosts, keys, identities }) => 
             }
             setPermissionsState(null);
           }}
+        />
+
+        {/* Text Editor Modal */}
+        <TextEditorModal
+          open={showTextEditor}
+          onClose={() => {
+            setShowTextEditor(false);
+            setTextEditorTarget(null);
+            setTextEditorContent("");
+          }}
+          fileName={textEditorTarget?.file.name || ""}
+          initialContent={textEditorContent}
+          onSave={handleSaveTextFile}
+        />
+
+        {/* Image Preview Modal */}
+        <ImagePreviewModal
+          open={showImagePreview}
+          onClose={() => {
+            setShowImagePreview(false);
+            setImagePreviewTarget(null);
+            setImagePreviewData(null);
+          }}
+          fileName={imagePreviewTarget?.file.name || ""}
+          imageData={imagePreviewData}
+          loading={loadingImageData}
+        />
+
+        {/* File Opener Dialog */}
+        <FileOpenerDialog
+          open={showFileOpenerDialog}
+          onClose={() => {
+            setShowFileOpenerDialog(false);
+            setFileOpenerTarget(null);
+          }}
+          fileName={fileOpenerTarget?.file.name || ""}
+          onSelect={handleFileOpenerSelect}
         />
       </div>
     </SftpContextProvider>

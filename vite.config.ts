@@ -16,10 +16,15 @@ export default defineConfig(() => {
           // while still enabling crossOriginIsolated.
           'Cross-Origin-Embedder-Policy': 'credentialless',
         },
+        // Suppress source map warnings for monaco-editor
+        hmr: {
+          overlay: true,
+        },
       },
       build: {
         chunkSizeWarningLimit: 3000,
         target: 'esnext', // Required for top-level await in WASM modules
+        sourcemap: false, // Disable source maps to avoid missing map file warnings
         // Optimize chunk splitting for faster initial load
         rollupOptions: {
           output: {
