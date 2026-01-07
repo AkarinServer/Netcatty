@@ -717,13 +717,9 @@ const SftpPaneViewInner: React.FC<SftpPaneViewProps> = ({
 
   const handleRowOpen = useCallback(
     (entry: SftpFileEntry) => {
-      console.log("[SftpPaneView] handleRowOpen called", {
-        side,
-        entryName: entry.name
-      });
       onOpenEntry(entry);
     },
-    [onOpenEntry, side],
+    [onOpenEntry],
   );
 
   const handleRowDragLeave = useCallback(() => {
@@ -1836,12 +1832,6 @@ const SftpViewInner: React.FC<SftpViewProps> = ({ hosts, keys, identities }) => 
   // Custom handleOpenEntry callbacks that check the double-click behavior setting
   const handleOpenEntryLeft = useCallback(
     (entry: SftpFileEntry) => {
-      console.log("[SftpView] handleOpenEntryLeft called", {
-        entryName: entry.name,
-        entryType: entry.type,
-        behavior: behaviorRef.current
-      });
-      
       // Always navigate into directories
       if (entry.name === ".." || isNavigableDirectory(entry)) {
         sftpRef.current.openEntry("left", entry);
@@ -1853,7 +1843,7 @@ const SftpViewInner: React.FC<SftpViewProps> = ({ hosts, keys, identities }) => 
         // Transfer to other pane
         const fileData = [{
           name: entry.name,
-          isDirectory: false
+          isDirectory: isNavigableDirectory(entry)
         }];
         sftpRef.current.startTransfer(fileData, "left", "right");
       } else {
@@ -1866,12 +1856,6 @@ const SftpViewInner: React.FC<SftpViewProps> = ({ hosts, keys, identities }) => 
   
   const handleOpenEntryRight = useCallback(
     (entry: SftpFileEntry) => {
-      console.log("[SftpView] handleOpenEntryRight called", {
-        entryName: entry.name,
-        entryType: entry.type,
-        behavior: behaviorRef.current
-      });
-      
       // Always navigate into directories
       if (entry.name === ".." || isNavigableDirectory(entry)) {
         sftpRef.current.openEntry("right", entry);
@@ -1883,7 +1867,7 @@ const SftpViewInner: React.FC<SftpViewProps> = ({ hosts, keys, identities }) => 
         // Transfer to other pane
         const fileData = [{
           name: entry.name,
-          isDirectory: false
+          isDirectory: isNavigableDirectory(entry)
         }];
         sftpRef.current.startTransfer(fileData, "right", "left");
       } else {
