@@ -287,7 +287,7 @@ const SftpTabBarInner: React.FC<SftpTabBarProps> = ({
         size="icon"
         className="h-6 w-6 shrink-0"
         onClick={onAddTab}
-        title={t("sftp.pane.selectHost")}
+        title={t("sftp.tabs.addTab")}
       >
         <Plus size={14} />
       </Button>

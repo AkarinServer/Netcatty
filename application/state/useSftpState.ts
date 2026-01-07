@@ -97,6 +97,10 @@ export interface SftpSideTabs {
   activeTabId: string | null;
 }
 
+// Constants for empty placeholder pane IDs
+const EMPTY_LEFT_PANE_ID = "__empty_left__";
+const EMPTY_RIGHT_PANE_ID = "__empty_right__";
+
 const createEmptyPane = (id?: string): SftpPane => ({
   id: id || crypto.randomUUID(),
   connection: null,
@@ -128,8 +132,8 @@ export const useSftpState = (hosts: Host[], keys: SSHKey[], identities: Identity
   }, [leftTabs, rightTabs]);
 
   // For backward compatibility - return active pane or a default empty pane-like object
-  const leftPane = getActivePane("left") || createEmptyPane("__empty_left__");
-  const rightPane = getActivePane("right") || createEmptyPane("__empty_right__");
+  const leftPane = getActivePane("left") || createEmptyPane(EMPTY_LEFT_PANE_ID);
+  const rightPane = getActivePane("right") || createEmptyPane(EMPTY_RIGHT_PANE_ID);
 
   // Helper to update a specific tab in a side
   const updateTab = useCallback(
@@ -222,8 +226,12 @@ export const useSftpState = (hosts: Host[], keys: SSHKey[], identities: Identity
         
         if (draggedIndex === -1 || targetIndex === -1) return prev;
         
+        // Remove the dragged tab from its original position
         const [draggedTab] = tabs.splice(draggedIndex, 1);
+        // Calculate insert position based on whether we're dropping before or after target
         const insertIndex = position === "before" ? targetIndex : targetIndex + 1;
+        // When dragging forward (to a higher index), we need to subtract 1 because
+        // removing the dragged tab shifts all subsequent indices down by 1
         const adjustedIndex = draggedIndex < targetIndex ? insertIndex - 1 : insertIndex;
         tabs.splice(adjustedIndex, 0, draggedTab);
         
@@ -233,13 +241,16 @@ export const useSftpState = (hosts: Host[], keys: SSHKey[], identities: Identity
     [],
   );
 
+  // Default label for tabs without a connection
+  const DEFAULT_TAB_LABEL = "New Tab";
+
   // Get tab info for tab bar display
   const getTabsInfo = useCallback(
     (side: "left" | "right") => {
       const sideTabs = side === "left" ? leftTabs : rightTabs;
       return sideTabs.tabs.map((pane) => ({
         id: pane.id,
-        label: pane.connection?.hostLabel || "New Tab",
+        label: pane.connection?.hostLabel || DEFAULT_TAB_LABEL,
         isLocal: pane.connection?.isLocal || false,
         hostId: pane.connection?.hostId || null,
       }));
