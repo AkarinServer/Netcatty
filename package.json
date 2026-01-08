@@ -19,6 +19,7 @@
     "pack:win": "npm run build && cross-env NODE_OPTIONS=--disable-warning=DEP0190 electron-builder --config electron-builder.json --win --publish=never",
     "pack:mac": "npm run build && cross-env NODE_OPTIONS=--disable-warning=DEP0190 electron-builder --config electron-builder.json --mac --publish=never",
     "pack:linux": "npm run build && cross-env NODE_OPTIONS=--disable-warning=DEP0190 electron-builder --config electron-builder.json --linux --publish=never",
+    "pack:riscv": "./scripts/pack-riscv.sh",
     "postinstall": "electron-builder install-app-deps",
     "rebuild": "electron-builder install-app-deps",
     "lint": "eslint .",
