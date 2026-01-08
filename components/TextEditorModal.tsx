@@ -97,7 +97,7 @@ export const TextEditorModal: React.FC<TextEditorModalProps> = ({
   const editorRef = useRef<Monaco.editor.IStandaloneCodeEditor | null>(null);
 
   // Track theme from document.documentElement class (syncs with app theme)
-  const [isDarkTheme, setIsDarkTheme] = useState(() => 
+  const [isDarkTheme, setIsDarkTheme] = useState(() =>
     document.documentElement.classList.contains('dark')
   );
 
