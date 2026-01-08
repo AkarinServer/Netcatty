@@ -1,6 +1,7 @@
 import React, { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { activeTabStore, useActiveTabId, useIsSftpActive, useIsTerminalLayerVisible, useIsVaultActive } from './application/state/activeTabStore';
 import { useAutoSync } from './application/state/useAutoSync';
+import { usePortForwardingAutoStart } from './application/state/usePortForwardingAutoStart';
 import { useSessionState } from './application/state/useSessionState';
 import { useSettingsState } from './application/state/useSettingsState';
 import { useUpdateCheck } from './application/state/useUpdateCheck';
@@ -283,6 +284,12 @@ function App({ settings }: { settings: SettingsState }) {
       );
     }
   }, [updateState.hasUpdate, updateState.latestRelease, t, openReleasePage, dismissUpdate]);
+
+  // Auto-start port forwarding rules on app launch
+  usePortForwardingAutoStart({
+    hosts,
+    keys: keys.map((k) => ({ id: k.id, privateKey: k.privateKey })),
+  });
 
   // Debounce ref for moveFocus to prevent double-triggering when focus switches
   const lastMoveFocusTimeRef = useRef<number>(0);

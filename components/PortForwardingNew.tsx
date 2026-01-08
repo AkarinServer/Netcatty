@@ -100,10 +100,7 @@ const PortForwarding: React.FC<PortForwardingProps> = ({
     selectedRule: _selectedRule,
     preferFormMode,
     setPreferFormMode,
-  } = usePortForwardingState({
-    hosts,
-    keys: keys.map((k) => ({ id: k.id, privateKey: k.privateKey })),
-  });
+  } = usePortForwardingState();
 
   // Track connecting/stopping states
   const [pendingOperations, setPendingOperations] = useState<Set<string>>(

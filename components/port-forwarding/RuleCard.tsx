@@ -2,7 +2,7 @@
  * Port Forwarding Rule Card
  * Displays a single port forwarding rule in grid or list view
  */
-import { Copy,Loader2,Pencil,Play,RotateCcw,Square,Trash2 } from 'lucide-react';
+import { Copy,Loader2,Pencil,Play,Square,Trash2 } from 'lucide-react';
 import React from 'react';
 import { useI18n } from '../../application/i18n/I18nProvider';
 import { PortForwardingRule } from '../../domain/models';
@@ -65,15 +65,6 @@ export const RuleCard: React.FC<RuleCardProps> = ({
                         <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2">
                                 <span className="text-sm font-semibold truncate">{rule.label}</span>
-                                {rule.autoStart && (
-                                    <RotateCcw
-                                        size={10}
-                                        className="text-muted-foreground flex-shrink-0"
-                                        title={t('pf.form.autoStart')}
-                                        aria-label={t('pf.form.autoStart')}
-                                        role="img"
-                                    />
-                                )}
                                 <span
                                     className={cn(
                                         "h-2 w-2 rounded-full flex-shrink-0",
