@@ -12,6 +12,7 @@ import { AsideActionMenu,AsideActionMenuItem,AsidePanel,AsidePanelContent,AsideP
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
+import { Switch } from '../ui/switch';
 
 export interface EditPanelProps {
     rule: PortForwardingRule;
@@ -152,6 +153,18 @@ export const EditPanel: React.FC<EditPanelProps> = ({
                         </div>
                     </>
                 )}
+
+                {/* Auto Start Toggle */}
+                <div className="flex items-center justify-between py-2">
+                    <div className="space-y-0.5">
+                        <Label className="text-sm font-medium">{t('pf.form.autoStart')}</Label>
+                        <p className="text-[10px] text-muted-foreground">{t('pf.form.autoStartDesc')}</p>
+                    </div>
+                    <Switch
+                        checked={draft.autoStart ?? false}
+                        onCheckedChange={checked => onDraftChange({ autoStart: checked })}
+                    />
+                </div>
             </AsidePanelContent>
             <AsidePanelFooter className="space-y-2">
                 <Button

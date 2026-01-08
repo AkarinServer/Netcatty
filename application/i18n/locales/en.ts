@@ -375,6 +375,8 @@ const en: Messages = {
   'pf.deleteActive.title': 'Delete Active Port Forwarding?',
   'pf.deleteActive.desc': 'This port forwarding rule "{label}" is currently active. Deleting it will stop the tunnel first.',
   'pf.deleteActive.confirm': 'Stop and Delete',
+  'pf.form.autoStart': 'Auto Start',
+  'pf.form.autoStartDesc': 'Automatically start this rule when the app launches',
 
   // SFTP
   'sftp.newFolder': 'New Folder',

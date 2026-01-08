@@ -7,6 +7,7 @@ import {
 } from "../../infrastructure/config/storageKeys";
 import { localStorageAdapter } from "../../infrastructure/persistence/localStorageAdapter";
 import {
+  clearReconnectTimer,
   getActiveConnection,
   getActiveRuleIds,
   startPortForward,
@@ -51,6 +52,7 @@ export interface UsePortForwardingStateResult {
     host: Host,
     keys: { id: string; privateKey: string }[],
     onStatusChange?: (status: PortForwardingRule["status"], error?: string) => void,
+    enableReconnect?: boolean,
   ) => Promise<{ success: boolean; error?: string }>;
   stopTunnel: (
     ruleId: string,
@@ -212,11 +214,12 @@ export const usePortForwardingState = (): UsePortForwardingStateResult => {
         status: PortForwardingRule["status"],
         error?: string,
       ) => void,
+      enableReconnect = false,
     ) => {
       return startPortForward(rule, host, keys, (status, error) => {
         setRuleStatus(rule.id, status, error);
         onStatusChange?.(status, error ?? undefined);
-      });
+      }, enableReconnect);
     },
     [setRuleStatus],
   );
@@ -226,6 +229,8 @@ export const usePortForwardingState = (): UsePortForwardingStateResult => {
       ruleId: string,
       onStatusChange?: (status: PortForwardingRule["status"]) => void,
     ) => {
+      // Clear any pending reconnect timer when manually stopping
+      clearReconnectTimer(ruleId);
       return stopPortForward(ruleId, (status) => {
         setRuleStatus(ruleId, status);
         onStatusChange?.(status);

@@ -14,10 +14,83 @@ export interface PortForwardingConnection {
   status: 'inactive' | 'connecting' | 'active' | 'error';
   error?: string;
   unsubscribe?: () => void;
+  // Reconnect state
+  reconnectAttempts?: number;
+  reconnectTimeoutId?: ReturnType<typeof setTimeout>;
 }
 
 // Map to track active connections
 const activeConnections = new Map<string, PortForwardingConnection>();
+
+// Reconnect configuration
+const MAX_RECONNECT_ATTEMPTS = 5;
+const RECONNECT_DELAY_MS = 3000; // 3 seconds between reconnection attempts
+
+// Callbacks for auto-reconnect - will be set by the state hook
+let reconnectCallback: ((
+  ruleId: string,
+  onStatusChange: (status: PortForwardingRule['status'], error?: string) => void
+) => Promise<{ success: boolean; error?: string }>) | null = null;
+
+/**
+ * Set the reconnect callback (called by state hook to enable auto-reconnect)
+ */
+export const setReconnectCallback = (
+  callback: typeof reconnectCallback
+): void => {
+  reconnectCallback = callback;
+};
+
+/**
+ * Clear any pending reconnect for a rule
+ */
+export const clearReconnectTimer = (ruleId: string): void => {
+  const conn = activeConnections.get(ruleId);
+  if (conn?.reconnectTimeoutId) {
+    clearTimeout(conn.reconnectTimeoutId);
+    conn.reconnectTimeoutId = undefined;
+  }
+};
+
+/**
+ * Helper function to schedule a reconnection attempt
+ * Returns true if a reconnect was scheduled, false otherwise
+ */
+const scheduleReconnectIfNeeded = (
+  ruleId: string,
+  enableReconnect: boolean,
+  onStatusChange: (status: PortForwardingRule['status'], error?: string) => void,
+): boolean => {
+  if (!enableReconnect || !reconnectCallback) {
+    return false;
+  }
+
+  const currentConn = activeConnections.get(ruleId);
+  const attempts = (currentConn?.reconnectAttempts ?? 0) + 1;
+
+  if (attempts <= MAX_RECONNECT_ATTEMPTS) {
+    logger.info(`[PortForwardingService] Scheduling reconnect ${attempts}/${MAX_RECONNECT_ATTEMPTS}`);
+
+    if (currentConn) {
+      currentConn.reconnectAttempts = attempts;
+      currentConn.reconnectTimeoutId = setTimeout(() => {
+        if (reconnectCallback) {
+          reconnectCallback(ruleId, onStatusChange);
+        }
+      }, RECONNECT_DELAY_MS);
+    }
+
+    onStatusChange('connecting', `Reconnecting (${attempts}/${MAX_RECONNECT_ATTEMPTS})...`);
+    return true;
+  }
+
+  logger.warn(`[PortForwardingService] Max reconnect attempts (${MAX_RECONNECT_ATTEMPTS}) reached for rule ${ruleId}`);
+  // Reset reconnect attempts
+  if (currentConn) {
+    currentConn.reconnectAttempts = 0;
+  }
+  return false;
+};
 
 /**
  * Get active connection info for a rule
@@ -106,14 +179,19 @@ export const syncWithBackend = async (): Promise<void> => {
 
 /**
  * Start a port forwarding tunnel
+ * @param enableReconnect - If true, will automatically attempt to reconnect on disconnect
  */
 export const startPortForward = async (
   rule: PortForwardingRule,
   host: Host,
   keys: { id: string; privateKey: string }[],
-  onStatusChange: (status: PortForwardingRule['status'], error?: string) => void
+  onStatusChange: (status: PortForwardingRule['status'], error?: string) => void,
+  enableReconnect = false
 ): Promise<{ success: boolean; error?: string }> => {
   const bridge = netcattyBridge.get();
+  
+  // Clear any existing reconnect timer
+  clearReconnectTimer(rule.id);
   
   if (!bridge?.startPortForward) {
     // Fallback for browser/dev mode - simulate the connection
@@ -141,15 +219,26 @@ export const startPortForward = async (
         conn.status = status;
         conn.error = error;
       }
+      
+      // Handle auto-reconnect on error/disconnect
+      if (status === 'error') {
+        const reconnectScheduled = scheduleReconnectIfNeeded(rule.id, enableReconnect, onStatusChange);
+        if (reconnectScheduled) {
+          return;
+        }
+      }
+      
       onStatusChange(status, error ?? undefined);
     });
     
-    // Store connection info
+    // Store connection info (preserve reconnect attempts if this is a reconnect)
+    const existingConn = activeConnections.get(rule.id);
     activeConnections.set(rule.id, {
       ruleId: rule.id,
       tunnelId,
       status: 'connecting',
       unsubscribe,
+      reconnectAttempts: existingConn?.reconnectAttempts ?? 0,
     });
     
     onStatusChange('connecting');
@@ -170,16 +259,35 @@ export const startPortForward = async (
     });
     
     if (!result.success) {
+      // Check if we should attempt reconnect
+      const reconnectScheduled = scheduleReconnectIfNeeded(rule.id, enableReconnect, onStatusChange);
+      if (reconnectScheduled) {
+        return { success: false, error: result.error };
+      }
+      
       activeConnections.delete(rule.id);
       unsubscribe?.();
       onStatusChange('error', result.error);
       return { success: false, error: result.error };
     }
     
+    // Reset reconnect attempts on successful connection
+    const conn = activeConnections.get(rule.id);
+    if (conn) {
+      conn.reconnectAttempts = 0;
+    }
+    
     return { success: true };
     
   } catch (err) {
     const error = err instanceof Error ? err.message : 'Unknown error';
+    
+    // Check if we should attempt reconnect
+    const reconnectScheduled = scheduleReconnectIfNeeded(rule.id, enableReconnect, onStatusChange);
+    if (reconnectScheduled) {
+      return { success: false, error };
+    }
+    
     onStatusChange('error', error);
     activeConnections.delete(rule.id);
     return { success: false, error };
@@ -195,6 +303,9 @@ export const stopPortForward = async (
 ): Promise<{ success: boolean; error?: string }> => {
   const bridge = netcattyBridge.get();
   const conn = activeConnections.get(ruleId);
+  
+  // Clear any pending reconnect timer
+  clearReconnectTimer(ruleId);
   
   if (!conn) {
     onStatusChange('inactive');
@@ -249,16 +360,19 @@ export const isBackendAvailable = (): boolean => {
 export const stopAllPortForwards = async (): Promise<void> => {
   const bridge = netcattyBridge.get();
   
-  for (const [_ruleId, conn] of activeConnections) {
-	    try {
-	      if (bridge?.stopPortForward) {
-	        await bridge.stopPortForward(conn.tunnelId);
-	      }
-	      conn.unsubscribe?.();
-	    } catch (err) {
-	      logger.warn(`[PortForwardingService] Failed to stop tunnel ${conn.tunnelId}:`, err);
-	    }
-	  }
+  for (const [ruleId, conn] of activeConnections) {
+    // Clear any pending reconnect timer
+    clearReconnectTimer(ruleId);
+    
+    try {
+      if (bridge?.stopPortForward) {
+        await bridge.stopPortForward(conn.tunnelId);
+      }
+      conn.unsubscribe?.();
+    } catch (err) {
+      logger.warn(`[PortForwardingService] Failed to stop tunnel ${conn.tunnelId}:`, err);
+    }
+  }
   
   activeConnections.clear();
 };
@@ -299,4 +413,6 @@ export default {
   getPortForwardStatus,
   isBackendAvailable,
   stopAllPortForwards,
+  setReconnectCallback,
+  clearReconnectTimer,
 };

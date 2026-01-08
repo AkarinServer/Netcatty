@@ -576,6 +576,8 @@ export interface PortForwardingRule {
   remotePort?: number;
   // Host to tunnel through
   hostId?: string;
+  // Auto-start: if true, this rule will automatically start when the app launches
+  autoStart?: boolean;
   // Runtime state
   status: PortForwardingStatus;
   error?: string;

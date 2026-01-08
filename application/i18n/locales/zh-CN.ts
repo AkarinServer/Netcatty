@@ -674,6 +674,8 @@ const zhCN: Messages = {
   'pf.deleteActive.title': '删除正在运行的端口转发？',
   'pf.deleteActive.desc': '端口转发规则 "{label}" 当前正在运行。删除前将先关闭转发连接。',
   'pf.deleteActive.confirm': '关闭并删除',
+  'pf.form.autoStart': '自动启动',
+  'pf.form.autoStartDesc': '应用启动时自动开启此规则',
 
   // SFTP (pane + conflict)
   'sftp.pane.local': '本地',
