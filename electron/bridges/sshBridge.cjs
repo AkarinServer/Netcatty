@@ -201,7 +201,7 @@ async function connectThroughChain(event, options, jumpHosts, targetHost, target
         readyTimeout: 20000, // Reduced from 60s for faster failure detection
         // Use user-configured keepalive interval from options (in seconds -> convert to ms)
         // If 0 or not provided, use 10000ms as default
-        keepaliveInterval: options.keepaliveInterval > 0 ? options.keepaliveInterval * 1000 : 10000,
+        keepaliveInterval: options.keepaliveInterval && options.keepaliveInterval > 0 ? options.keepaliveInterval * 1000 : 10000,
         keepaliveCountMax: 3,
         algorithms: {
           // Prioritize fastest ciphers (GCM modes are hardware-accelerated)
@@ -359,7 +359,7 @@ async function startSSHSession(event, options) {
       readyTimeout: 20000, // Fast failure for non-interactive auth
       // Use user-configured keepalive interval (in seconds -> convert to ms)
       // If 0 or not provided, use 10000ms as default
-      keepaliveInterval: options.keepaliveInterval > 0 ? options.keepaliveInterval * 1000 : 10000,
+      keepaliveInterval: options.keepaliveInterval && options.keepaliveInterval > 0 ? options.keepaliveInterval * 1000 : 10000,
       keepaliveCountMax: 3,
       algorithms: {
         // Prioritize fastest ciphers (GCM modes are hardware-accelerated)

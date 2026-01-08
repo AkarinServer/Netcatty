@@ -593,8 +593,8 @@ export default function SettingsTerminalTab(props: {
             max={3600}
             value={terminalSettings.keepaliveInterval}
             onChange={(e) => {
-              const val = parseInt(e.target.value);
-              if (!isNaN(val) && val >= 0 && val <= 3600) {
+              const val = parseInt(e.target.value) || 0;
+              if (val >= 0 && val <= 3600) {
                 updateTerminalSetting("keepaliveInterval", val);
               }
             }}
