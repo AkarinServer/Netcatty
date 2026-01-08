@@ -16,7 +16,7 @@
 <p align="center">
   <a href="https://github.com/binaricat/Netcatty/releases/latest"><img alt="GitHub Release" src="https://img.shields.io/github/v/release/binaricat/Netcatty?style=for-the-badge&logo=github&label=Release"></a>
   &nbsp;
-  <a href="#"><img alt="Platform" src="https://img.shields.io/badge/Platform-macOS%20%7C%20Windows-blue?style=for-the-badge&logo=electron"></a>
+  <a href="#"><img alt="Platform" src="https://img.shields.io/badge/Platform-macOS%20%7C%20Windows%20%7C%20Linux-blue?style=for-the-badge&logo=electron"></a>
   &nbsp;
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/License-GPL--3.0-green?style=for-the-badge"></a>
 </p>
@@ -67,7 +67,7 @@
 <a name="what-is-netcatty"></a>
 # What is Netcatty
 
-**Netcatty** is a modern SSH client and terminal manager for macOS and Windows, designed for developers, sysadmins, and DevOps engineers who need to manage multiple remote servers efficiently.
+**Netcatty** is a modern SSH client and terminal manager for macOS, Windows, and Linux, designed for developers, sysadmins, and DevOps engineers who need to manage multiple remote servers efficiently.
 
 - **Netcatty is** an alternative to PuTTY, Termius, SecureCRT, and macOS Terminal.app for SSH connections
 - **Netcatty is** a powerful SFTP client with dual-pane file browser
@@ -279,7 +279,7 @@ Or browse all releases at [GitHub Releases](https://github.com/binaricat/Netcatt
 
 ### Prerequisites
 - Node.js 18+ and npm
-- macOS or Windows 10+
+- macOS, Windows 10+, or Linux
 
 ### Development
 
@@ -329,6 +329,7 @@ npm run pack
 # Package for specific platforms
 npm run pack:mac     # macOS (DMG + ZIP)
 npm run pack:win     # Windows (NSIS installer)
+npm run pack:linux   # Linux (AppImage + DEB + RPM)
 ```
 
 ---

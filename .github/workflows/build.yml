@@ -18,7 +18,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, windows-latest]
+        os: [macos-latest, windows-latest, ubuntu-latest]
     env:
       VITE_SYNC_GITHUB_CLIENT_ID: ${{ secrets.VITE_SYNC_GITHUB_CLIENT_ID }}
       VITE_SYNC_GOOGLE_CLIENT_ID: ${{ secrets.VITE_SYNC_GOOGLE_CLIENT_ID }}
@@ -57,6 +57,12 @@ jobs:
         env:
           ELECTRON_BUILDER_PUBLISH: "never"
         run: npm run pack:win
+
+      - name: Build package (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        env:
+          ELECTRON_BUILDER_PUBLISH: "never"
+        run: npm run pack:linux
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
