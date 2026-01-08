@@ -243,7 +243,7 @@ const SftpPaneViewInner: React.FC<SftpPaneViewProps> = ({
   const [showPathSuggestions, setShowPathSuggestions] = useState(false);
   const [pathSuggestionIndex, setPathSuggestionIndex] = useState(-1);
   const pathInputRef = useRef<HTMLInputElement>(null);
-  
+
   // Inline search/filter bar state
   const [showFilterBar, setShowFilterBar] = useState(false);
   const filterInputRef = useRef<HTMLInputElement>(null);
