@@ -18,6 +18,7 @@ const monacoBasePath = import.meta.env.DEV
 loader.config({ paths: { vs: monacoBasePath } });
 
 import { useI18n } from '../application/i18n/I18nProvider';
+import { useSettingsState } from '../application/state/useSettingsState';
 import { getLanguageId, getLanguageName, getSupportedLanguages } from '../lib/sftpFileUtils';
 import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
@@ -90,6 +91,7 @@ export const TextEditorModal: React.FC<TextEditorModalProps> = ({
   onSave,
 }) => {
   const { t } = useI18n();
+  const { theme } = useSettingsState();
   const [content, setContent] = useState(initialContent);
   const [saving, setSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
@@ -162,6 +164,7 @@ export const TextEditorModal: React.FC<TextEditorModalProps> = ({
 
   const supportedLanguages = useMemo(() => getSupportedLanguages(), []);
   const monacoLanguage = useMemo(() => languageIdToMonaco(languageId), [languageId]);
+  const monacoTheme = useMemo(() => (theme === 'dark' ? 'vs-dark' : 'light'), [theme]);
   const languageOptions = useMemo(
     () => supportedLanguages.map((lang) => ({ value: lang.id, label: lang.name })),
     [supportedLanguages],
@@ -241,9 +244,9 @@ export const TextEditorModal: React.FC<TextEditorModalProps> = ({
             value={content}
             onChange={handleEditorChange}
             onMount={handleEditorMount}
-            theme="vs-dark"
+            theme={monacoTheme}
             loading={
-              <div className="flex items-center justify-center h-full bg-[#1e1e1e]">
+              <div className="absolute inset-0 flex items-center justify-center bg-background">
                 <Loader2 size={32} className="animate-spin text-muted-foreground" />
               </div>
             }
