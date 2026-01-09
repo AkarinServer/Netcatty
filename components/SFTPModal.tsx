@@ -43,6 +43,7 @@ import React, {
 import { useI18n } from "../application/i18n/I18nProvider";
 import { useSftpBackend } from "../application/state/useSftpBackend";
 import { useSftpFileAssociations } from "../application/state/useSftpFileAssociations";
+import { useSettingsState } from "../application/state/useSettingsState";
 import { logger } from "../lib/logger";
 import { getFileExtension, isKnownBinaryFile, FileOpenerType, SystemAppInfo } from "../lib/sftpFileUtils";
 import { cn } from "../lib/utils";
@@ -303,6 +304,7 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
     downloadSftpToTempAndOpen,
   } = useSftpBackend();
   const { t, resolvedLocale } = useI18n();
+  const { sftpAutoSync } = useSettingsState();
   const isLocalSession = host.protocol === "local";
   const [currentPath, setCurrentPath] = useState("/");
   const [files, setFiles] = useState<RemoteFile[]>([]);
@@ -1163,7 +1165,7 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
             }
           } else {
             const sftpId = await ensureSftp();
-            await downloadSftpToTempAndOpen(sftpId, fullPath, file.name, savedOpener.systemApp.path);
+            await downloadSftpToTempAndOpen(sftpId, fullPath, file.name, savedOpener.systemApp.path, { enableWatch: sftpAutoSync });
           }
         } catch (e) {
           toast.error(
@@ -1176,7 +1178,7 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
       // Show opener dialog
       openFileOpenerDialog(file);
     }
-  }, [getOpenerForFile, handleEditFile, openFileOpenerDialog, joinPath, currentPath, isLocalSession, ensureSftp, downloadSftpToTempAndOpen, t]);
+  }, [getOpenerForFile, handleEditFile, openFileOpenerDialog, joinPath, currentPath, isLocalSession, ensureSftp, downloadSftpToTempAndOpen, sftpAutoSync, t]);
 
   const handleFileOpenerSelect = useCallback(async (openerType: FileOpenerType, setAsDefault: boolean, systemApp?: SystemAppInfo) => {
     if (!fileOpenerTarget) return;
@@ -1203,7 +1205,7 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
           }
         } else {
           const sftpId = await ensureSftp();
-          await downloadSftpToTempAndOpen(sftpId, fullPath, fileOpenerTarget.name, systemApp.path);
+          await downloadSftpToTempAndOpen(sftpId, fullPath, fileOpenerTarget.name, systemApp.path, { enableWatch: sftpAutoSync });
         }
       } catch (e) {
         toast.error(
@@ -1214,7 +1216,7 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
     }
 
     setFileOpenerTarget(null);
-  }, [fileOpenerTarget, setOpenerForExtension, handleEditFile, joinPath, currentPath, isLocalSession, ensureSftp, downloadSftpToTempAndOpen, t]);
+  }, [fileOpenerTarget, setOpenerForExtension, handleEditFile, joinPath, currentPath, isLocalSession, ensureSftp, downloadSftpToTempAndOpen, sftpAutoSync, t]);
 
   // Callback for FileOpenerDialog to select a system application
   const handleSelectSystemApp = useCallback(async (): Promise<SystemAppInfo | null> => {

@@ -198,6 +198,30 @@ ipcRenderer.on("netcatty:portforward:status", (_event, payload) => {
   }
 });
 
+// File watcher listeners (for auto-sync feature)
+const fileWatchSyncedListeners = new Set();
+const fileWatchErrorListeners = new Set();
+
+ipcRenderer.on("netcatty:filewatch:synced", (_event, payload) => {
+  fileWatchSyncedListeners.forEach((cb) => {
+    try {
+      cb(payload);
+    } catch (err) {
+      console.error("File watch synced callback failed", err);
+    }
+  });
+});
+
+ipcRenderer.on("netcatty:filewatch:error", (_event, payload) => {
+  fileWatchErrorListeners.forEach((cb) => {
+    try {
+      cb(payload);
+    } catch (err) {
+      console.error("File watch error callback failed", err);
+    }
+  });
+});
+
 const api = {
   startSSHSession: async (options) => {
     const result = await ipcRenderer.invoke("netcatty:start", options);
@@ -512,6 +536,38 @@ const api = {
     ipcRenderer.invoke("netcatty:openWithApplication", { filePath, appPath }),
   downloadSftpToTemp: (sftpId, remotePath, fileName) =>
     ipcRenderer.invoke("netcatty:sftp:downloadToTemp", { sftpId, remotePath, fileName }),
+  
+  // File watcher for auto-sync feature
+  startFileWatch: (localPath, remotePath, sftpId) =>
+    ipcRenderer.invoke("netcatty:filewatch:start", { localPath, remotePath, sftpId }),
+  stopFileWatch: (watchId, cleanupTempFile = false) =>
+    ipcRenderer.invoke("netcatty:filewatch:stop", { watchId, cleanupTempFile }),
+  listFileWatches: () =>
+    ipcRenderer.invoke("netcatty:filewatch:list"),
+  registerTempFile: (sftpId, localPath) =>
+    ipcRenderer.invoke("netcatty:filewatch:registerTempFile", { sftpId, localPath }),
+  onFileWatchSynced: (cb) => {
+    fileWatchSyncedListeners.add(cb);
+    return () => fileWatchSyncedListeners.delete(cb);
+  },
+  onFileWatchError: (cb) => {
+    fileWatchErrorListeners.add(cb);
+    return () => fileWatchErrorListeners.delete(cb);
+  },
+  
+  // Temp file cleanup
+  deleteTempFile: (filePath) =>
+    ipcRenderer.invoke("netcatty:deleteTempFile", { filePath }),
+  
+  // Temp directory management
+  getTempDirInfo: () =>
+    ipcRenderer.invoke("netcatty:tempdir:getInfo"),
+  clearTempDir: () =>
+    ipcRenderer.invoke("netcatty:tempdir:clear"),
+  getTempDirPath: () =>
+    ipcRenderer.invoke("netcatty:tempdir:getPath"),
+  openTempDir: () =>
+    ipcRenderer.invoke("netcatty:tempdir:open"),
 };
 
 // Merge with existing netcatty (if any) to avoid stale objects on hot reload
