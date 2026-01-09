@@ -83,10 +83,24 @@ async function startWatching(event, { localPath, remotePath, sftpId }) {
   const webContents = event.sender;
   
   // Create file system watcher with persistent: true to keep it active
+  // Note: On macOS and Windows, some editors use atomic writes (rename) instead of in-place writes
+  // So we need to handle both 'change' and 'rename' events
   const watcher = fs.watch(localPath, { persistent: true }, async (eventType) => {
     console.log(`[FileWatcher] Event received for ${localPath}: ${eventType}`);
     
-    if (eventType !== "change") return;
+    // Handle both 'change' and 'rename' events
+    // 'rename' can occur when editors use atomic writes (save to temp, then rename)
+    if (eventType !== "change" && eventType !== "rename") return;
+    
+    // For rename events, check if the file still exists (it might be the old file being deleted)
+    if (eventType === "rename") {
+      try {
+        await fs.promises.access(localPath, fs.constants.F_OK);
+      } catch {
+        console.log(`[FileWatcher] File ${localPath} no longer exists after rename event, skipping`);
+        return;
+      }
+    }
     
     // Debounce rapid changes (e.g., multiple saves in quick succession)
     const existingTimer = debounceTimers.get(watchId);
