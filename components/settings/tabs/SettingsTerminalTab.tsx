@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useState } from "react";
-import { AlertCircle, Check, Minus, Plus, RotateCcw } from "lucide-react";
+import React, { useCallback, useEffect, useState, useMemo } from "react";
+import { AlertCircle, ChevronRight, Minus, Plus, RotateCcw } from "lucide-react";
 import type {
   CursorShape,
   LinkModifier,
@@ -16,57 +16,55 @@ import { Button } from "../../ui/button";
 import { Input } from "../../ui/input";
 import { Label } from "../../ui/label";
 import { SectionHeader, Select, SettingsTabContent, SettingRow, Toggle } from "../settings-ui";
+import { ThemeSelectModal } from "../ThemeSelectModal";
 
-// Helper: render terminal preview
-const renderTerminalPreview = (theme: (typeof TERMINAL_THEMES)[0]) => {
+// Theme preview button component
+const ThemePreviewButton: React.FC<{
+  theme: (typeof TERMINAL_THEMES)[0];
+  onClick: () => void;
+  buttonLabel: string;
+}> = ({ theme, onClick, buttonLabel }) => {
   const c = theme.colors;
-  const lines = [
-    { prompt: "~", cmd: "ssh prod-server", color: c.foreground },
-    { prompt: "prod", cmd: "ls -la", color: c.green },
-    { prompt: "prod", cmd: "cat config.json", color: c.cyan },
-  ];
   return (
-    <div
-      className="font-mono text-[9px] leading-tight p-1.5 rounded overflow-hidden h-full"
-      style={{ backgroundColor: c.background, color: c.foreground }}
+    <button
+      onClick={onClick}
+      className={cn(
+        "w-full flex items-center gap-4 p-3 rounded-lg border bg-card hover:bg-accent/50 transition-all text-left",
+      )}
     >
-      {lines.map((l, i) => (
-        <div key={i} className="flex gap-1 truncate">
-          <span style={{ color: c.blue }}>{l.prompt}</span>
-          <span style={{ color: c.magenta }}>$</span>
-          <span style={{ color: l.color }}>{l.cmd}</span>
+      {/* Theme preview swatch */}
+      <div
+        className="w-20 h-14 rounded-lg flex-shrink-0 flex flex-col justify-center items-start pl-2 gap-0.5 border border-border/50"
+        style={{ backgroundColor: c.background }}
+      >
+        <div className="flex gap-1 items-center">
+          <span className="font-mono text-[8px]" style={{ color: c.green }}>$</span>
+          <span className="font-mono text-[8px]" style={{ color: c.blue }}>ls</span>
         </div>
-      ))}
-      <div className="flex gap-1">
-        <span style={{ color: c.blue }}>~</span>
-        <span style={{ color: c.magenta }}>$</span>
-        <span className="inline-block w-1.5 h-2.5 animate-pulse" style={{ backgroundColor: c.cursor }} />
+        <div className="flex gap-0.5">
+          <div className="h-1 w-3 rounded-full" style={{ backgroundColor: c.cyan }} />
+          <div className="h-1 w-4 rounded-full" style={{ backgroundColor: c.magenta }} />
+        </div>
+        <div className="flex gap-1 items-center">
+          <span className="font-mono text-[8px]" style={{ color: c.green }}>$</span>
+          <span className="inline-block w-1.5 h-2 animate-pulse" style={{ backgroundColor: c.cursor }} />
+        </div>
       </div>
-    </div>
+      
+      {/* Theme info */}
+      <div className="flex-1 min-w-0">
+        <div className="text-sm font-medium">{theme.name}</div>
+        <div className="text-xs text-muted-foreground capitalize">{theme.type}</div>
+      </div>
+      
+      {/* Action button area */}
+      <div className="flex items-center gap-2 text-muted-foreground">
+        <span className="text-xs">{buttonLabel}</span>
+        <ChevronRight size={16} />
+      </div>
+    </button>
   );
 };
-
-const TerminalThemeCard: React.FC<{
-  theme: (typeof TERMINAL_THEMES)[0];
-  active: boolean;
-  onClick: () => void;
-}> = ({ theme, active, onClick }) => (
-  <button
-    onClick={onClick}
-    className={cn(
-      "relative flex flex-col rounded-lg border-2 transition-all overflow-hidden text-left",
-      active ? "border-primary ring-2 ring-primary/20" : "border-border hover:border-primary/50",
-    )}
-  >
-    <div className="h-16">{renderTerminalPreview(theme)}</div>
-    <div className="px-2 py-1.5 text-xs font-medium border-t bg-card">{theme.name}</div>
-    {active && (
-      <div className="absolute top-1 right-1 w-4 h-4 bg-primary rounded-full flex items-center justify-center">
-        <Check size={10} className="text-primary-foreground" />
-      </div>
-    )}
-  </button>
-);
 
 export default function SettingsTerminalTab(props: {
   terminalThemeId: string;
@@ -99,6 +97,12 @@ export default function SettingsTerminalTab(props: {
   const [defaultShell, setDefaultShell] = useState<string>("");
   const [shellValidation, setShellValidation] = useState<{ valid: boolean; message?: string } | null>(null);
   const [dirValidation, setDirValidation] = useState<{ valid: boolean; message?: string } | null>(null);
+  const [themeModalOpen, setThemeModalOpen] = useState(false);
+
+  // Get current selected theme
+  const currentTheme = useMemo(() => {
+    return TERMINAL_THEMES.find(t => t.id === terminalThemeId) || TERMINAL_THEMES[0];
+  }, [terminalThemeId]);
 
   // Fetch default shell on mount
   useEffect(() => {
@@ -184,16 +188,18 @@ export default function SettingsTerminalTab(props: {
   return (
     <SettingsTabContent value="terminal">
       <SectionHeader title={t("settings.terminal.section.theme")} />
-      <div className="grid grid-cols-2 gap-3">
-        {TERMINAL_THEMES.map((t) => (
-          <TerminalThemeCard
-            key={t.id}
-            theme={t}
-            active={terminalThemeId === t.id}
-            onClick={() => setTerminalThemeId(t.id)}
-          />
-        ))}
-      </div>
+      <ThemePreviewButton
+        theme={currentTheme}
+        onClick={() => setThemeModalOpen(true)}
+        buttonLabel={t("settings.terminal.theme.selectButton")}
+      />
+      
+      <ThemeSelectModal
+        open={themeModalOpen}
+        onClose={() => setThemeModalOpen(false)}
+        selectedThemeId={terminalThemeId}
+        onSelect={setTerminalThemeId}
+      />
 
       <SectionHeader title={t("settings.terminal.section.font")} />
       <div className="space-y-0 divide-y divide-border rounded-lg border bg-card px-4">

@@ -143,7 +143,32 @@ const createEmptyPane = (id?: string): SftpPane => ({
   filter: "",
 });
 
-export const useSftpState = (hosts: Host[], keys: SSHKey[], identities: Identity[]) => {
+// File watch event types
+export interface FileWatchSyncedEvent {
+  watchId: string;
+  localPath: string;
+  remotePath: string;
+  bytesWritten: number;
+}
+
+export interface FileWatchErrorEvent {
+  watchId: string;
+  localPath: string;
+  remotePath: string;
+  error: string;
+}
+
+export interface SftpStateOptions {
+  onFileWatchSynced?: (event: FileWatchSyncedEvent) => void;
+  onFileWatchError?: (event: FileWatchErrorEvent) => void;
+}
+
+export const useSftpState = (
+  hosts: Host[],
+  keys: SSHKey[],
+  identities: Identity[],
+  options?: SftpStateOptions
+) => {
   // Multi-tab state: left and right sides each have multiple tabs
   const [leftTabs, setLeftTabs] = useState<SftpSideTabs>({
     tabs: [],
@@ -539,6 +564,29 @@ export const useSftpState = (hosts: Host[], keys: SSHKey[], identities: Identity
       intervalsRef.clear();
     };
   }, []);
+
+  // Listen for file watch events (auto-sync feature)
+  useEffect(() => {
+    const bridge = netcattyBridge.get();
+    if (!bridge?.onFileWatchSynced || !bridge?.onFileWatchError) return;
+    
+    const unsubscribeSynced = bridge.onFileWatchSynced((payload: FileWatchSyncedEvent) => {
+      options?.onFileWatchSynced?.(payload);
+    });
+    
+    const unsubscribeError = bridge.onFileWatchError((payload: FileWatchErrorEvent) => {
+      options?.onFileWatchError?.(payload);
+    });
+    
+    return () => {
+      try {
+        unsubscribeSynced?.();
+        unsubscribeError?.();
+      } catch {
+        // ignore cleanup errors
+      }
+    };
+  }, [options]);
 
   // Track if initial auto-connect has been done
   const initialConnectDoneRef = useRef(false);
@@ -2604,8 +2652,16 @@ export const useSftpState = (hosts: Host[], keys: SSHKey[], identities: Identity
   );
 
   // Download file to temp directory and open with external application
+  // If enableWatch is true and the file is remote, starts watching the temp file for changes
+  // Returns { localTempPath, watchId } if watch was started, otherwise just { localTempPath }
   const downloadToTempAndOpen = useCallback(
-    async (side: "left" | "right", remotePath: string, fileName: string, appPath: string): Promise<void> => {
+    async (
+      side: "left" | "right",
+      remotePath: string,
+      fileName: string,
+      appPath: string,
+      options?: { enableWatch?: boolean }
+    ): Promise<{ localTempPath: string; watchId?: string }> => {
       const pane = getActivePane(side);
       if (!pane?.connection) {
         throw new Error("No connection available");
@@ -2617,9 +2673,9 @@ export const useSftpState = (hosts: Host[], keys: SSHKey[], identities: Identity
       }
 
       if (pane.connection.isLocal) {
-        // For local files, just open directly
+        // For local files, just open directly (no watching needed)
         await bridge.openWithApplication(remotePath, appPath);
-        return;
+        return { localTempPath: remotePath };
       }
 
       const sftpId = sftpSessionsRef.current.get(pane.connection.id);
@@ -2628,10 +2684,42 @@ export const useSftpState = (hosts: Host[], keys: SSHKey[], identities: Identity
       }
 
       // Download to temp directory
+      console.log("[SFTP] Downloading file to temp", { sftpId, remotePath, fileName });
       const localTempPath = await bridge.downloadSftpToTemp(sftpId, remotePath, fileName);
+      console.log("[SFTP] File downloaded to temp", { localTempPath });
+      
+      // Register temp file for cleanup when SFTP session closes (regardless of auto-sync setting)
+      if (bridge.registerTempFile) {
+        try {
+          await bridge.registerTempFile(sftpId, localTempPath);
+        } catch (err) {
+          console.warn("[SFTP] Failed to register temp file for cleanup:", err);
+        }
+      }
       
       // Open with the selected application
+      console.log("[SFTP] Opening with application", { localTempPath, appPath });
       await bridge.openWithApplication(localTempPath, appPath);
+      console.log("[SFTP] Application launched");
+      
+      // Start file watching if enabled
+      let watchId: string | undefined;
+      console.log("[SFTP] Auto-sync enabled check", { enableWatch: options?.enableWatch, hasStartFileWatch: !!bridge.startFileWatch });
+      if (options?.enableWatch && bridge.startFileWatch) {
+        try {
+          console.log("[SFTP] Starting file watch", { localTempPath, remotePath, sftpId });
+          const result = await bridge.startFileWatch(localTempPath, remotePath, sftpId);
+          watchId = result.watchId;
+          console.log("[SFTP] File watch started successfully", { watchId, localTempPath, remotePath });
+        } catch (err) {
+          console.warn("[SFTP] Failed to start file watch:", err);
+          // Don't fail the operation if watching fails
+        }
+      } else {
+        console.log("[SFTP] File watching not enabled or not available");
+      }
+      
+      return { localTempPath, watchId };
     },
     [getActivePane],
   );

@@ -61,6 +61,21 @@ const en: Messages = {
   'settings.tab.terminal': 'Terminal',
   'settings.tab.shortcuts': 'Shortcuts',
   'settings.tab.syncCloud': 'Sync & Cloud',
+  'settings.tab.system': 'System',
+
+  // Settings > System
+  'settings.system.title': 'System',
+  'settings.system.description': 'System information and temporary file management.',
+  'settings.system.tempDirectory': 'Temporary Files',
+  'settings.system.location': 'Location',
+  'settings.system.fileCount': 'Files',
+  'settings.system.totalSize': 'Size',
+  'settings.system.openFolder': 'Open folder',
+  'settings.system.refresh': 'Refresh',
+  'settings.system.clearTempFiles': 'Clear temp files',
+  'settings.system.clearing': 'Clearing...',
+  'settings.system.clearResult': 'Deleted {deleted} file(s), {failed} failed.',
+  'settings.system.tempDirectoryHint': 'Temporary files are created when opening remote files with external applications. They are automatically cleaned up when SFTP sessions close.',
 
   // Settings > Application
   'settings.application.checkUpdates': 'Check for updates',
@@ -107,6 +122,10 @@ const en: Messages = {
 
   // Settings > Terminal
   'settings.terminal.section.theme': 'Terminal Theme',
+  'settings.terminal.themeModal.title': 'Select Theme',
+  'settings.terminal.themeModal.darkThemes': 'Dark Themes',
+  'settings.terminal.themeModal.lightThemes': 'Light Themes',
+  'settings.terminal.theme.selectButton': 'Select Theme',
   'settings.terminal.section.font': 'Font',
   'settings.terminal.section.cursor': 'Cursor',
   'settings.terminal.section.keyboard': 'Keyboard',
@@ -514,6 +533,14 @@ const en: Messages = {
   'settings.sftp.doubleClickBehavior.transfer': 'Transfer to other pane',
   'settings.sftp.doubleClickBehavior.openDesc': 'Open the file in the default application',
   'settings.sftp.doubleClickBehavior.transferDesc': 'Transfer the file to the other pane\'s active host',
+  
+  // Settings > SFTP Auto Sync
+  'settings.sftp.autoSync': 'Auto-sync to remote',
+  'settings.sftp.autoSync.desc': 'Automatically sync file changes back to the remote server when opening files with external applications',
+  'settings.sftp.autoSync.enable': 'Enable auto-sync',
+  'settings.sftp.autoSync.enableDesc': 'When you save a file in an external application, changes will be automatically uploaded to the remote server',
+  'sftp.autoSync.success': 'File synced to remote: {fileName}',
+  'sftp.autoSync.error': 'Failed to sync file: {error}',
 
   // Quick Switcher
   'qs.search.placeholder': 'Search hosts or tabs',

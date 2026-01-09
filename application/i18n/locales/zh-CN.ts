@@ -49,6 +49,21 @@ const zhCN: Messages = {
   'settings.tab.terminal': '终端',
   'settings.tab.shortcuts': '快捷键',
   'settings.tab.syncCloud': '同步与云',
+  'settings.tab.system': '系统',
+
+  // Settings > System
+  'settings.system.title': '系统',
+  'settings.system.description': '系统信息与临时文件管理。',
+  'settings.system.tempDirectory': '临时文件',
+  'settings.system.location': '位置',
+  'settings.system.fileCount': '文件数量',
+  'settings.system.totalSize': '占用空间',
+  'settings.system.openFolder': '打开文件夹',
+  'settings.system.refresh': '刷新',
+  'settings.system.clearTempFiles': '清理临时文件',
+  'settings.system.clearing': '清理中...',
+  'settings.system.clearResult': '已删除 {deleted} 个文件，{failed} 个失败。',
+  'settings.system.tempDirectoryHint': '临时文件在使用外部应用打开远程文件时创建。SFTP 会话关闭时会自动清理。',
 
   // Settings > Application
   'settings.application.checkUpdates': '检查更新',
@@ -750,9 +765,21 @@ const zhCN: Messages = {
   'settings.sftp.doubleClickBehavior.transfer': '传输到另一侧',
   'settings.sftp.doubleClickBehavior.openDesc': '使用默认应用程序打开文件',
   'settings.sftp.doubleClickBehavior.transferDesc': '将文件传输到另一窗格的活动主机',
+  
+  // Settings > SFTP Auto Sync
+  'settings.sftp.autoSync': '自动同步到远程',
+  'settings.sftp.autoSync.desc': '使用外部应用程序打开文件时，自动将文件更改同步回远程服务器',
+  'settings.sftp.autoSync.enable': '启用自动同步',
+  'settings.sftp.autoSync.enableDesc': '在外部应用程序中保存文件时，更改将自动上传到远程服务器',
+  'sftp.autoSync.success': '文件已同步到远程：{fileName}',
+  'sftp.autoSync.error': '同步文件失败：{error}',
 
   // Settings > Terminal
   'settings.terminal.section.theme': '终端主题',
+  'settings.terminal.themeModal.title': '选择主题',
+  'settings.terminal.themeModal.darkThemes': '深色主题',
+  'settings.terminal.themeModal.lightThemes': '浅色主题',
+  'settings.terminal.theme.selectButton': '选择主题',
   'settings.terminal.section.font': '字体',
   'settings.terminal.section.cursor': '光标',
   'settings.terminal.section.keyboard': '键盘',

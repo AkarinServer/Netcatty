@@ -95,6 +95,9 @@ export const TextEditorModal: React.FC<TextEditorModalProps> = ({
   const [hasChanges, setHasChanges] = useState(false);
   const [languageId, setLanguageId] = useState(() => getLanguageId(fileName));
   const editorRef = useRef<Monaco.editor.IStandaloneCodeEditor | null>(null);
+  
+  // Ref to store the latest save function to avoid stale closure in keyboard shortcut
+  const handleSaveRef = useRef<() => Promise<void>>(() => Promise.resolve());
 
   // Track theme from document.documentElement class (syncs with app theme)
   const [isDarkTheme, setIsDarkTheme] = useState(() =>
@@ -140,6 +143,11 @@ export const TextEditorModal: React.FC<TextEditorModalProps> = ({
     }
   }, [content, onSave, saving, t]);
 
+  // Keep the ref updated with the latest handleSave function
+  useEffect(() => {
+    handleSaveRef.current = handleSave;
+  }, [handleSave]);
+
   const handleClose = useCallback(() => {
     if (hasChanges) {
       const confirmed = confirm(t('sftp.editor.unsavedChanges'));
@@ -155,9 +163,9 @@ export const TextEditorModal: React.FC<TextEditorModalProps> = ({
   const handleEditorMount: OnMount = useCallback((editor, monaco) => {
     editorRef.current = editor;
 
-    // Add save shortcut
+    // Add save shortcut - use ref to avoid stale closure
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
-      handleSave();
+      handleSaveRef.current();
     });
 
     // Add find shortcut (Ctrl+F / Cmd+F)
@@ -165,7 +173,7 @@ export const TextEditorModal: React.FC<TextEditorModalProps> = ({
       // Trigger Monaco's built-in find widget
       editor.trigger('keyboard', 'actions.find', null);
     });
-  }, [handleSave]);
+  }, []);
 
   // Trigger search dialog
   const handleSearch = useCallback(() => {

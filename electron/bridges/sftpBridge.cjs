@@ -10,6 +10,7 @@ const net = require("node:net");
 const SftpClient = require("ssh2-sftp-client");
 const { Client: SSHClient } = require("ssh2");
 const { NetcattyAgent } = require("./netcattyAgent.cjs");
+const fileWatcherBridge = require("./fileWatcherBridge.cjs");
 
 // SFTP clients storage - shared reference passed from main
 let sftpClients = null;
@@ -544,11 +545,18 @@ async function writeSftpBinaryWithProgress(event, payload) {
 
 /**
  * Close an SFTP connection
- * Also cleans up any jump host connections if present
+ * Also cleans up any jump host connections and file watchers if present
  */
 async function closeSftp(event, payload) {
   const client = sftpClients.get(payload.sftpId);
   if (!client) return;
+  
+  // Stop file watchers and clean up temp files for this SFTP session
+  try {
+    fileWatcherBridge.stopWatchersForSession(payload.sftpId, true);
+  } catch (err) {
+    console.warn("[SFTP] Error stopping file watchers:", err.message);
+  }
   
   try {
     await client.end();

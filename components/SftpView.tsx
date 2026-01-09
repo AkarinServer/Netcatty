@@ -1480,8 +1480,22 @@ interface SftpViewProps {
 const SftpViewInner: React.FC<SftpViewProps> = ({ hosts, keys, identities }) => {
   const { t } = useI18n();
   const isActive = useIsSftpActive();
-  const sftp = useSftpState(hosts, keys, identities);
-  const { sftpDoubleClickBehavior } = useSettingsState();
+  const { sftpDoubleClickBehavior, sftpAutoSync } = useSettingsState();
+  
+  // File watch event handlers (stable refs to avoid re-creating the useSftpState options)
+  const fileWatchHandlers = useMemo(() => ({
+    onFileWatchSynced: (payload: { remotePath: string }) => {
+      const fileName = payload.remotePath.split('/').pop() || payload.remotePath;
+      toast.success(t('sftp.autoSync.success', { fileName }));
+      logger.info("[SFTP] File auto-synced to remote", payload);
+    },
+    onFileWatchError: (payload: { error: string }) => {
+      toast.error(t('sftp.autoSync.error', { error: payload.error }));
+      logger.error("[SFTP] File auto-sync failed", payload);
+    },
+  }), [t]);
+  
+  const sftp = useSftpState(hosts, keys, identities, fileWatchHandlers);
 
   // Store sftp in a ref so callbacks can access the latest instance
   // without needing to re-create when sftp changes
@@ -1491,6 +1505,10 @@ const SftpViewInner: React.FC<SftpViewProps> = ({ hosts, keys, identities }) => 
   // Store behavior setting in ref for stable callbacks
   const behaviorRef = useRef(sftpDoubleClickBehavior);
   behaviorRef.current = sftpDoubleClickBehavior;
+  
+  // Store auto-sync setting in ref for stable callbacks
+  const autoSyncRef = useRef(sftpAutoSync);
+  autoSyncRef.current = sftpAutoSync;
 
   // Sync activeTabId to external store (allows child components to subscribe without parent re-render)
   // Using useLayoutEffect to sync before paint
@@ -1743,7 +1761,8 @@ const SftpViewInner: React.FC<SftpViewProps> = ({ hosts, keys, identities }) => 
               side,
               fullPath,
               file.name,
-              savedOpener.systemApp.path
+              savedOpener.systemApp.path,
+              { enableWatch: autoSyncRef.current }
             );
           } catch (e) {
             toast.error(
@@ -1785,7 +1804,8 @@ const SftpViewInner: React.FC<SftpViewProps> = ({ hosts, keys, identities }) => 
             fileOpenerTarget.side,
             fileOpenerTarget.fullPath,
             fileOpenerTarget.file.name,
-            systemApp.path
+            systemApp.path,
+            { enableWatch: autoSyncRef.current }
           );
         } catch (e) {
           toast.error(

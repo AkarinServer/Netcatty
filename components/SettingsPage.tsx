@@ -2,7 +2,7 @@
  * Settings Page - Standalone settings window content
  * This component is rendered in a separate Electron window
  */
-import { AppWindow, Cloud, FileType, Keyboard, Palette, TerminalSquare, X } from "lucide-react";
+import { AppWindow, Cloud, FileType, HardDrive, Keyboard, Palette, TerminalSquare, X } from "lucide-react";
 import React, { useCallback, useEffect, useState } from "react";
 import { useSettingsState } from "../application/state/useSettingsState";
 import { useVaultState } from "../application/state/useVaultState";
@@ -13,6 +13,7 @@ import SettingsAppearanceTab from "./settings/tabs/SettingsAppearanceTab";
 import SettingsFileAssociationsTab from "./settings/tabs/SettingsFileAssociationsTab";
 import SettingsShortcutsTab from "./settings/tabs/SettingsShortcutsTab";
 import SettingsTerminalTab from "./settings/tabs/SettingsTerminalTab";
+import SettingsSystemTab from "./settings/tabs/SettingsSystemTab";
 import { Tabs, TabsList, TabsTrigger } from "./ui/tabs";
 import type { TerminalFont } from "../infrastructure/config/fonts";
 
@@ -133,6 +134,12 @@ const SettingsPageContent: React.FC<{ settings: SettingsState }> = ({ settings }
                         >
                             <Cloud size={14} /> {t("settings.tab.syncCloud")}
                         </TabsTrigger>
+                        <TabsTrigger
+                            value="system"
+                            className="w-full justify-start gap-2 px-3 py-2 text-sm data-[state=active]:bg-background hover:bg-background/60 rounded-md transition-colors"
+                        >
+                            <HardDrive size={14} /> {t("settings.tab.system")}
+                        </TabsTrigger>
                     </TabsList>
                 </div>
 
@@ -193,6 +200,8 @@ const SettingsPageContent: React.FC<{ settings: SettingsState }> = ({ settings }
                             <SettingsSyncTabWithVault />
                         </React.Suspense>
                     )}
+
+                    {mountedTabs.has("system") && <SettingsSystemTab />}
                 </div>
             </Tabs>
         </div>
