@@ -473,33 +473,73 @@ const registerBridges = (win) => {
 
   // Open a file with a specific application
   ipcMain.handle("netcatty:openWithApplication", async (_event, { filePath, appPath }) => {
-    const { shell, spawn } = electronModule;
     const { spawn: cpSpawn } = require("node:child_process");
     
-    if (process.platform === "darwin") {
-      // On macOS, use 'open' command with -a flag for specific app
-      cpSpawn("open", ["-a", appPath, filePath], { detached: true, stdio: "ignore" }).unref();
-    } else if (process.platform === "win32") {
-      // On Windows, just spawn the exe with the file as argument
-      cpSpawn(appPath, [filePath], { detached: true, stdio: "ignore", shell: true }).unref();
-    } else {
-      // On Linux, spawn the app with the file
-      cpSpawn(appPath, [filePath], { detached: true, stdio: "ignore" }).unref();
-    }
+    console.log(`[Main] Opening file with application:`);
+    console.log(`[Main]   File: ${filePath}`);
+    console.log(`[Main]   App: ${appPath}`);
+    console.log(`[Main]   Platform: ${process.platform}`);
     
-    return true;
+    try {
+      let child;
+      if (process.platform === "darwin") {
+        // On macOS, use 'open' command with -a flag for specific app
+        const args = ["-a", appPath, filePath];
+        console.log(`[Main]   Command: open ${args.join(' ')}`);
+        child = cpSpawn("open", args, { detached: true, stdio: "pipe" });
+      } else if (process.platform === "win32") {
+        // On Windows, just spawn the exe with the file as argument
+        console.log(`[Main]   Command: "${appPath}" "${filePath}"`);
+        child = cpSpawn(appPath, [filePath], { detached: true, stdio: "pipe", shell: true });
+      } else {
+        // On Linux, spawn the app with the file
+        console.log(`[Main]   Command: ${appPath} ${filePath}`);
+        child = cpSpawn(appPath, [filePath], { detached: true, stdio: "pipe" });
+      }
+      
+      // Log any errors from the child process
+      child.on("error", (err) => {
+        console.error(`[Main] Failed to start application:`, err.message);
+      });
+      
+      child.stderr?.on("data", (data) => {
+        console.error(`[Main] Application stderr:`, data.toString());
+      });
+      
+      child.on("exit", (code, signal) => {
+        if (code !== 0 && code !== null) {
+          console.warn(`[Main] Application exited with code: ${code}, signal: ${signal}`);
+        } else {
+          console.log(`[Main] Application started successfully`);
+        }
+      });
+      
+      child.unref();
+      return true;
+    } catch (err) {
+      console.error(`[Main] Error opening file with application:`, err);
+      throw err;
+    }
   });
 
   // Download SFTP file to temp and return local path
   ipcMain.handle("netcatty:sftp:downloadToTemp", async (_event, { sftpId, remotePath, fileName }) => {
+    console.log(`[Main] Downloading SFTP file to temp:`);
+    console.log(`[Main]   SFTP ID: ${sftpId}`);
+    console.log(`[Main]   Remote path: ${remotePath}`);
+    console.log(`[Main]   File name: ${fileName}`);
+    
     const client = require("./bridges/sftpBridge.cjs");
     const tempDir = os.tmpdir();
     const tempFileName = `netcatty_${Date.now()}_${fileName}`;
     const localPath = path.join(tempDir, tempFileName);
     
+    console.log(`[Main]   Local temp path: ${localPath}`);
+    
     // Get the sftp client and download file
     const sftpClients = client.getSftpClients ? client.getSftpClients() : null;
     if (!sftpClients) {
+      console.log(`[Main]   Using fallback readSftp method`);
       // Fallback: use readSftp and write to temp file
       const content = await client.readSftp(null, { sftpId, path: remotePath });
       if (typeof content === "string") {
@@ -507,15 +547,18 @@ const registerBridges = (win) => {
       } else {
         await fs.promises.writeFile(localPath, content);
       }
+      console.log(`[Main]   File downloaded successfully (fallback)`);
       return localPath;
     }
     
     const sftpClient = sftpClients.get(sftpId);
     if (!sftpClient) {
+      console.error(`[Main]   SFTP session not found: ${sftpId}`);
       throw new Error("SFTP session not found");
     }
     
     await sftpClient.fastGet(remotePath, localPath);
+    console.log(`[Main]   File downloaded successfully`);
     return localPath;
   });
 
