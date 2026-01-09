@@ -8,8 +8,9 @@
 
 const fs = require("node:fs");
 const path = require("node:path");
+const crypto = require("node:crypto");
 
-// Map of watchId -> { watcher, localPath, remotePath, sftpId, lastModified }
+// Map of watchId -> { watcher, localPath, remotePath, sftpId, lastModified, lastSize }
 const activeWatchers = new Map();
 
 // Debounce map to prevent multiple rapid syncs
@@ -31,15 +32,17 @@ function init(deps) {
  * Returns a watchId that can be used to stop watching
  */
 async function startWatching(event, { localPath, remotePath, sftpId }) {
-  const watchId = `watch-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  const watchId = `watch-${crypto.randomUUID()}`;
   
   console.log(`[FileWatcher] Starting watch: ${localPath} -> ${remotePath}`);
   
   // Get initial file stats
   let lastModified;
+  let lastSize;
   try {
     const stat = await fs.promises.stat(localPath);
     lastModified = stat.mtimeMs;
+    lastSize = stat.size;
   } catch (err) {
     console.error(`[FileWatcher] Failed to stat file ${localPath}:`, err.message);
     throw new Error(`Cannot watch file: ${err.message}`);
@@ -74,6 +77,7 @@ async function startWatching(event, { localPath, remotePath, sftpId }) {
     remotePath,
     sftpId,
     lastModified,
+    lastSize,
     senderId: event.sender.id,
   });
   
@@ -88,20 +92,23 @@ async function handleFileChange(watchId, webContents) {
   const watchInfo = activeWatchers.get(watchId);
   if (!watchInfo) return;
   
-  const { localPath, remotePath, sftpId, lastModified: previousModified } = watchInfo;
+  const { localPath, remotePath, sftpId, lastModified: previousModified, lastSize: previousSize } = watchInfo;
   
   console.log(`[FileWatcher] File change detected: ${localPath}`);
   
   try {
-    // Check if file was actually modified (compare mtime)
+    // Check if file was actually modified (compare mtime and size)
     const stat = await fs.promises.stat(localPath);
-    if (stat.mtimeMs <= previousModified) {
-      console.log(`[FileWatcher] File mtime unchanged, skipping sync`);
+    
+    // Skip if neither mtime nor size changed (prevents spurious events on some platforms)
+    if (stat.mtimeMs <= previousModified && stat.size === previousSize) {
+      console.log(`[FileWatcher] File unchanged (mtime and size same), skipping sync`);
       return;
     }
     
-    // Update lastModified
+    // Update lastModified and lastSize
     watchInfo.lastModified = stat.mtimeMs;
+    watchInfo.lastSize = stat.size;
     
     // Get the SFTP client
     if (!sftpClients) {
