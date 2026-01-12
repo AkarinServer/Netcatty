@@ -776,9 +776,9 @@ const zhCN: Messages = {
 
   // Settings > SFTP Show Hidden Files
   'settings.sftp.showHiddenFiles': '显示隐藏文件',
-  'settings.sftp.showHiddenFiles.desc': '在 SFTP 文件浏览器中显示隐藏文件和目录（以点开头的文件）',
+  'settings.sftp.showHiddenFiles.desc': '在 SFTP 文件浏览器中显示隐藏文件（以点开头的文件）。在 Unix/Linux 系统上，隐藏文件是以点开头的文件。',
   'settings.sftp.showHiddenFiles.enable': '显示隐藏文件',
-  'settings.sftp.showHiddenFiles.enableDesc': '显示通常隐藏的文件和目录（例如 .bashrc、.config）',
+  'settings.sftp.showHiddenFiles.enableDesc': '显示以点开头的文件（例如 .bashrc、.config、.ssh）',
 
   // Settings > Terminal
   'settings.terminal.section.theme': '终端主题',

@@ -189,7 +189,10 @@ export const isNavigableDirectory = (entry: SftpFileEntry): boolean => {
 };
 
 /**
- * Check if a file name represents a hidden file (starts with a dot)
+ * Check if a file name represents a hidden file
+ * - On Unix/Linux systems (local and remote): files starting with a dot are hidden
+ * - On Windows local filesystem: this check won't detect Windows hidden attribute files
+ *   (Windows uses file attributes, not filename convention for hidden files)
  * The ".." parent directory entry is never considered hidden
  */
 export const isHiddenFile = (fileName: string): boolean => {
@@ -198,7 +201,10 @@ export const isHiddenFile = (fileName: string): boolean => {
 
 /**
  * Filter files based on hidden file visibility setting
+ * Filters out files starting with a dot (Unix/Linux hidden file convention)
  * Always preserves ".." parent directory entry
+ * 
+ * Note: This does not filter Windows hidden attribute files on local Windows filesystem
  */
 export const filterHiddenFiles = <T extends { name: string }>(
     files: T[],
