@@ -31,6 +31,7 @@ export interface SftpPaneCallbacks {
     onEditFile?: (entry: SftpFileEntry) => void;
     onOpenFile?: (entry: SftpFileEntry) => void;
     onOpenFileWith?: (entry: SftpFileEntry) => void;  // Always show opener dialog
+    onDownloadFile?: (entry: SftpFileEntry) => void;  // Download to local filesystem
     // External file upload
     onUploadExternalFiles?: (files: FileList) => Promise<void>;
 }

@@ -187,6 +187,7 @@ const SftpPaneViewInner: React.FC<SftpPaneViewProps> = ({
     onEditFile,
     onOpenFile,
     onOpenFileWith,
+    onDownloadFile,
     onUploadExternalFiles,
   } = callbacks;
 
@@ -864,6 +865,12 @@ const SftpPaneViewInner: React.FC<SftpPaneViewProps> = ({
                 {t("sftp.context.edit")}
               </ContextMenuItem>
             )}
+            {!isNavigableDirectory(entry) && onDownloadFile && (
+              <ContextMenuItem onClick={() => onDownloadFile(entry)}>
+                <Download size={14} className="mr-2" />{" "}
+                {t("sftp.context.download")}
+              </ContextMenuItem>
+            )}
             <ContextMenuSeparator />
             <ContextMenuItem
               onClick={() => {
@@ -927,6 +934,7 @@ const SftpPaneViewInner: React.FC<SftpPaneViewProps> = ({
       handleRowOpen,
       handleRowSelect,
       onCopyToOtherPane,
+      onDownloadFile,
       onDragEnd,
       onEditFile,
       onEditPermissions,
@@ -1956,6 +1964,51 @@ const SftpViewInner: React.FC<SftpViewProps> = ({ hosts, keys, identities }) => 
     [handleUploadExternalFilesForSide],
   );
 
+  // Download file to local filesystem (browser download)
+  const handleDownloadFileForSide = useCallback(
+    async (side: "left" | "right", file: SftpFileEntry) => {
+      const pane = side === "left" ? sftpRef.current.leftPane : sftpRef.current.rightPane;
+      if (!pane.connection) return;
+
+      const fullPath = sftpRef.current.joinPath(pane.connection.currentPath, file.name);
+
+      try {
+        // Read the file as binary
+        const content = await sftpRef.current.readBinaryFile(side, fullPath);
+        
+        // Create blob and trigger browser download
+        const blob = new Blob([content], { type: "application/octet-stream" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = file.name;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        
+        toast.success(`${t('sftp.context.download')}: ${file.name}`, "SFTP");
+      } catch (e) {
+        logger.error("[SftpView] Failed to download file:", e);
+        toast.error(
+          e instanceof Error ? e.message : t('sftp.error.downloadFailed'),
+          "SFTP"
+        );
+      }
+    },
+    [t],
+  );
+
+  const handleDownloadFileLeft = useCallback(
+    (file: SftpFileEntry) => handleDownloadFileForSide("left", file),
+    [handleDownloadFileForSide],
+  );
+
+  const handleDownloadFileRight = useCallback(
+    (file: SftpFileEntry) => handleDownloadFileForSide("right", file),
+    [handleDownloadFileForSide],
+  );
+
   // Custom handleOpenEntry callbacks that check the double-click behavior setting
   const handleOpenEntryLeft = useCallback(
     (entry: SftpFileEntry) => {
@@ -2033,6 +2086,7 @@ const SftpViewInner: React.FC<SftpViewProps> = ({ hosts, keys, identities }) => 
       onEditFile: handleEditFileLeft,
       onOpenFile: handleOpenFileLeft,
       onOpenFileWith: handleOpenFileWithLeft,
+      onDownloadFile: handleDownloadFileLeft,
       onUploadExternalFiles: handleUploadExternalFilesLeft,
     }),
     [],
@@ -2059,6 +2113,7 @@ const SftpViewInner: React.FC<SftpViewProps> = ({ hosts, keys, identities }) => 
       onEditFile: handleEditFileRight,
       onOpenFile: handleOpenFileRight,
       onOpenFileWith: handleOpenFileWithRight,
+      onDownloadFile: handleDownloadFileRight,
       onUploadExternalFiles: handleUploadExternalFilesRight,
     }),
     [],
