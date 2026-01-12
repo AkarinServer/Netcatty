@@ -1915,11 +1915,11 @@ const SftpViewInner: React.FC<SftpViewProps> = ({ hosts, keys, identities }) => 
     [handleOpenFileWithForSide],
   );
 
-  // Handle external file upload from OS drag-and-drop
-  const handleUploadExternalFilesLeft = useCallback(
-    async (files: FileList) => {
+  // Handle external file upload from OS drag-and-drop (shared logic)
+  const handleUploadExternalFilesForSide = useCallback(
+    async (side: "left" | "right", files: FileList) => {
       try {
-        const results = await sftpRef.current.uploadExternalFiles("left", files);
+        const results = await sftpRef.current.uploadExternalFiles(side, files);
         const successCount = results.filter(r => r.success).length;
         const failCount = results.filter(r => !r.success).length;
         
@@ -1952,40 +1952,14 @@ const SftpViewInner: React.FC<SftpViewProps> = ({ hosts, keys, identities }) => 
     [t],
   );
 
+  const handleUploadExternalFilesLeft = useCallback(
+    (files: FileList) => handleUploadExternalFilesForSide("left", files),
+    [handleUploadExternalFilesForSide],
+  );
+
   const handleUploadExternalFilesRight = useCallback(
-    async (files: FileList) => {
-      try {
-        const results = await sftpRef.current.uploadExternalFiles("right", files);
-        const successCount = results.filter(r => r.success).length;
-        const failCount = results.filter(r => !r.success).length;
-        
-        if (successCount > 0 && failCount === 0) {
-          // All files uploaded successfully
-          toast.success(
-            successCount === 1 
-              ? t('sftp.upload') + ' ' + results[0].fileName 
-              : t('sftp.uploadFiles') + ' (' + successCount + ')',
-            "SFTP"
-          );
-        } else if (failCount > 0) {
-          // Some or all files failed
-          const failedFiles = results.filter(r => !r.success);
-          failedFiles.forEach(failed => {
-            toast.error(
-              `${t('sftp.error.uploadFailed')}: ${failed.fileName}${failed.error ? ' - ' + failed.error : ''}`,
-              "SFTP"
-            );
-          });
-        }
-      } catch (error) {
-        logger.error("[SftpView] Failed to upload external files:", error);
-        toast.error(
-          error instanceof Error ? error.message : t('sftp.error.uploadFailed'),
-          "SFTP"
-        );
-      }
-    },
-    [t],
+    (files: FileList) => handleUploadExternalFilesForSide("right", files),
+    [handleUploadExternalFilesForSide],
   );
 
   // Custom handleOpenEntry callbacks that check the double-click behavior setting
