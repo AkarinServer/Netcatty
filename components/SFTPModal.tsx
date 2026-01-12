@@ -257,6 +257,8 @@ interface SFTPModalProps {
   };
   open: boolean;
   onClose: () => void;
+  /** Initial path to open in SFTP. If not accessible, falls back to home directory. */
+  initialPath?: string;
 }
 
 // Sort configuration
@@ -281,6 +283,7 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
   credentials,
   open,
   onClose,
+  initialPath,
 }) => {
   const {
     openSftp,
@@ -629,7 +632,7 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
             loadFiles(startPath);
           })();
         } else {
-          // For remote sessions, load home directory directly
+          // For remote sessions, try initialPath first, then fall back to home directory
           void (async () => {
             const username = credentials.username || 'root';
             // Root user's home is /root, other users' home is /home/username
@@ -637,6 +640,26 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
 
             // Set loading state immediately for better UX
             setLoading(true);
+
+            // If initialPath is provided, try to use it first
+            if (initialPath) {
+              try {
+                const sftpId = await ensureSftp();
+                const list = await listSftp(sftpId, initialPath);
+                setCurrentPath(initialPath);
+                setFiles(list);
+                setSelectedFiles(new Set());
+                dirCacheRef.current.set(`${host.id}::${initialPath}`, {
+                  files: list,
+                  timestamp: Date.now(),
+                });
+                setLoading(false);
+                return; // Successfully opened at initialPath
+              } catch {
+                // initialPath not accessible, fall back to home directory
+                logger.warn(`[SFTP] Initial path ${initialPath} not accessible, falling back to home`);
+              }
+            }
 
             try {
               const sftpId = await ensureSftp();
@@ -680,7 +703,7 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
       void closeSftpSession();
       initializedRef.current = false;
     }
-  }, [open, currentPath, loadFiles, closeSftpSession, getHomeDir, isLocalSession, credentials.username, ensureSftp, listSftp, host.id, t]);
+  }, [open, currentPath, loadFiles, closeSftpSession, getHomeDir, isLocalSession, credentials.username, ensureSftp, listSftp, host.id, t, initialPath]);
 
   const handleNavigate = useCallback((path: string) => {
     // Prevent double navigation (e.g., from double-click race condition)
