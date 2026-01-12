@@ -48,6 +48,7 @@ import { logger } from "../lib/logger";
 import { getFileExtension, isKnownBinaryFile, FileOpenerType, SystemAppInfo } from "../lib/sftpFileUtils";
 import { cn } from "../lib/utils";
 import { Host, RemoteFile } from "../types";
+import { filterHiddenFiles } from "./sftp";
 import { DistroAvatar } from "./DistroAvatar";
 import FileOpenerDialog from "./FileOpenerDialog";
 import TextEditorModal from "./TextEditorModal";
@@ -304,7 +305,7 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
     downloadSftpToTempAndOpen,
   } = useSftpBackend();
   const { t, resolvedLocale } = useI18n();
-  const { sftpAutoSync } = useSettingsState();
+  const { sftpAutoSync, sftpShowHiddenFiles } = useSettingsState();
   const isLocalSession = host.protocol === "local";
   const [currentPath, setCurrentPath] = useState("/");
   const [files, setFiles] = useState<RemoteFile[]>([]);
@@ -1263,9 +1264,12 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
 
   // Display files with parent entry (like SftpView)
   const displayFiles = useMemo(() => {
+    // Filter hidden files using utility function
+    const visibleFiles = filterHiddenFiles(files, sftpShowHiddenFiles);
+    
     // Check if we're at root
     const atRoot = isRootPath(currentPath);
-    if (atRoot) return files;
+    if (atRoot) return visibleFiles;
 
     // Add ".." parent directory entry at the top (only if not at root)
     const parentEntry: RemoteFile = {
@@ -1274,8 +1278,8 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
       size: "--",
       lastModified: undefined,
     };
-    return [parentEntry, ...files.filter((f) => f.name !== "..")];
-  }, [files, currentPath, isRootPath]);
+    return [parentEntry, ...visibleFiles.filter((f) => f.name !== "..")];
+  }, [files, currentPath, isRootPath, sftpShowHiddenFiles]);
 
   // Sorted files
   const sortedFiles = useMemo(() => {

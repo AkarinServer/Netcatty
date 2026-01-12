@@ -473,6 +473,7 @@ export interface RemoteFile {
   lastModified: string;
   linkTarget?: 'file' | 'directory' | null; // For symlinks: the type of the target, or null if broken
   permissions?: string; // rwx format for owner/group/others e.g. "rwxr-xr-x"
+  hidden?: boolean; // Windows hidden attribute (only set for local Windows filesystem)
 }
 
 export type WorkspaceNode =
@@ -512,6 +513,7 @@ export interface SftpFileEntry {
   owner?: string;
   group?: string;
   linkTarget?: 'file' | 'directory' | null; // For symlinks: the type of the target, or null if broken
+  hidden?: boolean; // Windows hidden attribute (only set for local Windows filesystem)
 }
 
 export interface SftpConnection {

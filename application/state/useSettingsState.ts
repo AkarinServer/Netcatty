@@ -18,6 +18,7 @@ STORAGE_KEY_UI_THEME_LIGHT,
 STORAGE_KEY_UI_THEME_DARK,
 STORAGE_KEY_SFTP_DOUBLE_CLICK_BEHAVIOR,
 STORAGE_KEY_SFTP_AUTO_SYNC,
+STORAGE_KEY_SFTP_SHOW_HIDDEN_FILES,
 } from '../../infrastructure/config/storageKeys';
 import { DEFAULT_UI_LOCALE, resolveSupportedLocale } from '../../infrastructure/config/i18n';
 import { TERMINAL_THEMES } from '../../infrastructure/config/terminalThemes';
@@ -41,6 +42,7 @@ const DEFAULT_HOTKEY_SCHEME: HotkeyScheme =
     : 'pc';
 const DEFAULT_SFTP_DOUBLE_CLICK_BEHAVIOR: 'open' | 'transfer' = 'open';
 const DEFAULT_SFTP_AUTO_SYNC = false;
+const DEFAULT_SFTP_SHOW_HIDDEN_FILES = false;
 
 const readStoredString = (key: string): string | null => {
   const raw = localStorageAdapter.readString(key);
@@ -166,6 +168,10 @@ export const useSettingsState = () => {
   const [sftpAutoSync, setSftpAutoSync] = useState<boolean>(() => {
     const stored = readStoredString(STORAGE_KEY_SFTP_AUTO_SYNC);
     return stored === 'true' ? true : DEFAULT_SFTP_AUTO_SYNC;
+  });
+  const [sftpShowHiddenFiles, setSftpShowHiddenFiles] = useState<boolean>(() => {
+    const stored = readStoredString(STORAGE_KEY_SFTP_SHOW_HIDDEN_FILES);
+    return stored === 'true' ? true : DEFAULT_SFTP_SHOW_HIDDEN_FILES;
   });
 
   // Helper to notify other windows about settings changes via IPC
@@ -398,11 +404,18 @@ export const useSettingsState = () => {
           setSftpAutoSync(newValue);
         }
       }
+      // Sync SFTP show hidden files setting from other windows
+      if (e.key === STORAGE_KEY_SFTP_SHOW_HIDDEN_FILES && e.newValue !== null) {
+        const newValue = e.newValue === 'true';
+        if (newValue !== sftpShowHiddenFiles) {
+          setSftpShowHiddenFiles(newValue);
+        }
+      }
     };
 
     window.addEventListener('storage', handleStorageChange);
     return () => window.removeEventListener('storage', handleStorageChange);
-  }, [theme, lightUiThemeId, darkUiThemeId, accentMode, customAccent, customCSS, hotkeyScheme, uiLanguage, terminalThemeId, terminalFontFamilyId, terminalFontSize, sftpDoubleClickBehavior, sftpAutoSync]);
+  }, [theme, lightUiThemeId, darkUiThemeId, accentMode, customAccent, customCSS, hotkeyScheme, uiLanguage, terminalThemeId, terminalFontFamilyId, terminalFontSize, sftpDoubleClickBehavior, sftpAutoSync, sftpShowHiddenFiles]);
 
   useEffect(() => {
     localStorageAdapter.writeString(STORAGE_KEY_TERM_THEME, terminalThemeId);
@@ -464,6 +477,12 @@ export const useSettingsState = () => {
     localStorageAdapter.writeString(STORAGE_KEY_SFTP_AUTO_SYNC, sftpAutoSync ? 'true' : 'false');
     notifySettingsChanged(STORAGE_KEY_SFTP_AUTO_SYNC, sftpAutoSync);
   }, [sftpAutoSync, notifySettingsChanged]);
+
+  // Persist SFTP show hidden files setting
+  useEffect(() => {
+    localStorageAdapter.writeString(STORAGE_KEY_SFTP_SHOW_HIDDEN_FILES, sftpShowHiddenFiles ? 'true' : 'false');
+    notifySettingsChanged(STORAGE_KEY_SFTP_SHOW_HIDDEN_FILES, sftpShowHiddenFiles);
+  }, [sftpShowHiddenFiles, notifySettingsChanged]);
 
   // Get merged key bindings (defaults + custom overrides)
   const keyBindings = useMemo((): KeyBinding[] => {
@@ -575,6 +594,8 @@ export const useSettingsState = () => {
     setSftpDoubleClickBehavior,
     sftpAutoSync,
     setSftpAutoSync,
+    sftpShowHiddenFiles,
+    setSftpShowHiddenFiles,
     availableFonts,
   };
 };

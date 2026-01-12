@@ -676,6 +676,7 @@ export const useSftpState = (
           lastModified: new Date(f.lastModified).getTime(),
           lastModifiedFormatted: f.lastModified,
           linkTarget: f.linkTarget as "file" | "directory" | null | undefined,
+          hidden: f.hidden, // Windows hidden attribute
         };
       });
     },
