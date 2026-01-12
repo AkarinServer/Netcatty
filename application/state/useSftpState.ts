@@ -2725,6 +2725,82 @@ export const useSftpState = (
     [getActivePane],
   );
 
+  // Upload external files dropped from OS
+  const uploadExternalFiles = useCallback(
+    async (side: "left" | "right", files: FileList) => {
+      const pane = getActivePane(side);
+      if (!pane?.connection) {
+        throw new Error("No active connection");
+      }
+
+      const bridge = netcattyBridge.get();
+      if (!bridge) {
+        throw new Error("Bridge not available");
+      }
+
+      const results: { fileName: string; success: boolean; error?: string }[] = [];
+
+      for (const file of Array.from(files)) {
+        const targetPath = joinPath(pane.connection.currentPath, file.name);
+        
+        try {
+          const arrayBuffer = await file.arrayBuffer();
+          
+          if (pane.connection.isLocal) {
+            // Upload to local filesystem
+            if (!bridge.writeLocalFile) {
+              throw new Error("writeLocalFile not available");
+            }
+            await bridge.writeLocalFile(targetPath, arrayBuffer);
+          } else {
+            // Upload to remote via SFTP
+            const sftpId = sftpSessionsRef.current.get(pane.connection.id);
+            if (!sftpId) {
+              throw new Error("SFTP session not found");
+            }
+            
+            // Try to use progress API if available
+            if (bridge.writeSftpBinaryWithProgress) {
+              const hasProgress = await bridge.writeSftpBinaryWithProgress(
+                sftpId,
+                targetPath,
+                arrayBuffer,
+                crypto.randomUUID(),
+                undefined,
+                undefined,
+                undefined,
+              );
+              
+              // Fallback to non-progress API if progress not supported
+              if (!hasProgress && bridge.writeSftpBinary) {
+                await bridge.writeSftpBinary(sftpId, targetPath, arrayBuffer);
+              }
+            } else if (bridge.writeSftpBinary) {
+              await bridge.writeSftpBinary(sftpId, targetPath, arrayBuffer);
+            } else {
+              throw new Error("No SFTP write method available");
+            }
+          }
+          
+          results.push({ fileName: file.name, success: true });
+        } catch (error) {
+          logger.error(`Failed to upload ${file.name}:`, error);
+          results.push({
+            fileName: file.name,
+            success: false,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
+      
+      // Refresh the file list to show new files
+      await refresh(side);
+      
+      return results;
+    },
+    [getActivePane, refresh],
+  );
+
   // Select an application from system file picker
   const selectApplication = useCallback(
     async (): Promise<{ path: string; name: string } | null> => {
@@ -2768,6 +2844,7 @@ export const useSftpState = (
     readBinaryFile,
     writeTextFile,
     downloadToTempAndOpen,
+    uploadExternalFiles,
     selectApplication,
     startTransfer,
     cancelTransfer,
@@ -2805,6 +2882,7 @@ export const useSftpState = (
     readBinaryFile,
     writeTextFile,
     downloadToTempAndOpen,
+    uploadExternalFiles,
     selectApplication,
     startTransfer,
     cancelTransfer,
@@ -2845,6 +2923,7 @@ export const useSftpState = (
     readBinaryFile: (...args: Parameters<typeof readBinaryFile>) => methodsRef.current.readBinaryFile(...args),
     writeTextFile: (...args: Parameters<typeof writeTextFile>) => methodsRef.current.writeTextFile(...args),
     downloadToTempAndOpen: (...args: Parameters<typeof downloadToTempAndOpen>) => methodsRef.current.downloadToTempAndOpen(...args),
+    uploadExternalFiles: (...args: Parameters<typeof uploadExternalFiles>) => methodsRef.current.uploadExternalFiles(...args),
     selectApplication: () => methodsRef.current.selectApplication(),
     startTransfer: (...args: Parameters<typeof startTransfer>) => methodsRef.current.startTransfer(...args),
     cancelTransfer: (...args: Parameters<typeof cancelTransfer>) => methodsRef.current.cancelTransfer(...args),
