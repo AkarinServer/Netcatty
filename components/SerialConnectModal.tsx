@@ -114,8 +114,9 @@ export const SerialConnectModal: React.FC<SerialConnectModalProps> = ({
     }));
   }, [ports]);
 
-  // Validate: port path must start with /dev/
-  const isPortValid = selectedPort.trim().startsWith('/dev/');
+  // Validate: port path must start with /dev/ (Unix/macOS) or COM (Windows)
+  const trimmedPort = selectedPort.trim();
+  const isPortValid = trimmedPort.startsWith('/dev/') || /^COM\d+$/i.test(trimmedPort);
   const isBaudRateValid = BAUD_RATES.includes(baudRate);
   const isValid = isPortValid && isBaudRateValid;
 

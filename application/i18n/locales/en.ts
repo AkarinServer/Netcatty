@@ -1065,7 +1065,7 @@ const en: Messages = {
   'serial.field.flowControl': 'Flow Control',
   'serial.noPorts': 'No serial ports detected. Connect a device and refresh.',
   'serial.field.customPort': 'Custom Port Path',
-  'serial.field.customPortPlaceholder': 'e.g. /dev/ttys001',
+  'serial.field.customPortPlaceholder': 'e.g. /dev/ttys001 or COM1',
   'serial.type.hardware': 'Hardware',
   'serial.type.pseudo': 'Pseudo Terminal',
   'serial.type.custom': 'Custom',
