@@ -2,11 +2,11 @@
  * Serial Port Connect Modal
  * Allows users to configure and connect to a serial port
  */
-import { ChevronDown, ChevronUp, Cpu, RefreshCw, Usb } from 'lucide-react';
+import { ChevronDown, ChevronUp, Cpu, RefreshCw, Save, Usb } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useI18n } from '../application/i18n/I18nProvider';
 import { useTerminalBackend } from '../application/state/useTerminalBackend';
-import type { SerialConfig, SerialFlowControl, SerialParity } from '../domain/models';
+import type { Host, SerialConfig, SerialFlowControl, SerialParity } from '../domain/models';
 import { cn } from '../lib/utils';
 import { Button } from './ui/button';
 import { Combobox, type ComboboxOption } from './ui/combobox';
@@ -18,6 +18,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from './ui/dialog';
+import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './ui/collapsible';
 
@@ -35,6 +36,7 @@ interface SerialConnectModalProps {
   open: boolean;
   onClose: () => void;
   onConnect: (config: SerialConfig) => void;
+  onSaveHost?: (host: Host) => void;
 }
 
 const BAUD_RATES = [300, 1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200, 230400, 460800, 921600];
@@ -47,6 +49,7 @@ export const SerialConnectModal: React.FC<SerialConnectModalProps> = ({
   open,
   onClose,
   onConnect,
+  onSaveHost,
 }) => {
   const { t } = useI18n();
   const [ports, setPorts] = useState<SerialPort[]>([]);
@@ -62,6 +65,10 @@ export const SerialConnectModal: React.FC<SerialConnectModalProps> = ({
   const [flowControl, setFlowControl] = useState<SerialFlowControl>('none');
   const [localEcho, setLocalEcho] = useState(false);
   const [lineMode, setLineMode] = useState(false);
+
+  // Save configuration state
+  const [saveConfig, setSaveConfig] = useState(false);
+  const [configLabel, setConfigLabel] = useState('');
 
   const terminalBackend = useTerminalBackend();
 
@@ -87,6 +94,14 @@ export const SerialConnectModal: React.FC<SerialConnectModalProps> = ({
     }
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Generate a default label when port is selected
+  useEffect(() => {
+    if (selectedPort && !configLabel) {
+      const portName = selectedPort.split('/').pop() || selectedPort;
+      setConfigLabel(`Serial: ${portName}`);
+    }
+  }, [selectedPort, configLabel]);
+
   const handleConnect = () => {
     if (!selectedPort) return;
 
@@ -100,6 +115,26 @@ export const SerialConnectModal: React.FC<SerialConnectModalProps> = ({
       localEcho,
       lineMode,
     };
+
+    // Save as host if checkbox is checked and onSaveHost is provided
+    if (saveConfig && onSaveHost) {
+      const portName = selectedPort.split('/').pop() || selectedPort;
+      const host: Host = {
+        id: `serial-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`,
+        label: configLabel.trim() || `Serial: ${portName}`,
+        hostname: selectedPort,
+        // For serial hosts, port field stores baud rate as a numeric identifier.
+        // The full configuration is stored in serialConfig for actual connection.
+        port: baudRate,
+        username: '',
+        os: 'linux',
+        tags: ['serial'],
+        protocol: 'serial',
+        createdAt: Date.now(),
+        serialConfig: config, // Store full serial configuration for connection
+      };
+      onSaveHost(host);
+    }
 
     onConnect(config);
     onClose();
@@ -120,7 +155,8 @@ export const SerialConnectModal: React.FC<SerialConnectModalProps> = ({
     trimmedPort.startsWith('/dev/') ||
     /^COM\d+$/i.test(trimmedPort) ||
     /^\\\\\.\\COM\d+$/i.test(trimmedPort);
-  const isBaudRateValid = BAUD_RATES.includes(baudRate);
+  // Allow custom baud rates as long as they are positive integers
+  const isBaudRateValid = Number.isInteger(baudRate) && baudRate > 0;
 
   // Check if using 1.5 stop bits (limited Windows support)
   const isStopBits15 = stopBits === 1.5;
@@ -178,18 +214,28 @@ export const SerialConnectModal: React.FC<SerialConnectModalProps> = ({
           {/* Baud Rate */}
           <div className="space-y-2">
             <Label htmlFor="baud-rate">{t('serial.field.baudRate')}</Label>
-            <select
-              id="baud-rate"
-              value={baudRate}
-              onChange={(e) => setBaudRate(parseInt(e.target.value, 10))}
-              className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-            >
-              {BAUD_RATES.map((rate) => (
-                <option key={rate} value={rate}>
-                  {rate}
-                </option>
-              ))}
-            </select>
+            <Combobox
+              options={BAUD_RATES.map((rate) => ({
+                value: String(rate),
+                label: String(rate),
+              }))}
+              value={String(baudRate)}
+              onValueChange={(val) => {
+                const parsed = parseInt(val, 10);
+                if (!isNaN(parsed) && parsed > 0) {
+                  setBaudRate(parsed);
+                }
+              }}
+              placeholder={t('serial.field.baudRatePlaceholder')}
+              emptyText={t('serial.field.baudRateEmpty')}
+              allowCreate
+              createText={t('common.use')}
+            />
+            {baudRate > 0 && !BAUD_RATES.includes(baudRate) && (
+              <p className="text-xs text-muted-foreground">
+                {t('serial.field.customBaudRate')}
+              </p>
+            )}
           </div>
 
           {/* Advanced Options */}
@@ -325,6 +371,40 @@ export const SerialConnectModal: React.FC<SerialConnectModalProps> = ({
               </div>
             </CollapsibleContent>
           </Collapsible>
+
+          {/* Save Configuration */}
+          {onSaveHost && (
+            <div className="space-y-3 pt-2 border-t border-border/60">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label htmlFor="save-config" className="text-sm font-medium cursor-pointer">
+                    {t('serial.field.saveConfig')}
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    {t('serial.field.saveConfigDesc')}
+                  </p>
+                </div>
+                <input
+                  type="checkbox"
+                  id="save-config"
+                  checked={saveConfig}
+                  onChange={(e) => setSaveConfig(e.target.checked)}
+                  className="h-4 w-4 rounded border-input"
+                />
+              </div>
+              {saveConfig && (
+                <div className="space-y-2">
+                  <Label htmlFor="config-label">{t('serial.field.configLabel')}</Label>
+                  <Input
+                    id="config-label"
+                    value={configLabel}
+                    onChange={(e) => setConfigLabel(e.target.value)}
+                    placeholder={t('serial.field.configLabelPlaceholder')}
+                  />
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         <DialogFooter>
@@ -332,8 +412,12 @@ export const SerialConnectModal: React.FC<SerialConnectModalProps> = ({
             {t('common.cancel')}
           </Button>
           <Button onClick={handleConnect} disabled={!isValid}>
-            <Cpu size={14} className="mr-2" />
-            {t('common.connect')}
+            {saveConfig ? (
+              <Save size={14} className="mr-2" />
+            ) : (
+              <Cpu size={14} className="mr-2" />
+            )}
+            {saveConfig ? t('serial.connectAndSave') : t('common.connect')}
           </Button>
         </DialogFooter>
       </DialogContent>

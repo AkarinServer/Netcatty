@@ -1,4 +1,4 @@
-import { Server } from "lucide-react";
+import { Server, Usb } from "lucide-react";
 import React, { memo } from "react";
 import { normalizeDistroId } from "../domain/host";
 import { cn } from "../lib/utils";
@@ -68,6 +68,21 @@ const DistroAvatarInner: React.FC<DistroAvatarProps> = ({
 
   const containerClass = sizeClasses[size];
   const iconSize = iconSizes[size];
+
+  // Show USB icon for serial hosts
+  if (host.protocol === 'serial') {
+    return (
+      <div
+        className={cn(
+          containerClass,
+          "flex items-center justify-center bg-amber-500/15 text-amber-500",
+          className,
+        )}
+      >
+        <Usb className={iconSize} />
+      </div>
+    );
+  }
 
   if (logo && !errored) {
     return (

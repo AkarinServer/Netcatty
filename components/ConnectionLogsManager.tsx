@@ -4,6 +4,7 @@ import {
     Server,
     Terminal,
     Trash2,
+    Usb,
     User,
 } from "lucide-react";
 import React, { memo, useCallback, useMemo } from "react";
@@ -63,6 +64,7 @@ interface LogItemProps {
 const LogItem = memo<LogItemProps>(({ log, onToggleSaved, onDelete, onClick }) => {
     const { t, resolvedLocale } = useI18n();
     const isLocal = log.protocol === "local" || log.hostname === "localhost";
+    const isSerial = log.protocol === "serial";
 
     return (
         <div
@@ -92,14 +94,14 @@ const LogItem = memo<LogItemProps>(({ log, onToggleSaved, onDelete, onClick }) =
             <div className="flex items-center gap-2 flex-1 min-w-0">
                 <div className={cn(
                     "h-8 w-8 rounded-lg flex items-center justify-center shrink-0",
-                    isLocal ? "bg-emerald-500/10 text-emerald-500" : "bg-blue-500/10 text-blue-500"
+                    isSerial ? "bg-amber-500/10 text-amber-500" : isLocal ? "bg-emerald-500/10 text-emerald-500" : "bg-blue-500/10 text-blue-500"
                 )}>
-                    {isLocal ? <Terminal size={14} /> : <Server size={14} />}
+                    {isSerial ? <Usb size={14} /> : isLocal ? <Terminal size={14} /> : <Server size={14} />}
                 </div>
                 <div className="min-w-0">
                     <div className="text-sm font-medium truncate">{isLocal ? t("logs.localTerminal") : log.hostLabel}</div>
                     <div className="text-xs text-muted-foreground truncate">
-                        {isLocal ? "local" : `${log.protocol}, ${log.username}`}
+                        {isLocal ? "local" : isSerial ? `serial, ${log.hostname}` : `${log.protocol}, ${log.username}`}
                     </div>
                 </div>
             </div>

@@ -401,6 +401,12 @@ const zhCN: Messages = {
   'hostDetails.telnet.password': 'Telnet 密码',
   'hostDetails.charset.placeholder': '字符集（例如 UTF-8）',
   'hostDetails.telnet.add': '添加 Telnet 协议',
+  'hostDetails.tags': '标签',
+  'hostDetails.group': '分组',
+  'hostDetails.selectGroup': '选择分组',
+  'hostDetails.addTag': '添加标签...',
+  'hostDetails.createTag': '创建标签',
+  'hostDetails.createGroup': '创建分组',
 
   // Host form (legacy modal)
   'hostForm.title.edit': '编辑主机',
@@ -757,7 +763,7 @@ const zhCN: Messages = {
   'settings.sftpFileAssociations.noAssociations': '未配置文件关联',
   'settings.sftpFileAssociations.remove': '移除',
   'settings.sftpFileAssociations.removeConfirm': '确定移除 .{ext} 的关联吗？',
-  
+
   // Settings > SFTP Behavior
   'settings.sftp.doubleClickBehavior': '双击行为',
   'settings.sftp.doubleClickBehavior.desc': '选择在 SFTP 视图中双击文件时的操作',
@@ -765,7 +771,7 @@ const zhCN: Messages = {
   'settings.sftp.doubleClickBehavior.transfer': '传输到另一侧',
   'settings.sftp.doubleClickBehavior.openDesc': '使用默认应用程序打开文件',
   'settings.sftp.doubleClickBehavior.transferDesc': '将文件传输到另一窗格的活动主机',
-  
+
   // Settings > SFTP Auto Sync
   'settings.sftp.autoSync': '自动同步到远程',
   'settings.sftp.autoSync.desc': '使用外部应用程序打开文件时，自动将文件更改同步回远程服务器',
@@ -1078,6 +1084,15 @@ const zhCN: Messages = {
   'serial.field.lineMode': '行模式',
   'serial.field.lineModeDesc': '缓冲输入，按回车后发送（而不是逐字符发送）',
   'serial.connectionError': '连接串口失败',
+  'serial.field.baudRatePlaceholder': '选择或输入波特率...',
+  'serial.field.baudRateEmpty': '输入自定义波特率',
+  'serial.field.customBaudRate': '使用自定义波特率',
+  'serial.field.saveConfig': '保存配置',
+  'serial.field.saveConfigDesc': '将此串口配置保存到主机列表以便快速访问',
+  'serial.field.configLabel': '配置名称',
+  'serial.field.configLabelPlaceholder': '例如 Arduino Uno',
+  'serial.connectAndSave': '连接并保存',
+  'serial.edit.title': '串口设置',
 };
 
 export default zhCN;

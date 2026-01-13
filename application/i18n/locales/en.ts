@@ -525,7 +525,7 @@ const en: Messages = {
   'settings.sftpFileAssociations.noAssociations': 'No file associations configured',
   'settings.sftpFileAssociations.remove': 'Remove',
   'settings.sftpFileAssociations.removeConfirm': 'Remove association for .{ext}?',
-  
+
   // Settings > SFTP Behavior
   'settings.sftp.doubleClickBehavior': 'Double-click behavior',
   'settings.sftp.doubleClickBehavior.desc': 'Choose the action when double-clicking a file in SFTP View',
@@ -533,7 +533,7 @@ const en: Messages = {
   'settings.sftp.doubleClickBehavior.transfer': 'Transfer to other pane',
   'settings.sftp.doubleClickBehavior.openDesc': 'Open the file in the default application',
   'settings.sftp.doubleClickBehavior.transferDesc': 'Transfer the file to the other pane\'s active host',
-  
+
   // Settings > SFTP Auto Sync
   'settings.sftp.autoSync': 'Auto-sync to remote',
   'settings.sftp.autoSync.desc': 'Automatically sync file changes back to the remote server when opening files with external applications',
@@ -654,6 +654,12 @@ const en: Messages = {
   'hostDetails.telnet.password': 'Telnet Password',
   'hostDetails.charset.placeholder': 'Charset (e.g. UTF-8)',
   'hostDetails.telnet.add': 'Add Telnet Protocol',
+  'hostDetails.tags': 'Tags',
+  'hostDetails.group': 'Group',
+  'hostDetails.selectGroup': 'Select Group',
+  'hostDetails.addTag': 'Add a tag...',
+  'hostDetails.createTag': 'Create tag',
+  'hostDetails.createGroup': 'Create group',
 
   // Host form (legacy modal)
   'hostForm.title.edit': 'Edit Host',
@@ -1089,6 +1095,15 @@ const en: Messages = {
   'serial.field.lineMode': 'Line Mode',
   'serial.field.lineModeDesc': 'Buffer input and send on Enter (instead of character-by-character)',
   'serial.connectionError': 'Failed to connect to serial port',
+  'serial.field.baudRatePlaceholder': 'Select or enter baud rate...',
+  'serial.field.baudRateEmpty': 'Enter a custom baud rate',
+  'serial.field.customBaudRate': 'Using custom baud rate',
+  'serial.field.saveConfig': 'Save Configuration',
+  'serial.field.saveConfigDesc': 'Save this serial configuration to hosts for quick access',
+  'serial.field.configLabel': 'Configuration Name',
+  'serial.field.configLabelPlaceholder': 'e.g. Arduino Uno',
+  'serial.connectAndSave': 'Connect & Save',
+  'serial.edit.title': 'Serial Port Settings',
 };
 
 export default en;
