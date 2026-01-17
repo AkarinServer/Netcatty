@@ -40,13 +40,7 @@
 
 ---
 
-[![Netcatty メインインターフェース](screenshots/main-window-dark.png)](screenshots/main-window-dark.png)
-
-<p align="center">
-  <img src="screenshots/vault_grid_view.png" width="45%" alt="Grid View">
-  &nbsp; &nbsp;
-  <img src="screenshots/sftp_dual_pane.png" width="45%" alt="SFTP Dual Pane">
-</p>
+[![Netcatty メインインターフェース](screenshots/vault_grid_view.png)](screenshots/vault_grid_view.png)
 
 ---
 
