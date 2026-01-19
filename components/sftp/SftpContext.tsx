@@ -32,8 +32,8 @@ export interface SftpPaneCallbacks {
     onOpenFile?: (entry: SftpFileEntry) => void;
     onOpenFileWith?: (entry: SftpFileEntry) => void;  // Always show opener dialog
     onDownloadFile?: (entry: SftpFileEntry) => void;  // Download to local filesystem
-    // External file upload
-    onUploadExternalFiles?: (files: FileList) => Promise<void>;
+    // External file upload (supports folders via DataTransfer)
+    onUploadExternalFiles?: (dataTransfer: DataTransfer) => Promise<void>;
 }
 
 export interface SftpDragCallbacks {

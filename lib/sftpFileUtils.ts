@@ -424,3 +424,154 @@ export function getSupportedLanguages(): { id: string; name: string }[] {
     .map(id => ({ id, name: getLanguageName(id) }))
     .sort((a, b) => a.name.localeCompare(b.name));
 }
+
+/**
+ * Represents a file or directory entry from drag-and-drop
+ * This includes the relative path for nested files in folders
+ */
+export interface DropEntry {
+  file: File;
+  relativePath: string;  // Path relative to the root of the drop (e.g., "folder/subfolder/file.txt")
+  isDirectory: boolean;
+}
+
+/**
+ * Read entries from a FileSystemDirectoryEntry recursively
+ * Uses the webkitGetAsEntry API to access folder contents
+ */
+function readDirectoryEntries(
+  directoryReader: FileSystemDirectoryReader
+): Promise<FileSystemEntry[]> {
+  return new Promise((resolve, reject) => {
+    const allEntries: FileSystemEntry[] = [];
+    
+    const readBatch = () => {
+      directoryReader.readEntries(
+        (entries) => {
+          if (entries.length === 0) {
+            resolve(allEntries);
+          } else {
+            allEntries.push(...entries);
+            // Continue reading (readEntries may not return all entries at once)
+            readBatch();
+          }
+        },
+        (error) => reject(error)
+      );
+    };
+    
+    readBatch();
+  });
+}
+
+/**
+ * Convert a FileSystemEntry to a File
+ */
+function entryToFile(entry: FileSystemFileEntry): Promise<File> {
+  return new Promise((resolve, reject) => {
+    entry.file(resolve, reject);
+  });
+}
+
+/**
+ * Recursively process a FileSystemEntry and collect all files
+ * @param entry - The file system entry to process
+ * @param basePath - The base path (folder name) to prepend
+ * @returns Array of DropEntry objects with files and their relative paths
+ */
+async function processEntry(
+  entry: FileSystemEntry,
+  basePath: string = ""
+): Promise<DropEntry[]> {
+  const results: DropEntry[] = [];
+  
+  if (entry.isFile) {
+    const fileEntry = entry as FileSystemFileEntry;
+    try {
+      const file = await entryToFile(fileEntry);
+      results.push({
+        file,
+        relativePath: basePath ? `${basePath}/${entry.name}` : entry.name,
+        isDirectory: false,
+      });
+    } catch (error) {
+      console.warn(`Failed to read file entry: ${entry.name}`, error);
+    }
+  } else if (entry.isDirectory) {
+    const dirEntry = entry as FileSystemDirectoryEntry;
+    const currentPath = basePath ? `${basePath}/${entry.name}` : entry.name;
+    
+    // Add a placeholder for the directory itself (to ensure it gets created)
+    results.push({
+      file: new File([], entry.name),
+      relativePath: currentPath,
+      isDirectory: true,
+    });
+    
+    try {
+      const reader = dirEntry.createReader();
+      const entries = await readDirectoryEntries(reader);
+      
+      // Process all entries in the directory
+      for (const childEntry of entries) {
+        const childResults = await processEntry(childEntry, currentPath);
+        results.push(...childResults);
+      }
+    } catch (error) {
+      console.warn(`Failed to read directory: ${entry.name}`, error);
+    }
+  }
+  
+  return results;
+}
+
+/**
+ * Extract all files and directories from a DataTransfer object
+ * Supports both regular files and folders dropped from the OS
+ * 
+ * Uses the webkitGetAsEntry() API for folder access, with fallback
+ * to regular FileList for browsers that don't support it.
+ * 
+ * @param dataTransfer - The DataTransfer object from a drop event
+ * @returns Array of DropEntry objects with files and relative paths
+ */
+export async function extractDropEntries(
+  dataTransfer: DataTransfer
+): Promise<DropEntry[]> {
+  const items = dataTransfer.items;
+  const results: DropEntry[] = [];
+  
+  // Check if webkitGetAsEntry is supported (for folder access)
+  if (items && items.length > 0 && typeof items[0].webkitGetAsEntry === 'function') {
+    // Collect all entries first (getAsEntry must be called synchronously)
+    const entries: FileSystemEntry[] = [];
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (item.kind === 'file') {
+        const entry = item.webkitGetAsEntry();
+        if (entry) {
+          entries.push(entry);
+        }
+      }
+    }
+    
+    // Now process entries asynchronously
+    for (const entry of entries) {
+      const entryResults = await processEntry(entry);
+      results.push(...entryResults);
+    }
+  } else {
+    // Fallback: use regular FileList (no folder support)
+    const files = dataTransfer.files;
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      results.push({
+        file,
+        relativePath: file.name,
+        isDirectory: false,
+      });
+    }
+  }
+  
+  return results;
+}

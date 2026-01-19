@@ -635,11 +635,12 @@ const SftpPaneViewInner: React.FC<SftpPaneViewProps> = ({
     setDragOverEntry(null);
 
     // Check if this is external file drop (from OS)
-    const droppedFiles = e.dataTransfer.files;
-    if (droppedFiles && droppedFiles.length > 0) {
-      // Handle external file upload using the callback
+    const hasFiles = e.dataTransfer.types.includes('Files');
+    if (hasFiles && e.dataTransfer.items.length > 0) {
+      // Handle external file/folder upload using the callback
+      // Pass the entire DataTransfer to support folder uploads
       if (onUploadExternalFiles) {
-        await onUploadExternalFiles(droppedFiles);
+        await onUploadExternalFiles(e.dataTransfer);
       }
       return;
     }
@@ -1927,24 +1928,25 @@ const SftpViewInner: React.FC<SftpViewProps> = ({ hosts, keys, identities }) => 
     [handleOpenFileWithForSide],
   );
 
-  // Handle external file upload from OS drag-and-drop (shared logic)
+  // Handle external file/folder upload from OS drag-and-drop (shared logic)
   // Uses sftpRef.current internally, so dependencies are stable.
   // toast and logger are globally stable, t is the only real dependency.
   const handleUploadExternalFilesForSide = useCallback(
-    async (side: "left" | "right", files: FileList) => {
+    async (side: "left" | "right", dataTransfer: DataTransfer) => {
       try {
-        const results = await sftpRef.current.uploadExternalFiles(side, files);
+        const results = await sftpRef.current.uploadExternalFiles(side, dataTransfer);
         const failCount = results.filter(r => !r.success).length;
+        // Count only files, not directories for success message
+        const successCount = results.filter(r => r.success).length;
 
         if (failCount === 0) {
-          // All files uploaded successfully
-          const successCount = results.length;
+          // All items uploaded successfully
           const message = successCount === 1
             ? `${t('sftp.upload')}: ${results[0].fileName}`
             : `${t('sftp.uploadFiles')}: ${successCount}`;
           toast.success(message, "SFTP");
         } else {
-          // Some or all files failed
+          // Some or all items failed
           const failedFiles = results.filter(r => !r.success);
           failedFiles.forEach(failed => {
             const errorMsg = failed.error ? ` - ${failed.error}` : '';
@@ -1967,12 +1969,12 @@ const SftpViewInner: React.FC<SftpViewProps> = ({ hosts, keys, identities }) => 
   );
 
   const handleUploadExternalFilesLeft = useCallback(
-    (files: FileList) => handleUploadExternalFilesForSide("left", files),
+    (dataTransfer: DataTransfer) => handleUploadExternalFilesForSide("left", dataTransfer),
     [handleUploadExternalFilesForSide],
   );
 
   const handleUploadExternalFilesRight = useCallback(
-    (files: FileList) => handleUploadExternalFilesForSide("right", files),
+    (dataTransfer: DataTransfer) => handleUploadExternalFilesForSide("right", dataTransfer),
     [handleUploadExternalFilesForSide],
   );
 

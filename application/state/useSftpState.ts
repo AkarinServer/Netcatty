@@ -13,6 +13,7 @@ import {
 import { logger } from "../../lib/logger";
 import { netcattyBridge } from "../../infrastructure/services/netcattyBridge";
 import { resolveHostAuth } from "../../domain/sshAuth";
+import { extractDropEntries } from "../../lib/sftpFileUtils";
 
 // Helper functions
 const formatFileSize = (bytes: number): string => {
@@ -2725,9 +2726,10 @@ export const useSftpState = (
     [getActivePane],
   );
 
-  // Upload external files dropped from OS
+  // Upload external files/folders dropped from OS
+  // Supports both regular files and folders via DataTransfer API
   const uploadExternalFiles = useCallback(
-    async (side: "left" | "right", files: FileList) => {
+    async (side: "left" | "right", dataTransfer: DataTransfer) => {
       const pane = getActivePane(side);
       if (!pane?.connection) {
         throw new Error("No active connection");
@@ -2738,62 +2740,115 @@ export const useSftpState = (
         throw new Error("Bridge not available");
       }
 
+      // Extract all entries (files and folders) from the DataTransfer
+      const entries = await extractDropEntries(dataTransfer);
+      
       const results: { fileName: string; success: boolean; error?: string }[] = [];
-
-      for (const file of Array.from(files)) {
-        const targetPath = joinPath(pane.connection.currentPath, file.name);
+      
+      // Track created directories to avoid duplicates
+      const createdDirs = new Set<string>();
+      
+      // Helper to ensure parent directories exist
+      const ensureDirectory = async (dirPath: string, sftpId: string | null) => {
+        if (createdDirs.has(dirPath)) return;
         
         try {
-          const arrayBuffer = await file.arrayBuffer();
-          
-          if (pane.connection.isLocal) {
-            // Upload to local filesystem
-            if (!bridge.writeLocalFile) {
-              throw new Error("writeLocalFile not available");
+          if (pane.connection?.isLocal) {
+            if (bridge.mkdirLocal) {
+              await bridge.mkdirLocal(dirPath);
             }
-            await bridge.writeLocalFile(targetPath, arrayBuffer);
+          } else if (sftpId) {
+            await bridge.mkdirSftp(sftpId, dirPath);
+          }
+          createdDirs.add(dirPath);
+        } catch {
+          // Directory may already exist, ignore error
+          createdDirs.add(dirPath);
+        }
+      };
+
+      // Get SFTP session ID if remote
+      const sftpId = pane.connection.isLocal 
+        ? null 
+        : sftpSessionsRef.current.get(pane.connection.id) || null;
+      
+      if (!pane.connection.isLocal && !sftpId) {
+        throw new Error("SFTP session not found");
+      }
+
+      // Process entries: first create all directories, then upload files
+      // Sort entries so directories come before their contents
+      const sortedEntries = [...entries].sort((a, b) => {
+        // Directories first
+        if (a.isDirectory && !b.isDirectory) return -1;
+        if (!a.isDirectory && b.isDirectory) return 1;
+        // Then by path depth (shorter paths first)
+        const aDepth = a.relativePath.split('/').length;
+        const bDepth = b.relativePath.split('/').length;
+        return aDepth - bDepth;
+      });
+
+      for (const entry of sortedEntries) {
+        const targetPath = joinPath(pane.connection.currentPath, entry.relativePath);
+        
+        try {
+          if (entry.isDirectory) {
+            // Create directory
+            await ensureDirectory(targetPath, sftpId);
+            results.push({ fileName: entry.relativePath, success: true });
           } else {
-            // Upload to remote via SFTP
-            const sftpId = sftpSessionsRef.current.get(pane.connection.id);
-            if (!sftpId) {
-              throw new Error("SFTP session not found");
+            // Ensure parent directory exists for files in subdirectories
+            const pathParts = entry.relativePath.split('/');
+            if (pathParts.length > 1) {
+              // Build parent path progressively
+              let parentPath = pane.connection.currentPath;
+              for (let i = 0; i < pathParts.length - 1; i++) {
+                parentPath = joinPath(parentPath, pathParts[i]);
+                await ensureDirectory(parentPath, sftpId);
+              }
             }
             
-            // Try progress API first, fallback to basic binary write
-            if (bridge.writeSftpBinaryWithProgress) {
-              const result = await bridge.writeSftpBinaryWithProgress(
-                sftpId,
-                targetPath,
-                arrayBuffer,
-                crypto.randomUUID(),
-                // Progress callbacks not needed for simple drag-drop upload
-                undefined, // onProgress
-                undefined, // onComplete
-                undefined, // onError
-              );
-              
-              // Check if progress API explicitly reported failure
-              // If result is undefined/null or success is false, fallback to basic API
-              if (!result || result.success === false) {
-                if (bridge.writeSftpBinary) {
-                  await bridge.writeSftpBinary(sftpId, targetPath, arrayBuffer);
-                } else {
-                  throw new Error("Upload failed and no fallback method available");
-                }
+            // Upload file
+            const arrayBuffer = await entry.file.arrayBuffer();
+            
+            if (pane.connection.isLocal) {
+              if (!bridge.writeLocalFile) {
+                throw new Error("writeLocalFile not available");
               }
-            } else if (bridge.writeSftpBinary) {
-              // Progress API not available, use basic API
-              await bridge.writeSftpBinary(sftpId, targetPath, arrayBuffer);
-            } else {
-              throw new Error("No SFTP write method available");
+              await bridge.writeLocalFile(targetPath, arrayBuffer);
+            } else if (sftpId) {
+              // Try progress API first, fallback to basic binary write
+              if (bridge.writeSftpBinaryWithProgress) {
+                const result = await bridge.writeSftpBinaryWithProgress(
+                  sftpId,
+                  targetPath,
+                  arrayBuffer,
+                  crypto.randomUUID(),
+                  undefined, // onProgress
+                  undefined, // onComplete
+                  undefined, // onError
+                );
+                
+                if (!result || result.success === false) {
+                  if (bridge.writeSftpBinary) {
+                    await bridge.writeSftpBinary(sftpId, targetPath, arrayBuffer);
+                  } else {
+                    throw new Error("Upload failed and no fallback method available");
+                  }
+                }
+              } else if (bridge.writeSftpBinary) {
+                await bridge.writeSftpBinary(sftpId, targetPath, arrayBuffer);
+              } else {
+                throw new Error("No SFTP write method available");
+              }
             }
+            
+            results.push({ fileName: entry.relativePath, success: true });
           }
-          
-          results.push({ fileName: file.name, success: true });
         } catch (error) {
-          logger.error(`Failed to upload ${file.name}:`, error);
+          logger.error(`Failed to upload ${entry.relativePath}:`, error);
           results.push({
-            fileName: file.name,
+            fileName: entry.relativePath,
             success: false,
             error: error instanceof Error ? error.message : String(error),
           });
