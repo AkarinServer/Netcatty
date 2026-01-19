@@ -1117,6 +1117,16 @@ const en: Messages = {
   'serial.field.configLabelPlaceholder': 'e.g. Arduino Uno',
   'serial.connectAndSave': 'Connect & Save',
   'serial.edit.title': 'Serial Port Settings',
+
+  // Keyboard Interactive Authentication (2FA/MFA)
+  'keyboard.interactive.title': 'Authentication Required',
+  'keyboard.interactive.desc': 'The server requires additional authentication.',
+  'keyboard.interactive.descWithHost': 'The server {hostname} requires additional authentication.',
+  'keyboard.interactive.response': 'Response',
+  'keyboard.interactive.enterCode': 'Enter verification code',
+  'keyboard.interactive.enterResponse': 'Enter response',
+  'keyboard.interactive.submit': 'Submit',
+  'keyboard.interactive.verifying': 'Verifying...',
 };
 
 export default en;

@@ -11,6 +11,7 @@ const SftpClient = require("ssh2-sftp-client");
 const { Client: SSHClient } = require("ssh2");
 const { NetcattyAgent } = require("./netcattyAgent.cjs");
 const fileWatcherBridge = require("./fileWatcherBridge.cjs");
+const keyboardInteractiveHandler = require("./keyboardInteractiveHandler.cjs");
 
 // SFTP clients storage - shared reference passed from main
 let sftpClients = null;
@@ -18,6 +19,18 @@ let electronModule = null;
 
 // Storage for jump host connections that need to be cleaned up
 const jumpConnectionsMap = new Map(); // connId -> { connections: SSHClient[], socket: stream }
+
+/**
+ * Send message to renderer safely
+ */
+function safeSend(sender, channel, payload) {
+  try {
+    if (!sender || sender.isDestroyed()) return;
+    sender.send(channel, payload);
+  } catch {
+    // Ignore destroyed webContents during shutdown.
+  }
+}
 
 /**
  * Initialize the SFTP bridge with dependencies
@@ -363,6 +376,63 @@ async function openSftp(event, options) {
     if (connectOpts.password) order.push("password");
     connectOpts.authHandler = order;
   }
+
+  // Add keyboard-interactive authentication support
+  // ssh2-sftp-client exposes the underlying ssh2 Client through its `on` method
+  const kiHandler = (name, instructions, instructionsLang, prompts, finish) => {
+    console.log(`[SFTP] ${options.hostname} keyboard-interactive auth requested`, {
+      name,
+      instructions,
+      promptCount: prompts?.length || 0,
+    });
+
+    // If there are no prompts, just call finish with empty array
+    if (!prompts || prompts.length === 0) {
+      console.log(`[SFTP] No prompts, finishing keyboard-interactive`);
+      finish([]);
+      return;
+    }
+
+    // Generate a unique request ID and store the finish callback
+    const requestId = keyboardInteractiveHandler.generateRequestId('sftp');
+    keyboardInteractiveHandler.storeRequest(requestId, finish, event.sender.id, connId);
+
+    // Send the prompts to the renderer for user input
+    const promptsData = prompts.map((p) => ({
+      prompt: p.prompt,
+      echo: p.echo,
+    }));
+
+    safeSend(event.sender, "netcatty:keyboard-interactive", {
+      requestId,
+      sessionId: connId,
+      name: name || "",
+      instructions: instructions || "",
+      prompts: promptsData,
+      hostname: options.hostname,
+    });
+  };
+
+  // Add keyboard-interactive listener BEFORE connecting
+  client.on("keyboard-interactive", kiHandler);
+
+  // Enable keyboard-interactive authentication in authHandler
+  if (connectOpts.authHandler) {
+    // Add keyboard-interactive after the existing methods
+    if (!connectOpts.authHandler.includes("keyboard-interactive")) {
+      connectOpts.authHandler.push("keyboard-interactive");
+    }
+  } else {
+    // Create authHandler with keyboard-interactive support
+    const authMethods = [];
+    if (connectOpts.privateKey) authMethods.push("publickey");
+    if (connectOpts.password) authMethods.push("password");
+    authMethods.push("keyboard-interactive");
+    connectOpts.authHandler = authMethods;
+  }
+
+  // Increase timeout to allow for keyboard-interactive auth
+  connectOpts.readyTimeout = 120000; // 2 minutes for 2FA input
   
   try {
     await client.connect(connectOpts);

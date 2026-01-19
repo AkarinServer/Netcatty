@@ -8,6 +8,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { Client: SSHClient, utils: sshUtils } = require("ssh2");
 const { NetcattyAgent } = require("./netcattyAgent.cjs");
+const keyboardInteractiveHandler = require("./keyboardInteractiveHandler.cjs");
 
 // Simple file logger for debugging
 const logFile = path.join(require("os").tmpdir(), "netcatty-ssh.log");
@@ -616,6 +617,59 @@ async function startSSHSession(event, options) {
         }
       });
 
+      // Handle keyboard-interactive authentication (2FA/MFA)
+      conn.on("keyboard-interactive", (name, instructions, instructionsLang, prompts, finish) => {
+        console.log(`${logPrefix} ${options.hostname} keyboard-interactive auth requested`, {
+          name,
+          instructions,
+          promptCount: prompts?.length || 0,
+        });
+
+        // If there are no prompts, just call finish with empty array
+        if (!prompts || prompts.length === 0) {
+          console.log(`${logPrefix} No prompts, finishing keyboard-interactive`);
+          finish([]);
+          return;
+        }
+
+        // Generate a unique request ID and store the finish callback
+        const requestId = keyboardInteractiveHandler.generateRequestId('ssh');
+        keyboardInteractiveHandler.storeRequest(requestId, finish, sender.id, sessionId);
+
+        // Send the prompts to the renderer for user input
+        const promptsData = prompts.map((p) => ({
+          prompt: p.prompt,
+          echo: p.echo,
+        }));
+
+        safeSend(sender, "netcatty:keyboard-interactive", {
+          requestId,
+          sessionId,
+          name: name || "",
+          instructions: instructions || "",
+          prompts: promptsData,
+          hostname: options.hostname,
+        });
+      });
+
+      // Enable keyboard-interactive authentication in authHandler
+      if (connectOpts.authHandler) {
+        // Add keyboard-interactive after the existing methods
+        if (!connectOpts.authHandler.includes("keyboard-interactive")) {
+          connectOpts.authHandler.push("keyboard-interactive");
+        }
+      } else {
+        // Create authHandler with keyboard-interactive support
+        const authMethods = [];
+        if (connectOpts.privateKey) authMethods.push("publickey");
+        if (connectOpts.password) authMethods.push("password");
+        authMethods.push("keyboard-interactive");
+        connectOpts.authHandler = authMethods;
+      }
+
+      // Increase timeout to allow for keyboard-interactive auth
+      connectOpts.readyTimeout = 120000; // 2 minutes for 2FA input
+
       console.log(`${logPrefix} Connecting to ${options.hostname}...`);
       conn.connect(connectOpts);
     });
@@ -879,6 +933,8 @@ function registerHandlers(ipcMain) {
   ipcMain.handle("netcatty:ssh:exec", execCommand);
   ipcMain.handle("netcatty:ssh:pwd", getSessionPwd);
   ipcMain.handle("netcatty:key:generate", generateKeyPair);
+  // Register the shared keyboard-interactive response handler
+  keyboardInteractiveHandler.registerHandler(ipcMain);
 }
 
 module.exports = {

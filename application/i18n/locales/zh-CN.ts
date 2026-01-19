@@ -1106,6 +1106,16 @@ const zhCN: Messages = {
   'serial.field.configLabelPlaceholder': '例如 Arduino Uno',
   'serial.connectAndSave': '连接并保存',
   'serial.edit.title': '串口设置',
+
+  // Keyboard Interactive Authentication (2FA/MFA)
+  'keyboard.interactive.title': '需要验证',
+  'keyboard.interactive.desc': '服务器需要额外的身份验证。',
+  'keyboard.interactive.descWithHost': '服务器 {hostname} 需要额外的身份验证。',
+  'keyboard.interactive.response': '响应',
+  'keyboard.interactive.enterCode': '输入验证码',
+  'keyboard.interactive.enterResponse': '输入响应',
+  'keyboard.interactive.submit': '提交',
+  'keyboard.interactive.verifying': '验证中...',
 };
 
 export default zhCN;

@@ -5,9 +5,22 @@
 
 const net = require("node:net");
 const { Client: SSHClient } = require("ssh2");
+const keyboardInteractiveHandler = require("./keyboardInteractiveHandler.cjs");
 
 // Active port forwarding tunnels
 const portForwardingTunnels = new Map();
+
+/**
+ * Send message to renderer safely
+ */
+function safeSend(sender, channel, payload) {
+  try {
+    if (!sender || sender.isDestroyed()) return;
+    sender.send(channel, payload);
+  } catch {
+    // Ignore destroyed webContents during shutdown.
+  }
+}
 
 /**
  * Start a port forwarding tunnel
@@ -41,15 +54,58 @@ async function startPortForward(event, payload) {
       host: hostname,
       port: port,
       username: username || 'root',
-      readyTimeout: 30000,
+      readyTimeout: 120000, // 2 minutes for 2FA input
       keepaliveInterval: 10000,
     };
     
     if (privateKey) {
       connectOpts.privateKey = privateKey;
-    } else if (password) {
+    }
+    if (password) {
       connectOpts.password = password;
     }
+
+    // Build auth handler with keyboard-interactive support
+    const authMethods = [];
+    if (privateKey) authMethods.push("publickey");
+    if (password) authMethods.push("password");
+    authMethods.push("keyboard-interactive");
+    connectOpts.authHandler = authMethods;
+
+    // Handle keyboard-interactive authentication (2FA/MFA)
+    conn.on("keyboard-interactive", (name, instructions, instructionsLang, prompts, finish) => {
+      console.log(`[PortForward] ${hostname} keyboard-interactive auth requested`, {
+        name,
+        instructions,
+        promptCount: prompts?.length || 0,
+      });
+
+      // If there are no prompts, just call finish with empty array
+      if (!prompts || prompts.length === 0) {
+        console.log(`[PortForward] No prompts, finishing keyboard-interactive`);
+        finish([]);
+        return;
+      }
+
+      // Generate a unique request ID and store the finish callback
+      const requestId = keyboardInteractiveHandler.generateRequestId('pf');
+      keyboardInteractiveHandler.storeRequest(requestId, finish, sender.id, tunnelId);
+
+      // Send the prompts to the renderer for user input
+      const promptsData = prompts.map((p) => ({
+        prompt: p.prompt,
+        echo: p.echo,
+      }));
+
+      safeSend(sender, "netcatty:keyboard-interactive", {
+        requestId,
+        sessionId: tunnelId,
+        name: name || "",
+        instructions: instructions || "",
+        prompts: promptsData,
+        hostname: hostname,
+      });
+    });
     
     conn.on('ready', () => {
       console.log(`[PortForward] SSH connection ready for tunnel ${tunnelId}`);
