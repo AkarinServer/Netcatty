@@ -92,7 +92,6 @@ const HostDetailsPanel: React.FC<HostDetailsPanelProps> = ({
         protocol: "ssh",
         tags: [],
         os: "linux",
-        agentForwarding: false,
         authMethod: "password",
         charset: "UTF-8",
         theme: "Flexoki Dark",
@@ -1024,75 +1023,92 @@ const HostDetailsPanel: React.FC<HostDetailsPanelProps> = ({
           />
         </Card>
 
+        {/* Agent Forwarding */}
         <Card className="p-3 space-y-2 bg-card border-border/80">
           <ToggleRow
             label={t("hostDetails.agentForwarding")}
             enabled={!!form.agentForwarding}
             onToggle={() => update("agentForwarding", !form.agentForwarding)}
           />
+          <p className="text-xs text-muted-foreground">
+            {t("hostDetails.agentForwarding.desc")}
+          </p>
         </Card>
 
-        {/* Host Chain Configuration - Only show when Agent Forwarding is enabled */}
-        {form.agentForwarding && (
-          <Card className="p-3 space-y-2 bg-card border-border/80">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Link2 size={14} className="text-muted-foreground" />
-                <p className="text-xs font-semibold">
-                  {t("hostDetails.jumpHosts")}
-                </p>
-              </div>
-              {chainedHosts.length > 0 ? (
-                <Badge variant="secondary" className="text-xs">
-                  {t("hostDetails.jumpHosts.hops", { count: chainedHosts.length })}
-                </Badge>
-              ) : (
-                <Badge
-                  variant="outline"
-                  className="text-xs text-muted-foreground"
-                >
-                  {t("hostDetails.jumpHosts.direct")}
-                </Badge>
-              )}
+        {/* Proxy via Hosts (Jump Hosts / ProxyJump) */}
+        <Card className="p-3 space-y-2 bg-card border-border/80">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Link2 size={14} className="text-muted-foreground" />
+              <p className="text-xs font-semibold">
+                {t("hostDetails.jumpHosts")}
+              </p>
             </div>
-            {chainedHosts.length > 0 && (
-              <button
-                className="w-full flex items-center gap-1 p-2 rounded-md bg-secondary/50 hover:bg-secondary transition-colors cursor-pointer"
-                onClick={() => setActiveSubPanel("chain")}
+            {chainedHosts.length > 0 ? (
+              <Badge variant="secondary" className="text-xs">
+                {t("hostDetails.jumpHosts.hops", { count: chainedHosts.length })}
+              </Badge>
+            ) : (
+              <Badge
+                variant="outline"
+                className="text-xs text-muted-foreground"
               >
-                <Link2
-                  size={14}
-                  className="text-muted-foreground flex-shrink-0"
-                />
-                <span className="text-sm truncate">
-                  {chainedHosts
-                    .slice(0, 3)
-                    .map((h) => h.hostname || h.label)
-                    .join(" -> ")}
-                  {chainedHosts.length > 3 && "..."}
-                </span>
+                {t("hostDetails.jumpHosts.direct")}
+              </Badge>
+            )}
+          </div>
+          {chainedHosts.length > 0 && (
+            <button
+              className="w-full flex flex-col items-start gap-1 p-2 rounded-md bg-secondary/50 hover:bg-secondary transition-colors cursor-pointer"
+              onClick={() => setActiveSubPanel("chain")}
+            >
+              <div className="w-full flex items-center justify-between">
+                <div className="flex items-center gap-1 min-w-0 flex-1">
+                  <Link2
+                    size={14}
+                    className="text-muted-foreground flex-shrink-0"
+                  />
+                  <span className="text-xs text-muted-foreground">
+                    {t("hostDetails.jumpHosts.hops", { count: chainedHosts.length })}
+                  </span>
+                </div>
                 <X
                   size={14}
-                  className="text-muted-foreground hover:text-destructive flex-shrink-0 ml-auto"
+                  className="text-muted-foreground hover:text-destructive flex-shrink-0"
                   onClick={(e) => {
                     e.stopPropagation();
                     clearHostChain();
                   }}
                 />
-              </button>
-            )}
-            {chainedHosts.length === 0 && (
-              <Button
-                variant="ghost"
-                className="w-full h-9 justify-start gap-2 text-sm"
-                onClick={() => setActiveSubPanel("chain")}
-              >
-                <Plus size={14} />
-                {t("hostDetails.jumpHosts.configure")}
-              </Button>
-            )}
-          </Card>
-        )}
+              </div>
+              <div className="w-full space-y-1 pl-5">
+                {chainedHosts.slice(0, 5).map((h, idx) => (
+                  <div key={h.id} className="flex items-center gap-1 text-sm">
+                    <span className="text-muted-foreground">{idx + 1}.</span>
+                    <span className="truncate">
+                      {h.label !== h.hostname ? `${h.hostname} (${h.label})` : h.hostname}
+                    </span>
+                  </div>
+                ))}
+                {chainedHosts.length > 5 && (
+                  <div className="text-xs text-muted-foreground">
+                    +{chainedHosts.length - 5} more...
+                  </div>
+                )}
+              </div>
+            </button>
+          )}
+          {chainedHosts.length === 0 && (
+            <Button
+              variant="ghost"
+              className="w-full h-9 justify-start gap-2 text-sm"
+              onClick={() => setActiveSubPanel("chain")}
+            >
+              <Plus size={14} />
+              {t("hostDetails.jumpHosts.configure")}
+            </Button>
+          )}
+        </Card>
 
         {/* Proxy Configuration */}
         <Card className="p-3 space-y-2 bg-card border-border/80">

@@ -1,5 +1,81 @@
-import { Host, HostProtocol } from "./models";
+import { Host, HostChainConfig, HostProtocol } from "./models";
 import { parseQuickConnectInput } from "./quickConnect";
+
+interface ParsedJumpHost {
+  hostname: string;
+  username?: string;
+  port?: number;
+}
+
+const parseJumpHostSpec = (spec: string): ParsedJumpHost | null => {
+  const trimmed = spec.trim();
+  if (!trimmed || trimmed.toLowerCase() === "none") return null;
+
+  if (trimmed.startsWith("ssh://")) {
+    try {
+      const url = new URL(trimmed);
+      return {
+        hostname: url.hostname,
+        username: url.username || undefined,
+        port: url.port ? parseInt(url.port, 10) : undefined,
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  let username: string | undefined;
+  let hostname: string;
+  let port: number | undefined;
+  let rest = trimmed;
+
+  const atIndex = rest.indexOf("@");
+  if (atIndex !== -1) {
+    username = rest.slice(0, atIndex);
+    rest = rest.slice(atIndex + 1);
+  }
+
+  if (rest.startsWith("[")) {
+    const bracketEnd = rest.indexOf("]");
+    if (bracketEnd !== -1) {
+      hostname = rest.slice(1, bracketEnd);
+      const portPart = rest.slice(bracketEnd + 1);
+      if (portPart.startsWith(":")) {
+        const p = parseInt(portPart.slice(1), 10);
+        if (Number.isFinite(p) && p >= 1 && p <= 65535) port = p;
+      }
+    } else {
+      hostname = rest;
+    }
+  } else {
+    const colonIndex = rest.lastIndexOf(":");
+    if (colonIndex !== -1) {
+      const portStr = rest.slice(colonIndex + 1);
+      const p = parseInt(portStr, 10);
+      if (Number.isFinite(p) && p >= 1 && p <= 65535) {
+        port = p;
+        hostname = rest.slice(0, colonIndex);
+      } else {
+        hostname = rest;
+      }
+    } else {
+      hostname = rest;
+    }
+  }
+
+  if (!hostname) return null;
+  return { hostname, username, port };
+};
+
+const parseProxyJump = (value: string): ParsedJumpHost[] => {
+  if (!value || value.toLowerCase() === "none") return [];
+  return value
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map(parseJumpHostSpec)
+    .filter((h): h is ParsedJumpHost => h !== null);
+};
 
 export type VaultImportFormat =
   | "putty"
@@ -442,6 +518,7 @@ const importFromSshConfig = (text: string): VaultImportResult => {
     hostname?: string;
     username?: string;
     port?: number;
+    proxyJump?: string;
   };
 
   const blocks: Block[] = [];
@@ -479,15 +556,22 @@ const importFromSshConfig = (text: string): VaultImportResult => {
     if (keyword === "hostname") current.hostname = value;
     else if (keyword === "user") current.username = value;
     else if (keyword === "port") current.port = parsePort(value);
+    else if (keyword === "proxyjump") current.proxyJump = value;
   }
 
   flush();
 
   const parsedHosts: Host[] = [];
+  // Use hostname+port as key instead of host.id to survive deduplication
+  const hostProxyJumpMap = new Map<string, string>();
   let parsed = 0;
   let skipped = 0;
 
   const isWildcardPattern = (p: string) => /[*?]/.test(p) || p === "!" || p.startsWith("!");
+
+  // Helper to create a stable key for ProxyJump mapping
+  const makeHostKey = (hostname: string, port?: number) =>
+    `${hostname.toLowerCase()}:${port ?? 22}`;
 
   for (const block of blocks) {
     const patterns = block.patterns.filter((p) => p && !isWildcardPattern(p));
@@ -505,24 +589,146 @@ const importFromSshConfig = (text: string): VaultImportResult => {
         continue;
       }
 
-      parsedHosts.push(
-        createHost({
-          label: pat,
-          hostname,
-          username: block.username,
-          port: block.port,
-          protocol: "ssh",
-        }),
-      );
+      const host = createHost({
+        label: pat,
+        hostname,
+        username: block.username,
+        port: block.port,
+        protocol: "ssh",
+      });
+
+      parsedHosts.push(host);
+
+      // Store ProxyJump using hostname key (survives deduplication)
+      if (block.proxyJump && block.proxyJump.toLowerCase() !== "none") {
+        const hostKey = makeHostKey(hostname, block.port);
+        hostProxyJumpMap.set(hostKey, block.proxyJump);
+      }
     }
   }
 
-  const { hosts, duplicates } = dedupeHosts(parsedHosts);
+  const { hosts: dedupedHosts, duplicates } = dedupeHosts(parsedHosts);
+
+  const hostnameToId = new Map<string, string>();
+  const labelToId = new Map<string, string>();
+  for (const host of dedupedHosts) {
+    hostnameToId.set(host.hostname.toLowerCase(), host.id);
+    labelToId.set(host.label.toLowerCase(), host.id);
+  }
+
+  const resolveJumpHostToId = (jumpHost: ParsedJumpHost): string | null => {
+    const hostnameKey = jumpHost.hostname.toLowerCase();
+    if (labelToId.has(hostnameKey)) return labelToId.get(hostnameKey)!;
+    if (hostnameToId.has(hostnameKey)) return hostnameToId.get(hostnameKey)!;
+    return null;
+  };
+
+  // Collect inline hosts separately to avoid modifying array during iteration
+  const inlineHosts: Host[] = [];
+
+  // Process ProxyJump for each host (iterate over a copy to avoid issues)
+  const hostsToProcess = [...dedupedHosts];
+  for (const host of hostsToProcess) {
+    const hostKey = makeHostKey(host.hostname, host.port);
+    const proxyJumpValue = hostProxyJumpMap.get(hostKey);
+    if (!proxyJumpValue) continue;
+
+    const jumpHosts = parseProxyJump(proxyJumpValue);
+    if (jumpHosts.length === 0) continue;
+
+    const resolvedIds: string[] = [];
+    const unresolvedJumps: string[] = [];
+
+    for (const jumpHost of jumpHosts) {
+      const existingId = resolveJumpHostToId(jumpHost);
+      if (existingId) {
+        // Avoid duplicate IDs in the chain
+        if (!resolvedIds.includes(existingId)) {
+          resolvedIds.push(existingId);
+        }
+      } else {
+        // Check if we already created an inline host for this
+        const inlineKey = jumpHost.hostname.toLowerCase();
+        let inlineId = hostnameToId.get(inlineKey);
+
+        if (!inlineId) {
+          const inlineHost = createHost({
+            label: jumpHost.hostname,
+            hostname: jumpHost.hostname,
+            username: jumpHost.username,
+            port: jumpHost.port,
+            protocol: "ssh",
+          });
+          inlineHosts.push(inlineHost);
+          hostnameToId.set(inlineHost.hostname.toLowerCase(), inlineHost.id);
+          labelToId.set(inlineHost.label.toLowerCase(), inlineHost.id);
+          inlineId = inlineHost.id;
+          unresolvedJumps.push(jumpHost.hostname);
+        }
+
+        if (!resolvedIds.includes(inlineId)) {
+          resolvedIds.push(inlineId);
+        }
+      }
+    }
+
+    if (resolvedIds.length > 0) {
+      // Cycle detection: check if this host appears in its own chain
+      if (resolvedIds.includes(host.id)) {
+        issues.push({
+          level: "warning",
+          message: `ssh_config: detected circular reference in ProxyJump for "${host.label}", skipping chain.`,
+        });
+        continue;
+      }
+
+      const hostChain: HostChainConfig = { hostIds: resolvedIds };
+      host.hostChain = hostChain;
+    }
+
+    if (unresolvedJumps.length > 0) {
+      issues.push({
+        level: "warning",
+        message: `ssh_config: created inline jump host(s) for "${host.label}": ${unresolvedJumps.join(", ")}`,
+      });
+    }
+  }
+
+  // Add inline hosts to the final result
+  const allHosts = [...dedupedHosts, ...inlineHosts];
+
+  // Deep cycle detection: check for indirect cycles (A -> B -> C -> A)
+  const detectCycle = (hostId: string, visited: Set<string>): boolean => {
+    if (visited.has(hostId)) return true;
+    visited.add(hostId);
+    const host = allHosts.find(h => h.id === hostId);
+    if (host?.hostChain?.hostIds) {
+      for (const chainId of host.hostChain.hostIds) {
+        if (detectCycle(chainId, visited)) return true;
+      }
+    }
+    visited.delete(hostId);
+    return false;
+  };
+
+  // Remove chains that form cycles
+  for (const host of allHosts) {
+    if (host.hostChain?.hostIds && host.hostChain.hostIds.length > 0) {
+      if (detectCycle(host.id, new Set())) {
+        issues.push({
+          level: "warning",
+          message: `ssh_config: detected circular dependency in jump chain for "${host.label}", removing chain.`,
+        });
+        delete host.hostChain;
+      }
+    }
+  }
+
   return {
-    hosts,
+    hosts: allHosts,
     groups: [],
     issues,
-    stats: { parsed, imported: hosts.length, skipped, duplicates },
+    stats: { parsed, imported: allHosts.length, skipped, duplicates },
   };
 };
 
