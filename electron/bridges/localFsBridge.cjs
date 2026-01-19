@@ -6,14 +6,35 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const os = require("node:os");
+const { execSync } = require("node:child_process");
+
+/**
+ * Check if a file is hidden on Windows using the attrib command
+ * Returns true if the file has the hidden attribute set
+ */
+function isWindowsHiddenFile(filePath) {
+  if (process.platform !== "win32") return false;
+  try {
+    const output = execSync(`attrib "${filePath}"`, { encoding: "utf8" });
+    // attrib output format: "     H  R  filename" where H = hidden, R = read-only, etc.
+    // The attributes appear in the first ~10 characters before the path
+    const attrPart = output.substring(0, output.indexOf(filePath)).toUpperCase();
+    return attrPart.includes("H");
+  } catch (err) {
+    console.warn(`Could not check hidden attribute for ${filePath}:`, err.message);
+    return false;
+  }
+}
 
 /**
  * List files in a local directory
  * Properly handles symlinks by resolving their target type
+ * On Windows, also detects hidden files using the hidden attribute
  */
 async function listLocalDir(event, payload) {
   const dirPath = payload.path;
   const entries = await fs.promises.readdir(dirPath, { withFileTypes: true });
+  const isWindows = process.platform === "win32";
 
   // Stat entries in parallel with a small concurrency limit.
   // Serial stats can be very slow on Windows for large dirs.
@@ -45,12 +66,16 @@ async function listLocalDir(event, payload) {
           type = "file";
         }
         
+        // Check for Windows hidden attribute
+        const hidden = isWindows ? isWindowsHiddenFile(fullPath) : false;
+        
         result[i] = {
           name: entry.name,
           type,
           linkTarget,
           size: `${stat.size} bytes`,
           lastModified: stat.mtime.toISOString(),
+          hidden,
         };
       } catch (err) {
         // Handle broken symlinks - lstat doesn't follow symlinks
@@ -61,12 +86,14 @@ async function listLocalDir(event, payload) {
             const lstat = await fs.promises.lstat(fullPath);
             if (lstat.isSymbolicLink()) {
               // Broken symlink
+              const hidden = isWindows ? isWindowsHiddenFile(fullPath) : false;
               result[i] = {
                 name: brokenEntry.name,
                 type: "symlink",
                 linkTarget: null, // Broken link - target unknown
                 size: `${lstat.size} bytes`,
                 lastModified: lstat.mtime.toISOString(),
+                hidden,
               };
               return;
             }

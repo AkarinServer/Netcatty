@@ -187,3 +187,33 @@ export interface ColumnWidths {
 export const isNavigableDirectory = (entry: SftpFileEntry): boolean => {
     return entry.type === 'directory' || (entry.type === 'symlink' && entry.linkTarget === 'directory');
 };
+
+/**
+ * Check if a file is hidden on Windows
+ * Only applies to local Windows filesystem where the hidden attribute is set
+ * The ".." parent directory entry is never considered hidden
+ * 
+ * Note: On Unix/Linux, there's no system-level hidden file concept.
+ * Dotfiles are just a convention, not actual hidden files, so we don't filter them.
+ */
+export const isWindowsHiddenFile = <T extends { name: string; hidden?: boolean }>(file: T): boolean => {
+    if (file.name === "..") return false;
+    return file.hidden === true;
+};
+
+/**
+ * Filter files based on Windows hidden file visibility setting
+ * Only filters files with the Windows hidden attribute set
+ * Always preserves ".." parent directory entry
+ * 
+ * This setting only affects local Windows filesystem browsing.
+ * On Unix/Linux systems and remote SFTP connections, all files are shown
+ * because there's no system-level hidden file concept (dotfiles are just a convention).
+ */
+export const filterHiddenFiles = <T extends { name: string; hidden?: boolean }>(
+    files: T[],
+    showHiddenFiles: boolean
+): T[] => {
+    if (showHiddenFiles) return files;
+    return files.filter((f) => !isWindowsHiddenFile(f));
+};

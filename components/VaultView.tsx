@@ -50,6 +50,7 @@ import PortForwarding from "./PortForwardingNew";
 import QuickConnectWizard from "./QuickConnectWizard";
 import { isQuickConnectInput, parseQuickConnectInputWithWarnings } from "../domain/quickConnect";
 import SerialConnectModal from "./SerialConnectModal";
+import SerialHostDetailsPanel from "./SerialHostDetailsPanel";
 import SnippetsManager from "./SnippetsManager";
 import { ImportVaultDialog } from "./vault/ImportVaultDialog";
 import { Button } from "./ui/button";
@@ -1361,7 +1362,7 @@ const VaultViewInner: React.FC<VaultViewProps> = ({
       </div>
 
       {/* Host Details Panel - positioned at VaultView root level for correct top alignment */}
-      {currentSection === "hosts" && isHostPanelOpen && (
+      {currentSection === "hosts" && isHostPanelOpen && editingHost?.protocol !== 'serial' && (
         <HostDetailsPanel
           initialData={editingHost}
           availableKeys={keys}
@@ -1392,6 +1393,31 @@ const VaultViewInner: React.FC<VaultViewProps> = ({
             onUpdateCustomGroups(
               Array.from(new Set([...customGroups, groupPath])),
             );
+          }}
+        />
+      )}
+
+      {/* Serial Host Details Panel - for editing serial port hosts */}
+      {currentSection === "hosts" && isHostPanelOpen && editingHost?.protocol === 'serial' && (
+        <SerialHostDetailsPanel
+          initialData={editingHost}
+          allTags={allTags}
+          groups={Array.from(
+            new Set([
+              ...customGroups,
+              ...hosts.map((h) => h.group || "General"),
+            ]),
+          )}
+          onSave={(host) => {
+            onUpdateHosts(
+              hosts.map((h) => (h.id === host.id ? host : h)),
+            );
+            setIsHostPanelOpen(false);
+            setEditingHost(null);
+          }}
+          onCancel={() => {
+            setIsHostPanelOpen(false);
+            setEditingHost(null);
           }}
         />
       )}
@@ -1531,6 +1557,9 @@ const VaultViewInner: React.FC<VaultViewProps> = ({
           if (onConnectSerial) {
             onConnectSerial(config);
           }
+        }}
+        onSaveHost={(host) => {
+          onUpdateHosts([...hosts, host]);
         }}
       />
     </div>

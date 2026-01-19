@@ -676,6 +676,7 @@ export const useSftpState = (
           lastModified: new Date(f.lastModified).getTime(),
           lastModifiedFormatted: f.lastModified,
           linkTarget: f.linkTarget as "file" | "directory" | null | undefined,
+          hidden: f.hidden, // Windows hidden attribute
         };
       });
     },
@@ -2724,6 +2725,89 @@ export const useSftpState = (
     [getActivePane],
   );
 
+  // Upload external files dropped from OS
+  const uploadExternalFiles = useCallback(
+    async (side: "left" | "right", files: FileList) => {
+      const pane = getActivePane(side);
+      if (!pane?.connection) {
+        throw new Error("No active connection");
+      }
+
+      const bridge = netcattyBridge.get();
+      if (!bridge) {
+        throw new Error("Bridge not available");
+      }
+
+      const results: { fileName: string; success: boolean; error?: string }[] = [];
+
+      for (const file of Array.from(files)) {
+        const targetPath = joinPath(pane.connection.currentPath, file.name);
+        
+        try {
+          const arrayBuffer = await file.arrayBuffer();
+          
+          if (pane.connection.isLocal) {
+            // Upload to local filesystem
+            if (!bridge.writeLocalFile) {
+              throw new Error("writeLocalFile not available");
+            }
+            await bridge.writeLocalFile(targetPath, arrayBuffer);
+          } else {
+            // Upload to remote via SFTP
+            const sftpId = sftpSessionsRef.current.get(pane.connection.id);
+            if (!sftpId) {
+              throw new Error("SFTP session not found");
+            }
+            
+            // Try progress API first, fallback to basic binary write
+            if (bridge.writeSftpBinaryWithProgress) {
+              const result = await bridge.writeSftpBinaryWithProgress(
+                sftpId,
+                targetPath,
+                arrayBuffer,
+                crypto.randomUUID(),
+                // Progress callbacks not needed for simple drag-drop upload
+                undefined, // onProgress
+                undefined, // onComplete
+                undefined, // onError
+              );
+              
+              // Check if progress API explicitly reported failure
+              // If result is undefined/null or success is false, fallback to basic API
+              if (!result || result.success === false) {
+                if (bridge.writeSftpBinary) {
+                  await bridge.writeSftpBinary(sftpId, targetPath, arrayBuffer);
+                } else {
+                  throw new Error("Upload failed and no fallback method available");
+                }
+              }
+            } else if (bridge.writeSftpBinary) {
+              // Progress API not available, use basic API
+              await bridge.writeSftpBinary(sftpId, targetPath, arrayBuffer);
+            } else {
+              throw new Error("No SFTP write method available");
+            }
+          }
+          
+          results.push({ fileName: file.name, success: true });
+        } catch (error) {
+          logger.error(`Failed to upload ${file.name}:`, error);
+          results.push({
+            fileName: file.name,
+            success: false,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
+      
+      // Refresh the file list to show new files
+      await refresh(side);
+      
+      return results;
+    },
+    [getActivePane, refresh],
+  );
+
   // Select an application from system file picker
   const selectApplication = useCallback(
     async (): Promise<{ path: string; name: string } | null> => {
@@ -2767,6 +2851,7 @@ export const useSftpState = (
     readBinaryFile,
     writeTextFile,
     downloadToTempAndOpen,
+    uploadExternalFiles,
     selectApplication,
     startTransfer,
     cancelTransfer,
@@ -2804,6 +2889,7 @@ export const useSftpState = (
     readBinaryFile,
     writeTextFile,
     downloadToTempAndOpen,
+    uploadExternalFiles,
     selectApplication,
     startTransfer,
     cancelTransfer,
@@ -2844,6 +2930,7 @@ export const useSftpState = (
     readBinaryFile: (...args: Parameters<typeof readBinaryFile>) => methodsRef.current.readBinaryFile(...args),
     writeTextFile: (...args: Parameters<typeof writeTextFile>) => methodsRef.current.writeTextFile(...args),
     downloadToTempAndOpen: (...args: Parameters<typeof downloadToTempAndOpen>) => methodsRef.current.downloadToTempAndOpen(...args),
+    uploadExternalFiles: (...args: Parameters<typeof uploadExternalFiles>) => methodsRef.current.uploadExternalFiles(...args),
     selectApplication: () => methodsRef.current.selectApplication(),
     startTransfer: (...args: Parameters<typeof startTransfer>) => methodsRef.current.startTransfer(...args),
     cancelTransfer: (...args: Parameters<typeof cancelTransfer>) => methodsRef.current.cancelTransfer(...args),

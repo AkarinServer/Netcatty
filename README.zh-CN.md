@@ -5,7 +5,8 @@
 <h1 align="center">Netcatty</h1>
 
 <p align="center">
-  <strong>现代化 SSH 客户端、SFTP 浏览器 & 终端管理器</strong>
+  <strong>现代化 SSH 客户端、SFTP 浏览器 & 终端管理器</strong><br/>
+  <a href="https://netcatty.app"><strong>netcatty.app</strong></a>
 </p>
 
 <p align="center">
@@ -39,7 +40,7 @@
 
 ---
 
-[![Netcatty 主界面](screenshots/main-window-dark.png)](screenshots/main-window-dark.png)
+[![Netcatty 主界面](screenshots/vault_grid_view.png)](screenshots/vault_grid_view.png)
 
 ---
 
@@ -138,15 +139,15 @@ Vault 视图是管理所有 SSH 连接的控制中心。通过右键菜单创建
 
 **深色模式**
 
-![深色模式](screenshots/main-window-dark.png)
+![主机管理](screenshots/vault_grid_view.png)
 
-**浅色模式**
+**层级文件夹与分组**
 
-![浅色模式](screenshots/main-window-light.png)
+![层级文件夹](screenshots/nested_folder_structure.png)
 
 **列表视图**
 
-![列表视图](screenshots/main-window-dark-list.png)
+![列表视图](screenshots/vault_list_view.png)
 
 <a name="终端"></a>
 ## 终端
@@ -155,18 +156,28 @@ Vault 视图是管理所有 SSH 连接的控制中心。通过右键菜单创建
 
 **分屏窗口**
 
-![分屏窗口](screenshots/split-window.png)
+**广播模式**
 
-**主题定制**
+一次输入，多处执行。非常适合同时维护这多台服务器。
 
-![主题定制](screenshots/terminal-theme-change.png)
+![广播模式](screenshots/broadcast_mode.png)
+
+**性能信息与定制**
+
+监控连接健康状况，并自定义终端的方方面面。
+
+![终端性能](screenshots/terminal_performance.png)
 
 <a name="sftp"></a>
 ## SFTP
 
 双窗格 SFTP 浏览器支持本地到远程和远程到远程的文件传输。单击导航目录，在窗格之间拖放文件，实时监控传输进度。界面显示文件权限、大小和修改日期。批量传输队列管理，详细的速度和进度指示器。右键菜单快速访问重命名、删除、下载和上传操作。
 
-![SFTP 视图](screenshots/sftp.png)
+![SFTP 双窗格](screenshots/sftp_dual_pane.png)
+
+**传输队列**
+
+![传输队列](screenshots/sftp_transfer_queue.png)
 
 <a name="密钥管理"></a>
 ## 密钥管理
@@ -187,6 +198,10 @@ Vault 视图是管理所有 SSH 连接的控制中心。通过右键菜单创建
 - 📤 一键导出公钥到远程主机
 
 ![密钥管理器](screenshots/key-manager.png)
+
+**密钥生成器**
+
+![密钥生成器](screenshots/key_generator_ui.png)
 
 <a name="端口转发"></a>
 ## 端口转发
@@ -362,6 +377,17 @@ npm run pack:linux   # Linux (AppImage, deb, rpm)
 5. 打开一个 Pull Request
 
 查看 [agents.md](agents.md) 了解架构概述和编码规范。
+
+---
+
+<a name="贡献者"></a>
+# 贡献者
+
+感谢所有参与贡献的人！
+
+<a href="https://github.com/binaricat/Netcatty/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=binaricat/Netcatty" alt="contributors" />
+</a>
 
 ---
 

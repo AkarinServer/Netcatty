@@ -401,6 +401,12 @@ const zhCN: Messages = {
   'hostDetails.telnet.password': 'Telnet 密码',
   'hostDetails.charset.placeholder': '字符集（例如 UTF-8）',
   'hostDetails.telnet.add': '添加 Telnet 协议',
+  'hostDetails.tags': '标签',
+  'hostDetails.group': '分组',
+  'hostDetails.selectGroup': '选择分组',
+  'hostDetails.addTag': '添加标签...',
+  'hostDetails.createTag': '创建标签',
+  'hostDetails.createGroup': '创建分组',
 
   // Host form (legacy modal)
   'hostForm.title.edit': '编辑主机',
@@ -757,7 +763,7 @@ const zhCN: Messages = {
   'settings.sftpFileAssociations.noAssociations': '未配置文件关联',
   'settings.sftpFileAssociations.remove': '移除',
   'settings.sftpFileAssociations.removeConfirm': '确定移除 .{ext} 的关联吗？',
-  
+
   // Settings > SFTP Behavior
   'settings.sftp.doubleClickBehavior': '双击行为',
   'settings.sftp.doubleClickBehavior.desc': '选择在 SFTP 视图中双击文件时的操作',
@@ -765,7 +771,7 @@ const zhCN: Messages = {
   'settings.sftp.doubleClickBehavior.transfer': '传输到另一侧',
   'settings.sftp.doubleClickBehavior.openDesc': '使用默认应用程序打开文件',
   'settings.sftp.doubleClickBehavior.transferDesc': '将文件传输到另一窗格的活动主机',
-  
+
   // Settings > SFTP Auto Sync
   'settings.sftp.autoSync': '自动同步到远程',
   'settings.sftp.autoSync.desc': '使用外部应用程序打开文件时，自动将文件更改同步回远程服务器',
@@ -773,6 +779,18 @@ const zhCN: Messages = {
   'settings.sftp.autoSync.enableDesc': '在外部应用程序中保存文件时，更改将自动上传到远程服务器',
   'sftp.autoSync.success': '文件已同步到远程：{fileName}',
   'sftp.autoSync.error': '同步文件失败：{error}',
+
+  // SFTP Reconnecting
+  'sftp.reconnecting.title': '正在重连...',
+  'sftp.reconnecting.desc': '连接已断开，正在尝试重新连接',
+  'sftp.reconnected': '连接已恢复',
+  'sftp.error.reconnectFailed': '重连失败，请重试。',
+
+  // Settings > SFTP Show Hidden Files
+  'settings.sftp.showHiddenFiles': '显示隐藏文件',
+  'settings.sftp.showHiddenFiles.desc': '在浏览本地 Windows 文件系统时，显示具有 Windows 隐藏属性的文件。',
+  'settings.sftp.showHiddenFiles.enable': '显示隐藏文件',
+  'settings.sftp.showHiddenFiles.enableDesc': '浏览本地文件系统时显示 Windows 隐藏文件',
 
   // Settings > Terminal
   'settings.terminal.section.theme': '终端主题',
@@ -1050,11 +1068,12 @@ const zhCN: Messages = {
   'serial.field.baudRate': '波特率',
   'serial.field.dataBits': '数据位',
   'serial.field.stopBits': '停止位',
+  'serial.field.stopBits15Warning': '1.5 停止位在 Windows 下可能不被所有设备支持',
   'serial.field.parity': '校验位',
   'serial.field.flowControl': '流控制',
   'serial.noPorts': '未检测到串口设备。请连接设备后刷新。',
   'serial.field.customPort': '自定义串口路径',
-  'serial.field.customPortPlaceholder': '例如 /dev/ttys001',
+  'serial.field.customPortPlaceholder': '例如 /dev/ttys001 或 COM1',
   'serial.type.hardware': '硬件',
   'serial.type.pseudo': '虚拟终端',
   'serial.type.custom': '自定义',
@@ -1071,6 +1090,15 @@ const zhCN: Messages = {
   'serial.field.lineMode': '行模式',
   'serial.field.lineModeDesc': '缓冲输入，按回车后发送（而不是逐字符发送）',
   'serial.connectionError': '连接串口失败',
+  'serial.field.baudRatePlaceholder': '选择或输入波特率...',
+  'serial.field.baudRateEmpty': '输入自定义波特率',
+  'serial.field.customBaudRate': '使用自定义波特率',
+  'serial.field.saveConfig': '保存配置',
+  'serial.field.saveConfigDesc': '将此串口配置保存到主机列表以便快速访问',
+  'serial.field.configLabel': '配置名称',
+  'serial.field.configLabelPlaceholder': '例如 Arduino Uno',
+  'serial.connectAndSave': '连接并保存',
+  'serial.edit.title': '串口设置',
 };
 
 export default zhCN;

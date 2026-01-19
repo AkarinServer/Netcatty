@@ -525,7 +525,7 @@ const en: Messages = {
   'settings.sftpFileAssociations.noAssociations': 'No file associations configured',
   'settings.sftpFileAssociations.remove': 'Remove',
   'settings.sftpFileAssociations.removeConfirm': 'Remove association for .{ext}?',
-  
+
   // Settings > SFTP Behavior
   'settings.sftp.doubleClickBehavior': 'Double-click behavior',
   'settings.sftp.doubleClickBehavior.desc': 'Choose the action when double-clicking a file in SFTP View',
@@ -533,7 +533,7 @@ const en: Messages = {
   'settings.sftp.doubleClickBehavior.transfer': 'Transfer to other pane',
   'settings.sftp.doubleClickBehavior.openDesc': 'Open the file in the default application',
   'settings.sftp.doubleClickBehavior.transferDesc': 'Transfer the file to the other pane\'s active host',
-  
+
   // Settings > SFTP Auto Sync
   'settings.sftp.autoSync': 'Auto-sync to remote',
   'settings.sftp.autoSync.desc': 'Automatically sync file changes back to the remote server when opening files with external applications',
@@ -541,6 +541,18 @@ const en: Messages = {
   'settings.sftp.autoSync.enableDesc': 'When you save a file in an external application, changes will be automatically uploaded to the remote server',
   'sftp.autoSync.success': 'File synced to remote: {fileName}',
   'sftp.autoSync.error': 'Failed to sync file: {error}',
+
+  // SFTP Reconnecting
+  'sftp.reconnecting.title': 'Reconnecting...',
+  'sftp.reconnecting.desc': 'Connection lost, attempting to reconnect',
+  'sftp.reconnected': 'Connection restored',
+  'sftp.error.reconnectFailed': 'Failed to reconnect. Please try again.',
+
+  // Settings > SFTP Show Hidden Files
+  'settings.sftp.showHiddenFiles': 'Show hidden files',
+  'settings.sftp.showHiddenFiles.desc': 'Display files with the Windows hidden attribute in the SFTP file browser when browsing local Windows filesystem.',
+  'settings.sftp.showHiddenFiles.enable': 'Show hidden files',
+  'settings.sftp.showHiddenFiles.enableDesc': 'Display Windows hidden files when browsing local filesystem',
 
   // Quick Switcher
   'qs.search.placeholder': 'Search hosts or tabs',
@@ -648,6 +660,12 @@ const en: Messages = {
   'hostDetails.telnet.password': 'Telnet Password',
   'hostDetails.charset.placeholder': 'Charset (e.g. UTF-8)',
   'hostDetails.telnet.add': 'Add Telnet Protocol',
+  'hostDetails.tags': 'Tags',
+  'hostDetails.group': 'Group',
+  'hostDetails.selectGroup': 'Select Group',
+  'hostDetails.addTag': 'Add a tag...',
+  'hostDetails.createTag': 'Create tag',
+  'hostDetails.createGroup': 'Create group',
 
   // Host form (legacy modal)
   'hostForm.title.edit': 'Edit Host',
@@ -1061,11 +1079,12 @@ const en: Messages = {
   'serial.field.baudRate': 'Baud Rate',
   'serial.field.dataBits': 'Data Bits',
   'serial.field.stopBits': 'Stop Bits',
+  'serial.field.stopBits15Warning': '1.5 stop bits may not be supported on all Windows devices',
   'serial.field.parity': 'Parity',
   'serial.field.flowControl': 'Flow Control',
   'serial.noPorts': 'No serial ports detected. Connect a device and refresh.',
   'serial.field.customPort': 'Custom Port Path',
-  'serial.field.customPortPlaceholder': 'e.g. /dev/ttys001',
+  'serial.field.customPortPlaceholder': 'e.g. /dev/ttys001 or COM1',
   'serial.type.hardware': 'Hardware',
   'serial.type.pseudo': 'Pseudo Terminal',
   'serial.type.custom': 'Custom',
@@ -1082,6 +1101,15 @@ const en: Messages = {
   'serial.field.lineMode': 'Line Mode',
   'serial.field.lineModeDesc': 'Buffer input and send on Enter (instead of character-by-character)',
   'serial.connectionError': 'Failed to connect to serial port',
+  'serial.field.baudRatePlaceholder': 'Select or enter baud rate...',
+  'serial.field.baudRateEmpty': 'Enter a custom baud rate',
+  'serial.field.customBaudRate': 'Using custom baud rate',
+  'serial.field.saveConfig': 'Save Configuration',
+  'serial.field.saveConfigDesc': 'Save this serial configuration to hosts for quick access',
+  'serial.field.configLabel': 'Configuration Name',
+  'serial.field.configLabelPlaceholder': 'e.g. Arduino Uno',
+  'serial.connectAndSave': 'Connect & Save',
+  'serial.edit.title': 'Serial Port Settings',
 };
 
 export default en;

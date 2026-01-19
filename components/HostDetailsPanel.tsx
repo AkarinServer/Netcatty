@@ -522,12 +522,16 @@ const HostDetailsPanel: React.FC<HostDetailsPanelProps> = ({
             <Combobox
               options={groupOptions}
               value={form.group || ""}
-              onValueChange={(val) => update("group", val)}
+              onValueChange={(val) => {
+                update("group", val);
+                setGroupInputValue(val);
+              }}
               placeholder={t("hostDetails.group.placeholder")}
               allowCreate={true}
               onCreateNew={(val) => {
                 onCreateGroup?.(val);
                 update("group", val);
+                setGroupInputValue(val);
               }}
               createText="Create Group"
               triggerClassName="flex-1 h-10"

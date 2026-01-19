@@ -5,6 +5,7 @@ import { SearchAddon } from "@xterm/addon-search";
 import "@xterm/xterm/css/xterm.css";
 import { Maximize2, Radio } from "lucide-react";
 import React, { memo, useEffect, useMemo, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { useI18n } from "../application/i18n/I18nProvider";
 import { logger } from "../lib/logger";
 import { cn } from "../lib/utils";
@@ -181,6 +182,7 @@ const TerminalComponent: React.FC<TerminalProps> = ({
   const [timeLeft, setTimeLeft] = useState(CONNECTION_TIMEOUT / 1000);
   const [isCancelling, setIsCancelling] = useState(false);
   const [showSFTP, setShowSFTP] = useState(false);
+  const [sftpInitialPath, setSftpInitialPath] = useState<string | undefined>(undefined);
   const [progressValue, setProgressValue] = useState(15);
   const [hasSelection, setHasSelection] = useState(false);
 
@@ -732,6 +734,34 @@ const TerminalComponent: React.FC<TerminalProps> = ({
     termRef.current?.writeln("\r\n[No active SSH session]");
   };
 
+  const handleOpenSFTP = async () => {
+    // If SFTP is already open, toggle it off
+    if (showSFTP) {
+      setShowSFTP(false);
+      return;
+    }
+
+    // Try to get the current working directory from the terminal session
+    let initialPath: string | undefined = undefined;
+    if (sessionRef.current) {
+      try {
+        const result = await terminalBackend.getSessionPwd(sessionRef.current);
+        if (result.success && result.cwd) {
+          initialPath = result.cwd;
+        }
+      } catch {
+        // Silently fail and open SFTP without initial path
+      }
+    }
+
+    // Use flushSync to ensure initialPath state is committed before opening SFTP modal
+    // This prevents React's batching from causing the modal to open with stale/undefined initialPath
+    flushSync(() => {
+      setSftpInitialPath(initialPath);
+    });
+    setShowSFTP(true);
+  };
+
   const handleCancelConnect = () => {
     setIsCancelling(true);
     auth.setNeedsAuth(false);
@@ -810,7 +840,7 @@ const TerminalComponent: React.FC<TerminalProps> = ({
       onUpdateTerminalFontSize={onUpdateTerminalFontSize}
       isScriptsOpen={isScriptsOpen}
       setIsScriptsOpen={setIsScriptsOpen}
-      onOpenSFTP={() => setShowSFTP((v) => !v)}
+      onOpenSFTP={handleOpenSFTP}
       onSnippetClick={handleSnippetClick}
       onUpdateHost={onUpdateHost}
       showClose={opts?.showClose}
@@ -1053,6 +1083,7 @@ const TerminalComponent: React.FC<TerminalProps> = ({
           })()}
           open={showSFTP && status === "connected"}
           onClose={() => setShowSFTP(false)}
+          initialPath={sftpInitialPath}
         />
       </div>
     </TerminalContextMenu>

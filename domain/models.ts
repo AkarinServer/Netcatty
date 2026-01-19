@@ -88,6 +88,8 @@ export interface Host {
   telnetEnabled?: boolean; // Is Telnet enabled for this host
   telnetUsername?: string; // Telnet-specific username
   telnetPassword?: string; // Telnet-specific password
+  // Serial-specific configuration (for protocol='serial' hosts)
+  serialConfig?: SerialConfig;
 }
 
 export type KeyType = 'RSA' | 'ECDSA' | 'ED25519';
@@ -473,6 +475,7 @@ export interface RemoteFile {
   lastModified: string;
   linkTarget?: 'file' | 'directory' | null; // For symlinks: the type of the target, or null if broken
   permissions?: string; // rwx format for owner/group/others e.g. "rwxr-xr-x"
+  hidden?: boolean; // Windows hidden attribute (only set for local Windows filesystem)
 }
 
 export type WorkspaceNode =
@@ -512,6 +515,7 @@ export interface SftpFileEntry {
   owner?: string;
   group?: string;
   linkTarget?: 'file' | 'directory' | null; // For symlinks: the type of the target, or null if broken
+  hidden?: boolean; // Windows hidden attribute (only set for local Windows filesystem)
 }
 
 export interface SftpConnection {
@@ -615,7 +619,7 @@ export interface ConnectionLog {
   hostLabel: string; // Display label (e.g., 'Local Terminal' or host label)
   hostname: string; // Target hostname or 'localhost'
   username: string; // SSH username or system username
-  protocol: 'ssh' | 'telnet' | 'local' | 'mosh';
+  protocol: 'ssh' | 'telnet' | 'local' | 'mosh' | 'serial';
   startTime: number; // Connection start timestamp
   endTime?: number; // Connection end timestamp (undefined if still active)
   localUsername: string; // System username of the local user

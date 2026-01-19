@@ -13,7 +13,7 @@ const { NetcattyAgent } = require("./netcattyAgent.cjs");
 const logFile = path.join(require("os").tmpdir(), "netcatty-ssh.log");
 const log = (msg, data) => {
   const line = `[${new Date().toISOString()}] ${msg} ${data ? JSON.stringify(data) : ""}\n`;
-  try { fs.appendFileSync(logFile, line); } catch {}
+  try { fs.appendFileSync(logFile, line); } catch { }
   console.log("[SSH]", msg, data || "");
 };
 
@@ -64,7 +64,7 @@ function createProxySocket(proxy, targetHost, targetPort) {
         }
         const connectRequest = `CONNECT ${targetHost}:${targetPort} HTTP/1.1\r\nHost: ${targetHost}:${targetPort}\r\n${authHeader}\r\n`;
         socket.write(connectRequest);
-        
+
         let response = '';
         const onData = (data) => {
           response += data.toString();
@@ -87,7 +87,7 @@ function createProxySocket(proxy, targetHost, targetPort) {
         // SOCKS5 greeting
         const authMethods = proxy.username && proxy.password ? [0x00, 0x02] : [0x00];
         socket.write(Buffer.from([0x05, authMethods.length, ...authMethods]));
-        
+
         let step = 'greeting';
         const onData = (data) => {
           if (step === 'greeting') {
@@ -144,7 +144,7 @@ function createProxySocket(proxy, targetHost, targetPort) {
             }
           }
         };
-        
+
         const sendConnectRequest = () => {
           // SOCKS5 connect request
           const hostBuf = Buffer.from(targetHost);
@@ -155,7 +155,7 @@ function createProxySocket(proxy, targetHost, targetPort) {
           ]);
           socket.write(request);
         };
-        
+
         socket.on('data', onData);
       });
       socket.on('error', reject);
@@ -172,27 +172,27 @@ async function connectThroughChain(event, options, jumpHosts, targetHost, target
   const sender = event.sender;
   const connections = [];
   let currentSocket = null;
-  
+
   const sendProgress = (hop, total, label, status) => {
     if (!sender.isDestroyed()) {
       sender.send("netcatty:chain:progress", { hop, total, label, status });
     }
   };
-  
+
   try {
     const totalHops = jumpHosts.length;
-    
+
     // Connect through each jump host
     for (let i = 0; i < jumpHosts.length; i++) {
       const jump = jumpHosts[i];
       const isFirst = i === 0;
       const isLast = i === jumpHosts.length - 1;
       const hopLabel = jump.label || `${jump.hostname}:${jump.port || 22}`;
-      
+
       sendProgress(i + 1, totalHops + 1, hopLabel, 'connecting');
-      
+
       const conn = new SSHClient();
-      
+
       // Build connection options
       const connOpts = {
         host: jump.hostname,
@@ -211,7 +211,7 @@ async function connectThroughChain(event, options, jumpHosts, targetHost, target
           compress: ['none'],
         },
       };
-      
+
       // Auth - support agent (certificate), key, and password fallback
       const hasCertificate =
         typeof jump.certificate === "string" && jump.certificate.trim().length > 0;
@@ -241,7 +241,7 @@ async function connectThroughChain(event, options, jumpHosts, targetHost, target
         if (connOpts.password) order.push("password");
         connOpts.authHandler = order;
       }
-      
+
       // If first hop and proxy is configured, connect through proxy
       if (isFirst && options.proxy) {
         currentSocket = await createProxySocket(options.proxy, jump.hostname, jump.port || 22);
@@ -254,7 +254,7 @@ async function connectThroughChain(event, options, jumpHosts, targetHost, target
         delete connOpts.host;
         delete connOpts.port;
       }
-      
+
       // Connect this hop
       await new Promise((resolve, reject) => {
         conn.on('ready', () => {
@@ -274,9 +274,9 @@ async function connectThroughChain(event, options, jumpHosts, targetHost, target
         console.log(`[Chain] Hop ${i + 1}/${totalHops}: Connecting to ${hopLabel}...`);
         conn.connect(connOpts);
       });
-      
+
       connections.push(conn);
-      
+
       // Determine next target
       let nextHost, nextPort;
       if (isLast) {
@@ -289,7 +289,7 @@ async function connectThroughChain(event, options, jumpHosts, targetHost, target
         nextHost = nextJump.hostname;
         nextPort = nextJump.port || 22;
       }
-      
+
       // Create forward stream to next hop
       console.log(`[Chain] Hop ${i + 1}/${totalHops}: Forwarding from ${hopLabel} to ${nextHost}:${nextPort}...`);
       sendProgress(i + 1, totalHops + 1, hopLabel, 'forwarding');
@@ -305,17 +305,17 @@ async function connectThroughChain(event, options, jumpHosts, targetHost, target
         });
       });
     }
-    
+
     // Return the final forwarded stream and all connections for cleanup
-    return { 
-      socket: currentSocket, 
+    return {
+      socket: currentSocket,
       connections,
-      sendProgress 
+      sendProgress
     };
   } catch (err) {
     // Cleanup on error
     for (const conn of connections) {
-      try { conn.end(); } catch {}
+      try { conn.end(); } catch { }
     }
     throw err;
   }
@@ -332,7 +332,7 @@ async function startSSHSession(event, options) {
   const cols = options.cols || 80;
   const rows = options.rows || 24;
   const sender = event.sender;
-  
+
   const sendProgress = (hop, total, label, status) => {
     if (!sender.isDestroyed()) {
       sender.send("netcatty:chain:progress", { hop, total, label, status });
@@ -343,13 +343,13 @@ async function startSSHSession(event, options) {
     const conn = new SSHClient();
     let chainConnections = [];
     let connectionSocket = null;
-    
+
     // Determine if we have jump hosts
     const jumpHosts = options.jumpHosts || [];
     const hasJumpHosts = jumpHosts.length > 0;
     const hasProxy = !!options.proxy;
     const totalHops = jumpHosts.length + 1; // +1 for final target
-    
+
     // Build base connection options for final target
     const connectOpts = {
       host: options.hostname,
@@ -382,7 +382,7 @@ async function startSSHSession(event, options) {
       hasPassword: !!options.password,
       hasEffectivePassphrase: !!effectivePassphrase,
     });
-    
+
     log("Auth configuration", {
       hasCertificate,
       keySource: options.keySource,
@@ -437,25 +437,25 @@ async function startSSHSession(event, options) {
     // Handle chain/proxy connections
     if (hasJumpHosts) {
       const chainResult = await connectThroughChain(
-        event, 
-        options, 
-        jumpHosts, 
-        options.hostname, 
+        event,
+        options,
+        jumpHosts,
+        options.hostname,
         options.port || 22
       );
       connectionSocket = chainResult.socket;
       chainConnections = chainResult.connections;
-      
+
       connectOpts.sock = connectionSocket;
       delete connectOpts.host;
       delete connectOpts.port;
-      
+
       sendProgress(totalHops, totalHops, options.hostname, 'connecting');
     } else if (hasProxy) {
       sendProgress(1, 1, options.hostname, 'connecting');
       connectionSocket = await createProxySocket(
-        options.proxy, 
-        options.hostname, 
+        options.proxy,
+        options.hostname,
         options.port || 22
       );
       connectOpts.sock = connectionSocket;
@@ -470,7 +470,7 @@ async function startSSHSession(event, options) {
         if (hasJumpHosts || hasProxy) {
           sendProgress(totalHops, totalHops, options.hostname, 'connected');
         }
-        
+
         conn.shell(
           {
             term: "xterm-256color",
@@ -478,7 +478,7 @@ async function startSSHSession(event, options) {
             rows,
           },
           {
-            env: { 
+            env: {
               LANG: resolveLangFromCharset(options.charset),
               COLORTERM: "truecolor",
               ...(options.env || {}),
@@ -488,7 +488,7 @@ async function startSSHSession(event, options) {
             if (err) {
               conn.end();
               for (const c of chainConnections) {
-                try { c.end(); } catch {}
+                try { c.end(); } catch { }
               }
               reject(err);
               return;
@@ -507,7 +507,7 @@ async function startSSHSession(event, options) {
             let flushTimeout = null;
             const FLUSH_INTERVAL = 8; // ms - flush every 8ms for ~120fps equivalent
             const MAX_BUFFER_SIZE = 16384; // 16KB - flush immediately if buffer gets too large
-            
+
             const flushBuffer = () => {
               if (dataBuffer.length > 0) {
                 const contents = event.sender;
@@ -516,7 +516,7 @@ async function startSSHSession(event, options) {
               }
               flushTimeout = null;
             };
-            
+
             const bufferData = (data) => {
               dataBuffer += data;
               // Immediate flush for large chunks
@@ -551,7 +551,7 @@ async function startSSHSession(event, options) {
               sessions.delete(sessionId);
               conn.end();
               for (const c of chainConnections) {
-                try { c.end(); } catch {}
+                try { c.end(); } catch { }
               }
             });
 
@@ -569,28 +569,28 @@ async function startSSHSession(event, options) {
 
       conn.on("error", (err) => {
         const contents = event.sender;
-        
+
         const isAuthError = err.message?.toLowerCase().includes('authentication') ||
-                           err.message?.toLowerCase().includes('auth') ||
-                           err.message?.toLowerCase().includes('password') ||
-                           err.level === 'client-authentication';
-        
+          err.message?.toLowerCase().includes('auth') ||
+          err.message?.toLowerCase().includes('password') ||
+          err.level === 'client-authentication';
+
         // Use log instead of error for auth failures (normal fallback scenario)
         if (isAuthError) {
           console.log(`${logPrefix} ${options.hostname} auth failed:`, err.message);
-          safeSend(contents, "netcatty:auth:failed", { 
-            sessionId, 
+          safeSend(contents, "netcatty:auth:failed", {
+            sessionId,
             error: err.message,
-            hostname: options.hostname 
+            hostname: options.hostname
           });
         } else {
           console.error(`${logPrefix} ${options.hostname} error:`, err.message);
         }
-        
+
         safeSend(contents, "netcatty:exit", { sessionId, exitCode: 1, error: err.message });
         sessions.delete(sessionId);
         for (const c of chainConnections) {
-          try { c.end(); } catch {}
+          try { c.end(); } catch { }
         }
         reject(err);
       });
@@ -602,7 +602,7 @@ async function startSSHSession(event, options) {
         safeSend(contents, "netcatty:exit", { sessionId, exitCode: 1, error: err.message });
         sessions.delete(sessionId);
         for (const c of chainConnections) {
-          try { c.end(); } catch {}
+          try { c.end(); } catch { }
         }
         reject(err);
       });
@@ -612,7 +612,7 @@ async function startSSHSession(event, options) {
         safeSend(contents, "netcatty:exit", { sessionId, exitCode: 0 });
         sessions.delete(sessionId);
         for (const c of chainConnections) {
-          try { c.end(); } catch {}
+          try { c.end(); } catch { }
         }
       });
 
@@ -731,11 +731,11 @@ async function execCommand(event, payload) {
  */
 async function generateKeyPair(event, options) {
   const { type, bits, comment } = options;
-  
+
   try {
     let keyType;
     let keyBits = bits;
-    
+
     switch (type) {
       case 'ED25519':
         keyType = 'ed25519';
@@ -751,15 +751,15 @@ async function generateKeyPair(event, options) {
         keyBits = bits || 4096;
         break;
     }
-    
+
     const result = sshUtils.generateKeyPairSync(keyType, {
       bits: keyBits,
       comment: comment || 'netcatty-generated-key',
     });
-    
+
     const privateKey = result.private;
     const publicKey = result.public;
-    
+
     return {
       success: true,
       privateKey,
@@ -783,9 +783,9 @@ async function startSSHSessionWrapper(event, options) {
     return await startSSHSession(event, options);
   } catch (err) {
     const isAuthError = err.message?.toLowerCase().includes('authentication') ||
-                       err.message?.toLowerCase().includes('auth') ||
-                       err.level === 'client-authentication';
-    
+      err.message?.toLowerCase().includes('auth') ||
+      err.level === 'client-authentication';
+
     if (isAuthError) {
       // Re-throw with a clean error to avoid Electron printing full stack trace
       // The frontend will handle this as a normal auth failure for fallback
@@ -800,50 +800,74 @@ async function startSSHSessionWrapper(event, options) {
 
 /**
  * Get current working directory from an active SSH session
- * This sends 'pwd' to the shell and captures the output
+ * This sends 'pwd' to the existing shell stream and captures the output
+ * using unique markers to identify the command output boundaries
  */
 async function getSessionPwd(event, payload) {
   const { sessionId } = payload;
   const session = sessions.get(sessionId);
-  
+
   if (!session || !session.stream || !session.conn) {
     return { success: false, error: 'Session not found or not connected' };
   }
-  
+
   return new Promise((resolve) => {
-    const conn = session.conn;
+    const stream = session.stream;
+    const marker = `__PWD_${Date.now()}__`;
     const timeout = setTimeout(() => {
+      stream.removeListener('data', onData);
       resolve({ success: false, error: 'Timeout getting pwd' });
     }, 3000);
-    
-    // Use exec on the existing connection to run pwd
-    conn.exec('pwd', (err, stream) => {
-      if (err) {
-        clearTimeout(timeout);
-        resolve({ success: false, error: err.message });
-        return;
-      }
-      
-      let stdout = '';
-      stream.on('data', (data) => {
-        stdout += data.toString();
-      });
-      
-      stream.on('close', () => {
-        clearTimeout(timeout);
-        const cwd = stdout.trim().split(/\r?\n/).pop()?.trim();
-        if (cwd && cwd.startsWith('/')) {
-          resolve({ success: true, cwd });
-        } else {
-          resolve({ success: false, error: 'Invalid pwd output' });
+
+    let buffer = '';
+
+    const onData = (data) => {
+      const str = data.toString();
+      buffer += str;
+
+      // We need to find the ACTUAL output markers, not the command echo
+      // The command echo looks like: echo '__PWD_xxx__S' && pwd && echo '__PWD_xxx__E'
+      // The actual output looks like: __PWD_xxx__S\n/path/to/dir\n__PWD_xxx__E
+      // 
+      // We look for the marker at the START of a line (after newline) to avoid the echo
+      const startMarkerRegex = new RegExp(`(?:^|[\\r\\n])${marker}S[\\r\\n]+`);
+      const endMarkerRegex = new RegExp(`[\\r\\n]${marker}E(?:[\\r\\n]|$)`);
+
+      const startMatch = buffer.match(startMarkerRegex);
+      const endMatch = buffer.match(endMarkerRegex);
+
+      if (startMatch && endMatch) {
+        const startIdx = buffer.indexOf(startMatch[0]) + startMatch[0].length;
+        const endIdx = buffer.indexOf(endMatch[0]);
+
+        if (startIdx <= endIdx) {
+          clearTimeout(timeout);
+          stream.removeListener('data', onData);
+
+          const pwdOutput = buffer.slice(startIdx, endIdx).trim();
+          console.log('[getSessionPwd] pwdOutput:', JSON.stringify(pwdOutput));
+
+          // The pwd output should be a valid absolute path
+          if (pwdOutput && pwdOutput.startsWith('/')) {
+            console.log('[getSessionPwd] Success, cwd:', pwdOutput);
+            resolve({ success: true, cwd: pwdOutput });
+          } else {
+            console.log('[getSessionPwd] Failed - invalid path:', pwdOutput);
+            resolve({ success: false, error: 'Invalid pwd output' });
+          }
         }
-      });
-      
-      stream.on('error', (err) => {
-        clearTimeout(timeout);
-        resolve({ success: false, error: err.message });
-      });
-    });
+      }
+    };
+
+    stream.on('data', onData);
+
+    // Send pwd command with short unique markers
+    // Using 'S' and 'E' as suffixes to make markers shorter
+    // After the command, send ANSI escape sequences to clear the output lines:
+    // \x1b[1A = move cursor up 1 line, \x1b[2K = clear entire line
+    // Clear 4 lines: the command echo, START marker, pwd output, and END marker
+    const clearLines = '\\x1b[1A\\x1b[2K\\x1b[1A\\x1b[2K\\x1b[1A\\x1b[2K\\x1b[1A\\x1b[2K';
+    stream.write(` echo '${marker}S' && pwd && echo '${marker}E' && printf '${clearLines}'\n`);
   });
 }
 

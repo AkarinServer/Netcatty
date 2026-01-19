@@ -295,6 +295,9 @@ const api = {
   readSftp: async (sftpId, path) => {
     return ipcRenderer.invoke("netcatty:sftp:read", { sftpId, path });
   },
+  readSftpBinary: async (sftpId, path) => {
+    return ipcRenderer.invoke("netcatty:sftp:readBinary", { sftpId, path });
+  },
   writeSftp: async (sftpId, path, content) => {
     return ipcRenderer.invoke("netcatty:sftp:write", { sftpId, path, content });
   },

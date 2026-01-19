@@ -466,9 +466,21 @@ async function listSftp(event, payload) {
 async function readSftp(event, payload) {
   const client = sftpClients.get(payload.sftpId);
   if (!client) throw new Error("SFTP session not found");
-  
+
   const buffer = await client.get(payload.path);
   return buffer.toString();
+}
+
+/**
+ * Read file as binary (returns ArrayBuffer for binary files like images)
+ */
+async function readSftpBinary(event, payload) {
+  const client = sftpClients.get(payload.sftpId);
+  if (!client) throw new Error("SFTP session not found");
+
+  const buffer = await client.get(payload.path);
+  // Convert Node.js Buffer to ArrayBuffer
+  return buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
 }
 
 /**
@@ -649,6 +661,7 @@ function registerHandlers(ipcMain) {
   ipcMain.handle("netcatty:sftp:open", openSftp);
   ipcMain.handle("netcatty:sftp:list", listSftp);
   ipcMain.handle("netcatty:sftp:read", readSftp);
+  ipcMain.handle("netcatty:sftp:readBinary", readSftpBinary);
   ipcMain.handle("netcatty:sftp:write", writeSftp);
   ipcMain.handle("netcatty:sftp:writeBinaryWithProgress", writeSftpBinaryWithProgress);
   ipcMain.handle("netcatty:sftp:close", closeSftp);
@@ -673,6 +686,7 @@ module.exports = {
   openSftp,
   listSftp,
   readSftp,
+  readSftpBinary,
   writeSftp,
   writeSftpBinaryWithProgress,
   closeSftp,

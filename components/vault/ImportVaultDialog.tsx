@@ -47,7 +47,7 @@ const OPTIONS: ImportOption[] = [
     format: "ssh_config",
     label: "ssh_config",
     iconSrc: "/import/file.png",
-    accept: ".conf,.config,.txt",
+    accept: "*",
   },
 ];
 

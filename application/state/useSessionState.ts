@@ -72,6 +72,37 @@ export const useSessionState = () => {
   }, [setActiveTabId]);
 
   const connectToHost = useCallback((host: Host) => {
+    // Handle serial hosts specially - use createSerialSession for them
+    if (host.protocol === 'serial') {
+      // Use stored serialConfig or construct from host data
+      const serialConfig: SerialConfig = host.serialConfig || {
+        path: host.hostname,
+        baudRate: host.port || 115200,
+        dataBits: 8,
+        stopBits: 1,
+        parity: 'none',
+        flowControl: 'none',
+        localEcho: false,
+        lineMode: false,
+      };
+      
+      const sessionId = crypto.randomUUID();
+      const portName = serialConfig.path.split('/').pop() || serialConfig.path;
+      const newSession: TerminalSession = {
+        id: sessionId,
+        hostId: host.id,
+        hostLabel: host.label || `Serial: ${portName}`,
+        hostname: serialConfig.path,
+        username: '',
+        status: 'connecting',
+        protocol: 'serial',
+        serialConfig: serialConfig,
+      };
+      setSessions(prev => [...prev, newSession]);
+      setActiveTabId(sessionId);
+      return;
+    }
+
     const newSession: TerminalSession = {
       id: crypto.randomUUID(),
       hostId: host.id,

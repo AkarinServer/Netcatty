@@ -5,7 +5,8 @@
 <h1 align="center">Netcatty</h1>
 
 <p align="center">
-  <strong>Modern SSH Client, SFTP Browser & Terminal Manager</strong>
+  <strong>Modern SSH Client, SFTP Browser & Terminal Manager</strong><br/>
+  <a href="https://netcatty.app"><strong>netcatty.app</strong></a>
 </p>
 
 <p align="center">
@@ -39,7 +40,7 @@
 
 ---
 
-[![Netcatty Main Interface](screenshots/main-window-dark.png)](screenshots/main-window-dark.png)
+[![Netcatty Main Interface](screenshots/vault_grid_view.png)](screenshots/vault_grid_view.png)
 
 ---
 
@@ -138,15 +139,15 @@ The Vault view is your command center for managing all SSH connections. Create h
 
 **Dark Mode**
 
-![Dark Mode](screenshots/main-window-dark.png)
+![Host Management](screenshots/vault_grid_view.png)
 
-**Light Mode**
+**Nested Folders & Organization**
 
-![Light Mode](screenshots/main-window-light.png)
+![Nested Folders](screenshots/nested_folder_structure.png)
 
 **List View**
 
-![List View](screenshots/main-window-dark-list.png)
+![List View](screenshots/vault_list_view.png)
 
 <a name="terminal"></a>
 ## Terminal
@@ -155,18 +156,28 @@ Powered by xterm.js with WebGL acceleration, the terminal delivers a smooth, res
 
 **Split Windows**
 
-![Split Windows](screenshots/split-window.png)
+**Broadcast Mode**
 
-**Theme Customization**
+Type once, execute everywhere. Great for maintaining multiple servers simultaneously.
 
-![Theme Customization](screenshots/terminal-theme-change.png)
+![Broadcast Mode](screenshots/broadcast_mode.png)
+
+**Performance Info & Customization**
+
+Monitor your connection health and customize every aspect of your terminal.
+
+![Terminal Performance](screenshots/terminal_performance.png)
 
 <a name="sftp"></a>
 ## SFTP
 
 The dual-pane SFTP browser supports local-to-remote and remote-to-remote file transfers. Navigate directories with single-click, drag files between panes, and monitor transfer progress in real-time. The interface shows file permissions, sizes, and modification dates. Queue multiple transfers and watch them complete with detailed speed and progress indicators. Context menus provide quick access to rename, delete, download, and upload operations.
 
-![SFTP View](screenshots/sftp.png)
+![SFTP Dual Pane](screenshots/sftp_dual_pane.png)
+
+**Transfer Queue**
+
+![Transfer Queue](screenshots/sftp_transfer_queue.png)
 
 <a name="keychain"></a>
 ## Keychain
@@ -187,6 +198,10 @@ The Keychain is your secure vault for SSH credentials. Generate new keys, import
 - 📤 One-click export public keys to remote hosts
 
 ![Key Manager](screenshots/key-manager.png)
+
+**Key Generator**
+
+![Key Generator](screenshots/key_generator_ui.png)
 
 <a name="port-forwarding"></a>
 ## Port Forwarding
@@ -362,6 +377,17 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 5. Open a Pull Request
 
 See [agents.md](agents.md) for architecture overview and coding conventions.
+
+---
+
+<a name="contributors"></a>
+# Contributors
+
+Thanks to all the people who contribute!
+
+<a href="https://github.com/binaricat/Netcatty/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=binaricat/Netcatty" alt="contributors" />
+</a>
 
 ---
 

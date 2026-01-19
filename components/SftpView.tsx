@@ -59,6 +59,7 @@ import { Label } from "./ui/label";
 // Import extracted components
 import {
   ColumnWidths,
+  filterHiddenFiles,
   isNavigableDirectory,
   SftpBreadcrumb,
   SftpConflictDialog,
@@ -100,6 +101,7 @@ import {
   useSftpPaneCallbacks,
   useSftpDrag,
   useSftpHosts,
+  useSftpShowHiddenFiles,
   useActiveTabId,
   activeTabStore,
   type SftpPaneCallbacks,
@@ -162,6 +164,7 @@ const SftpPaneViewInner: React.FC<SftpPaneViewProps> = ({
   const callbacks = useSftpPaneCallbacks(side);
   const { draggedFiles, onDragStart, onDragEnd } = useSftpDrag();
   const hosts = useSftpHosts();
+  const showHiddenFiles = useSftpShowHiddenFiles();
 
   // Destructure for easier use
   const {
@@ -182,8 +185,9 @@ const SftpPaneViewInner: React.FC<SftpPaneViewProps> = ({
     onReceiveFromOtherPane,
     onEditPermissions,
     onEditFile,
-    onOpenFile,
     onOpenFileWith,
+    onDownloadFile,
+    onUploadExternalFiles,
   } = callbacks;
 
   // 渲染追踪 - 只追踪数据 props（回调来自 context，引用稳定）
@@ -255,11 +259,16 @@ const SftpPaneViewInner: React.FC<SftpPaneViewProps> = ({
 
   const filteredFiles = useMemo(() => {
     const term = pane.filter.trim().toLowerCase();
-    if (!term) return pane.files;
-    return pane.files.filter(
+
+    // Filter hidden files using utility function
+    let files = filterHiddenFiles(pane.files, showHiddenFiles);
+
+    // Apply text filter
+    if (!term) return files;
+    return files.filter(
       (f) => f.name === ".." || f.name.toLowerCase().includes(term),
     );
-  }, [pane.files, pane.filter]);
+  }, [pane.files, pane.filter, showHiddenFiles]);
 
   // Path suggestions
   const pathSuggestions = useMemo(() => {
@@ -593,6 +602,18 @@ const SftpPaneViewInner: React.FC<SftpPaneViewProps> = ({
 
   // Drag handlers
   const handlePaneDragOver = (e: React.DragEvent) => {
+    // Check if this is external file drag (from OS)
+    const hasFiles = e.dataTransfer.types.includes('Files');
+
+    // If it's external files, always allow drop
+    if (hasFiles) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "copy";
+      setIsDragOverPane(true);
+      return;
+    }
+
+    // Otherwise, check if it's internal drag from other pane
     if (!draggedFiles || draggedFiles[0]?.side === side) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = "copy";
@@ -607,11 +628,23 @@ const SftpPaneViewInner: React.FC<SftpPaneViewProps> = ({
     setDragOverEntry(null);
   };
 
-  const handlePaneDrop = (e: React.DragEvent) => {
+  const handlePaneDrop = async (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setIsDragOverPane(false);
     setDragOverEntry(null);
+
+    // Check if this is external file drop (from OS)
+    const droppedFiles = e.dataTransfer.files;
+    if (droppedFiles && droppedFiles.length > 0) {
+      // Handle external file upload using the callback
+      if (onUploadExternalFiles) {
+        await onUploadExternalFiles(droppedFiles);
+      }
+      return;
+    }
+
+    // Otherwise, handle internal drag from other pane
     if (!draggedFiles || draggedFiles[0]?.side === side) return;
     onReceiveFromOtherPane(
       draggedFiles.map((f) => ({ name: f.name, isDirectory: f.isDirectory })),
@@ -814,18 +847,11 @@ const SftpPaneViewInner: React.FC<SftpPaneViewProps> = ({
                 </>
               ) : (
                 <>
-                  <Download size={14} className="mr-2" />{" "}
-                  {t("sftp.context.download")}
+                  <ExternalLink size={14} className="mr-2" />{" "}
+                  {t("sftp.context.open")}
                 </>
               )}
             </ContextMenuItem>
-            {/* File operations - only for files, not directories */}
-            {!isNavigableDirectory(entry) && onOpenFile && (
-              <ContextMenuItem onClick={() => onOpenFile(entry)}>
-                <ExternalLink size={14} className="mr-2" />{" "}
-                {t("sftp.context.open")}
-              </ContextMenuItem>
-            )}
             {!isNavigableDirectory(entry) && onOpenFileWith && (
               <ContextMenuItem onClick={() => onOpenFileWith(entry)}>
                 <ExternalLink size={14} className="mr-2" />{" "}
@@ -836,6 +862,12 @@ const SftpPaneViewInner: React.FC<SftpPaneViewProps> = ({
               <ContextMenuItem onClick={() => onEditFile(entry)}>
                 <Edit2 size={14} className="mr-2" />{" "}
                 {t("sftp.context.edit")}
+              </ContextMenuItem>
+            )}
+            {!isNavigableDirectory(entry) && onDownloadFile && (
+              <ContextMenuItem onClick={() => onDownloadFile(entry)}>
+                <Download size={14} className="mr-2" />{" "}
+                {t("sftp.context.download")}
               </ContextMenuItem>
             )}
             <ContextMenuSeparator />
@@ -901,10 +933,10 @@ const SftpPaneViewInner: React.FC<SftpPaneViewProps> = ({
       handleRowOpen,
       handleRowSelect,
       onCopyToOtherPane,
+      onDownloadFile,
       onDragEnd,
       onEditFile,
       onEditPermissions,
-      onOpenFile,
       onOpenFileWith,
       onRefresh,
       openDeleteConfirm,
@@ -1259,7 +1291,7 @@ const SftpPaneViewInner: React.FC<SftpPaneViewProps> = ({
           <div className="flex items-center justify-center h-full">
             <Loader2 size={24} className="animate-spin text-muted-foreground" />
           </div>
-        ) : pane.error ? (
+        ) : pane.error && !pane.reconnecting ? (
           <div className="flex flex-col items-center justify-center h-full gap-2 text-destructive">
             <AlertCircle size={24} />
             <span className="text-sm">{pane.error}</span>
@@ -1309,9 +1341,22 @@ const SftpPaneViewInner: React.FC<SftpPaneViewProps> = ({
       </div>
 
       {/* Loading overlay - covers entire pane when navigating directories */}
-      {pane.loading && sortedDisplayFiles.length > 0 && (
+      {pane.loading && sortedDisplayFiles.length > 0 && !pane.reconnecting && (
         <div className="absolute inset-0 flex items-center justify-center bg-background/40 backdrop-blur-[1px] pointer-events-none z-10">
           <Loader2 size={24} className="animate-spin text-muted-foreground" />
+        </div>
+      )}
+
+      {/* Reconnecting overlay - shows when SFTP connection is lost and reconnecting */}
+      {pane.reconnecting && (
+        <div className="absolute inset-0 flex items-center justify-center bg-background/80 backdrop-blur-sm z-20">
+          <div className="flex flex-col items-center gap-3 p-6 rounded-xl bg-secondary/90 border border-border/60 shadow-lg">
+            <Loader2 size={32} className="animate-spin text-primary" />
+            <div className="text-center">
+              <div className="text-sm font-medium">{t("sftp.reconnecting.title")}</div>
+              <div className="text-xs text-muted-foreground mt-1">{t("sftp.reconnecting.desc")}</div>
+            </div>
+          </div>
         </div>
       )}
 
@@ -1480,8 +1525,8 @@ interface SftpViewProps {
 const SftpViewInner: React.FC<SftpViewProps> = ({ hosts, keys, identities }) => {
   const { t } = useI18n();
   const isActive = useIsSftpActive();
-  const { sftpDoubleClickBehavior, sftpAutoSync } = useSettingsState();
-  
+  const { sftpDoubleClickBehavior, sftpAutoSync, sftpShowHiddenFiles } = useSettingsState();
+
   // File watch event handlers (stable refs to avoid re-creating the useSftpState options)
   const fileWatchHandlers = useMemo(() => ({
     onFileWatchSynced: (payload: { remotePath: string }) => {
@@ -1494,7 +1539,7 @@ const SftpViewInner: React.FC<SftpViewProps> = ({ hosts, keys, identities }) => 
       logger.error("[SFTP] File auto-sync failed", payload);
     },
   }), [t]);
-  
+
   const sftp = useSftpState(hosts, keys, identities, fileWatchHandlers);
 
   // Store sftp in a ref so callbacks can access the latest instance
@@ -1505,7 +1550,7 @@ const SftpViewInner: React.FC<SftpViewProps> = ({ hosts, keys, identities }) => 
   // Store behavior setting in ref for stable callbacks
   const behaviorRef = useRef(sftpDoubleClickBehavior);
   behaviorRef.current = sftpDoubleClickBehavior;
-  
+
   // Store auto-sync setting in ref for stable callbacks
   const autoSyncRef = useRef(sftpAutoSync);
   autoSyncRef.current = sftpAutoSync;
@@ -1882,6 +1927,100 @@ const SftpViewInner: React.FC<SftpViewProps> = ({ hosts, keys, identities }) => 
     [handleOpenFileWithForSide],
   );
 
+  // Handle external file upload from OS drag-and-drop (shared logic)
+  // Uses sftpRef.current internally, so dependencies are stable.
+  // toast and logger are globally stable, t is the only real dependency.
+  const handleUploadExternalFilesForSide = useCallback(
+    async (side: "left" | "right", files: FileList) => {
+      try {
+        const results = await sftpRef.current.uploadExternalFiles(side, files);
+        const failCount = results.filter(r => !r.success).length;
+
+        if (failCount === 0) {
+          // All files uploaded successfully
+          const successCount = results.length;
+          const message = successCount === 1
+            ? `${t('sftp.upload')}: ${results[0].fileName}`
+            : `${t('sftp.uploadFiles')}: ${successCount}`;
+          toast.success(message, "SFTP");
+        } else {
+          // Some or all files failed
+          const failedFiles = results.filter(r => !r.success);
+          failedFiles.forEach(failed => {
+            const errorMsg = failed.error ? ` - ${failed.error}` : '';
+            toast.error(
+              `${t('sftp.error.uploadFailed')}: ${failed.fileName}${errorMsg}`,
+              "SFTP"
+            );
+          });
+        }
+      } catch (error) {
+        logger.error("[SftpView] Failed to upload external files:", error);
+        toast.error(
+          error instanceof Error ? error.message : t('sftp.error.uploadFailed'),
+          "SFTP"
+        );
+      }
+    },
+
+    [t],
+  );
+
+  const handleUploadExternalFilesLeft = useCallback(
+    (files: FileList) => handleUploadExternalFilesForSide("left", files),
+    [handleUploadExternalFilesForSide],
+  );
+
+  const handleUploadExternalFilesRight = useCallback(
+    (files: FileList) => handleUploadExternalFilesForSide("right", files),
+    [handleUploadExternalFilesForSide],
+  );
+
+  // Download file to local filesystem (browser download)
+  const handleDownloadFileForSide = useCallback(
+    async (side: "left" | "right", file: SftpFileEntry) => {
+      const pane = side === "left" ? sftpRef.current.leftPane : sftpRef.current.rightPane;
+      if (!pane.connection) return;
+
+      const fullPath = sftpRef.current.joinPath(pane.connection.currentPath, file.name);
+
+      try {
+        // Read the file as binary
+        const content = await sftpRef.current.readBinaryFile(side, fullPath);
+
+        // Create blob and trigger browser download
+        const blob = new Blob([content], { type: "application/octet-stream" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = file.name;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        toast.success(`${t('sftp.context.download')}: ${file.name}`, "SFTP");
+      } catch (e) {
+        logger.error("[SftpView] Failed to download file:", e);
+        toast.error(
+          e instanceof Error ? e.message : t('sftp.error.downloadFailed'),
+          "SFTP"
+        );
+      }
+    },
+    [t],
+  );
+
+  const handleDownloadFileLeft = useCallback(
+    (file: SftpFileEntry) => handleDownloadFileForSide("left", file),
+    [handleDownloadFileForSide],
+  );
+
+  const handleDownloadFileRight = useCallback(
+    (file: SftpFileEntry) => handleDownloadFileForSide("right", file),
+    [handleDownloadFileForSide],
+  );
+
   // Custom handleOpenEntry callbacks that check the double-click behavior setting
   const handleOpenEntryLeft = useCallback(
     (entry: SftpFileEntry) => {
@@ -1959,6 +2098,8 @@ const SftpViewInner: React.FC<SftpViewProps> = ({ hosts, keys, identities }) => 
       onEditFile: handleEditFileLeft,
       onOpenFile: handleOpenFileLeft,
       onOpenFileWith: handleOpenFileWithLeft,
+      onDownloadFile: handleDownloadFileLeft,
+      onUploadExternalFiles: handleUploadExternalFilesLeft,
     }),
     [],
   );
@@ -1984,6 +2125,8 @@ const SftpViewInner: React.FC<SftpViewProps> = ({ hosts, keys, identities }) => 
       onEditFile: handleEditFileRight,
       onOpenFile: handleOpenFileRight,
       onOpenFileWith: handleOpenFileWithRight,
+      onDownloadFile: handleDownloadFileRight,
+      onUploadExternalFiles: handleUploadExternalFilesRight,
     }),
     [],
   );
@@ -2124,6 +2267,7 @@ const SftpViewInner: React.FC<SftpViewProps> = ({ hosts, keys, identities }) => 
       dragCallbacks={dragCallbacks}
       leftCallbacks={leftCallbacks}
       rightCallbacks={rightCallbacks}
+      showHiddenFiles={sftpShowHiddenFiles}
     >
       <div
         className={cn(
