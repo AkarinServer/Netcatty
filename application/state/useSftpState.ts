@@ -1993,7 +1993,7 @@ export const useSftpState = (
 
       // Process transfers
       for (const task of newTasks) {
-        await processTransfer(task, sourcePane, targetPane);
+        await processTransfer(task, sourcePane, targetPane, targetSide);
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps -- processTransfer is defined inline, not a dependency
@@ -2005,6 +2005,7 @@ export const useSftpState = (
     task: TransferTask,
     sourcePane: SftpPane,
     targetPane: SftpPane,
+    targetSide: "left" | "right",
   ) => {
     const updateTask = (updates: Partial<TransferTask>) => {
       setTransfers((prev) =>
@@ -2192,8 +2193,7 @@ export const useSftpState = (
       );
 
       // Refresh target pane
-      const targetSide = targetPane === leftPane ? "left" : "right";
-      await refresh(targetSide as "left" | "right");
+      await refresh(targetSide);
     } catch (err) {
       // Stop progress simulation on failure (only if it was started)
       if (useSimulatedProgress) {
