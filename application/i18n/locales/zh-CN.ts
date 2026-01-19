@@ -781,6 +781,12 @@ const zhCN: Messages = {
   'sftp.autoSync.success': '文件已同步到远程：{fileName}',
   'sftp.autoSync.error': '同步文件失败：{error}',
 
+  // SFTP Folder Upload Progress
+  'sftp.upload.progress': '正在上传 {current}/{total} 个文件...',
+  'sftp.upload.currentFile': '当前: {fileName}',
+  'sftp.upload.cancelled': '上传已取消',
+  'sftp.upload.cancel': '取消',
+
   // SFTP Reconnecting
   'sftp.reconnecting.title': '正在重连...',
   'sftp.reconnecting.desc': '连接已断开，正在尝试重新连接',

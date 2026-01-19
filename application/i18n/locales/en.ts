@@ -542,6 +542,12 @@ const en: Messages = {
   'sftp.autoSync.success': 'File synced to remote: {fileName}',
   'sftp.autoSync.error': 'Failed to sync file: {error}',
 
+  // SFTP Folder Upload Progress
+  'sftp.upload.progress': 'Uploading {current} of {total} files...',
+  'sftp.upload.currentFile': 'Current: {fileName}',
+  'sftp.upload.cancelled': 'Upload cancelled',
+  'sftp.upload.cancel': 'Cancel',
+
   // SFTP Reconnecting
   'sftp.reconnecting.title': 'Reconnecting...',
   'sftp.reconnecting.desc': 'Connection lost, attempting to reconnect',

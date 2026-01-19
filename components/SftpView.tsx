@@ -1934,6 +1934,13 @@ const SftpViewInner: React.FC<SftpViewProps> = ({ hosts, keys, identities }) => 
     async (side: "left" | "right", dataTransfer: DataTransfer) => {
       try {
         const results = await sftpRef.current.uploadExternalFiles(side, dataTransfer);
+
+        // Check if upload was cancelled
+        if (sftpRef.current.folderUploadProgress.cancelled) {
+          toast.info(t('sftp.upload.cancelled'), "SFTP");
+          return;
+        }
+
         const failCount = results.filter(r => !r.success).length;
         // Count only files, not directories for success message
         const successCount = results.filter(r => r.success).length;
@@ -2416,6 +2423,37 @@ const SftpViewInner: React.FC<SftpViewProps> = ({ hosts, keys, identities }) => 
                   onDismiss={() => sftp.dismissTransfer(task.id)}
                 />
               ))}
+            </div>
+          </div>
+        )}
+
+        {/* Folder Upload Progress Overlay */}
+        {sftp.folderUploadProgress.isUploading && sftp.folderUploadProgress.totalFiles > 1 && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/60 backdrop-blur-sm">
+            <div className="flex flex-col items-center gap-4 p-6 rounded-xl bg-secondary/95 border border-border/60 shadow-lg max-w-md">
+              <Loader2 size={32} className="animate-spin text-primary" />
+              <div className="text-center">
+                <div className="text-sm font-medium">
+                  {t("sftp.upload.progress", {
+                    current: sftp.folderUploadProgress.currentIndex,
+                    total: sftp.folderUploadProgress.totalFiles,
+                  })}
+                </div>
+                {sftp.folderUploadProgress.currentFile && (
+                  <div className="text-xs text-muted-foreground mt-2 truncate max-w-xs">
+                    {t("sftp.upload.currentFile", {
+                      fileName: sftp.folderUploadProgress.currentFile,
+                    })}
+                  </div>
+                )}
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => sftp.cancelFolderUpload()}
+              >
+                {t("sftp.upload.cancel")}
+              </Button>
             </div>
           </div>
         )}
