@@ -217,6 +217,13 @@ const BASE_TERMINAL_FONTS: TerminalFont[] = [
     category: 'monospace',
   },
   {
+    id: 'ioskeley-mono',
+    name: 'Ioskeley Mono',
+    family: '"Ioskeley Mono", monospace',
+    description: 'Iosevka variant mimicking Berkeley Mono style',
+    category: 'monospace',
+  },
+  {
     id: 'mononoki',
     name: 'Mononoki',
     family: 'Mononoki, monospace',
