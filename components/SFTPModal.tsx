@@ -254,6 +254,7 @@ interface SFTPModalProps {
     keySource?: 'generated' | 'imported';
     proxy?: NetcattyProxyConfig;
     jumpHosts?: NetcattyJumpHost[];
+    sftpSudo?: boolean;
   };
   open: boolean;
   onClose: () => void;
@@ -521,6 +522,7 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
       keySource: credentials.keySource,
       proxy: credentials.proxy,
       jumpHosts: credentials.jumpHosts,
+      sudo: credentials.sftpSudo,
     });
     sftpIdRef.current = sftpId;
     return sftpId;
@@ -539,6 +541,7 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
     credentials.keySource,
     credentials.proxy,
     credentials.jumpHosts,
+    credentials.sftpSudo,
     openSftp,
   ]);
 
@@ -689,6 +692,7 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
           keySource: credentials.keySource,
           proxy: credentials.proxy,
           jumpHosts: credentials.jumpHosts,
+          sudo: credentials.sftpSudo,
         });
         sftpIdRef.current = sftpId;
 

@@ -669,6 +669,7 @@ export const useSftpState = (
         keySource: key?.source,
         proxy: proxyConfig,
         jumpHosts: jumpHosts && jumpHosts.length > 0 ? jumpHosts : undefined,
+        sudo: host.sftpSudo,
       };
     },
     [hosts, identities, keys],
@@ -874,15 +875,20 @@ export const useSftpState = (
           const hasKey = !!credentials.privateKey;
           const hasPassword = !!credentials.password;
 
+<<<<<<< Updated upstream
           let sftpId: string | undefined;
           if (hasKey) {
             try {
               // Prefer trying key/cert first when both are present.
-              sftpId = await openSftp({
+              const keyFirstCredentials = {
                 sessionId: `sftp-${connectionId}`,
                 ...credentials,
-                password: undefined,
-              });
+              };
+              // Preserve password for sudo when enabled (still prefer key auth).
+              if (!credentials.sudo) {
+                keyFirstCredentials.password = undefined;
+              }
+              sftpId = await openSftp(keyFirstCredentials);
             } catch (err) {
               if (hasPassword && isAuthError(err)) {
                 sftpId = await openSftp({
@@ -3196,4 +3202,3 @@ export const useSftpState = (
     stableMethods,
   ]);
 };
-

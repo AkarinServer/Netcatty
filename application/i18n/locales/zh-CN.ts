@@ -264,7 +264,6 @@ const zhCN: Messages = {
 
   // SFTP
   'sftp.newFolder': '新建文件夹',
-  'sftp.newFile': '新建文件',
   'sftp.filter': '筛选',
   'sftp.filter.placeholder': '按文件名筛选...',
   'sftp.columns.name': '名称',
@@ -299,8 +298,6 @@ const zhCN: Messages = {
   'sftp.goHome': '返回主目录',
   'sftp.folderName': '文件夹名称',
   'sftp.folderName.placeholder': '输入文件夹名称',
-  'sftp.fileName': '文件名称',
-  'sftp.fileName.placeholder': '输入文件名称',
   'sftp.prompt.newFolderName': '新建文件夹名称？',
   'sftp.rename.title': '重命名',
   'sftp.rename.newName': '新名称',
@@ -313,12 +310,6 @@ const zhCN: Messages = {
   'sftp.error.uploadFailed': '上传失败',
   'sftp.error.deleteFailed': '删除失败',
   'sftp.error.createFolderFailed': '创建文件夹失败',
-  'sftp.error.createFileFailed': '创建文件失败',
-  'sftp.error.invalidFileName': '文件名包含非法字符：{chars}',
-  'sftp.error.reservedName': '此文件名是系统保留名称',
-  'sftp.overwrite.title': '文件已存在',
-  'sftp.overwrite.desc': '名为"{name}"的文件已存在。是否要替换它？',
-  'sftp.overwrite.confirm': '替换',
   'sftp.error.renameFailed': '重命名失败',
   'sftp.picker.title': '选择主机',
   'sftp.picker.desc': '为{side}窗格选择主机',
@@ -388,13 +379,12 @@ const zhCN: Messages = {
   'hostDetails.keys.empty': '暂无密钥',
   'hostDetails.certs.search': '搜索证书…',
   'hostDetails.certs.empty': '暂无证书',
-  'hostDetails.agentForwarding': '转发 SSH 密钥',
-  'hostDetails.agentForwarding.desc': '允许远程服务器使用本地 SSH 密钥（例如用于 git 操作）',
-  'hostDetails.jumpHosts': '通过主机代理',
+  'hostDetails.agentForwarding': '代理转发',
+  'hostDetails.jumpHosts': '跳板主机',
   'hostDetails.jumpHosts.hops': '{count} 跳',
   'hostDetails.jumpHosts.direct': '直连',
-  'hostDetails.jumpHosts.configure': '配置代理主机',
-  'hostDetails.proxy': '通过 HTTP/SOCKS5 代理',
+  'hostDetails.jumpHosts.configure': '配置跳板主机',
+  'hostDetails.proxy': '代理',
   'hostDetails.proxy.none': '无',
   'hostDetails.proxy.edit': '编辑代理',
   'hostDetails.proxy.configure': '配置代理',
@@ -790,20 +780,11 @@ const zhCN: Messages = {
   'sftp.autoSync.success': '文件已同步到远程：{fileName}',
   'sftp.autoSync.error': '同步文件失败：{error}',
 
-  // SFTP Folder Upload Progress
-  'sftp.upload.progress': '正在上传 {current}/{total} 个文件...',
-  'sftp.upload.currentFile': '当前: {fileName}',
-  'sftp.upload.cancelled': '上传已取消',
-  'sftp.upload.cancel': '取消',
-
   // SFTP Reconnecting
   'sftp.reconnecting.title': '正在重连...',
   'sftp.reconnecting.desc': '连接已断开，正在尝试重新连接',
   'sftp.reconnected': '连接已恢复',
   'sftp.error.reconnectFailed': '重连失败，请重试。',
-  'sftp.error.connectionLostManual': '连接已断开，请手动重新连接。',
-  'sftp.error.connectionLostReconnecting': '连接已断开，正在重连...',
-  'sftp.error.sessionLost': 'SFTP 会话已断开，请重新连接。',
 
   // Settings > SFTP Show Hidden Files
   'settings.sftp.showHiddenFiles': '显示隐藏文件',
@@ -1118,16 +1099,9 @@ const zhCN: Messages = {
   'serial.field.configLabelPlaceholder': '例如 Arduino Uno',
   'serial.connectAndSave': '连接并保存',
   'serial.edit.title': '串口设置',
-
-  // Keyboard Interactive Authentication (2FA/MFA)
-  'keyboard.interactive.title': '需要验证',
-  'keyboard.interactive.desc': '服务器需要额外的身份验证。',
-  'keyboard.interactive.descWithHost': '服务器 {hostname} 需要额外的身份验证。',
-  'keyboard.interactive.response': '响应',
-  'keyboard.interactive.enterCode': '输入验证码',
-  'keyboard.interactive.enterResponse': '输入响应',
-  'keyboard.interactive.submit': '提交',
-  'keyboard.interactive.verifying': '验证中...',
+  'hostDetails.section.sftp': 'SFTP 设置',
+  'hostDetails.sftp.sudo': 'Sudo 提权模式',
+  'hostDetails.sftp.sudo.desc': '使用保存的密码自动获取 Root 权限',
 };
 
 export default zhCN;

@@ -9,6 +9,7 @@ module.exports = {
     productName: 'Netcatty',
     artifactName: '${productName}-${version}-${os}-${arch}.${ext}',
     icon: 'public/icon.png',
+    npmRebuild: false,
     directories: {
         buildResources: 'build',
         output: 'release'

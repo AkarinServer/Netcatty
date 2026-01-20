@@ -28,6 +28,7 @@ import {
 } from "./ui/aside-panel";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
+import { Switch } from "./ui/switch";
 import { Card } from "./ui/card";
 import { Combobox, ComboboxOption, MultiCombobox } from "./ui/combobox";
 import { Input } from "./ui/input";
@@ -922,6 +923,26 @@ const HostDetailsPanel: React.FC<HostDetailsPanelProps> = ({
                   </Button>
                 </div>
               )}
+          </div>
+        </Card>
+
+        <Card className="p-3 space-y-3 bg-card border-border/80">
+          <p className="text-xs font-semibold">
+            {t("hostDetails.section.sftp")}
+          </p>
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <div className="text-sm font-medium">
+                {t("hostDetails.sftp.sudo")}
+              </div>
+              <div className="text-xs text-muted-foreground">
+                {t("hostDetails.sftp.sudo.desc")}
+              </div>
+            </div>
+            <Switch
+              checked={form.sftpSudo || false}
+              onCheckedChange={(val) => update("sftpSudo", val)}
+            />
           </div>
         </Card>
 
