@@ -875,7 +875,6 @@ export const useSftpState = (
           const hasKey = !!credentials.privateKey;
           const hasPassword = !!credentials.password;
 
-<<<<<<< Updated upstream
           let sftpId: string | undefined;
           if (hasKey) {
             try {
