@@ -357,6 +357,14 @@ const api = {
       transferId 
     });
   },
+  // Cancel an in-progress SFTP upload
+  cancelSftpUpload: async (transferId) => {
+    // Cleanup listeners
+    uploadProgressListeners.delete(transferId);
+    uploadCompleteListeners.delete(transferId);
+    uploadErrorListeners.delete(transferId);
+    return ipcRenderer.invoke("netcatty:sftp:cancelUpload", { transferId });
+  },
   // Local filesystem operations
   listLocalDir: async (path) => {
     return ipcRenderer.invoke("netcatty:local:list", { path });

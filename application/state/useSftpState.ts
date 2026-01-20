@@ -166,6 +166,10 @@ export interface FolderUploadProgress {
   currentIndex: number;     // 1-indexed for display
   totalFiles: number;       // Total files (excluding directories)
   cancelled: boolean;       // Flag to cancel upload
+  currentFileBytes: number;      // Bytes transferred for current file
+  currentFileTotalBytes: number; // Total bytes for current file
+  currentFileSpeed: number;      // Transfer speed in bytes/sec
+  currentTransferId: string;     // Transfer ID for current file (for cancellation)
 }
 
 export interface SftpStateOptions {
@@ -405,8 +409,13 @@ export const useSftpState = (
     currentIndex: 0,
     totalFiles: 0,
     cancelled: false,
+    currentFileBytes: 0,
+    currentFileTotalBytes: 0,
+    currentFileSpeed: 0,
+    currentTransferId: "",
   });
   const cancelFolderUploadRef = useRef(false);
+  const currentFolderUploadTransferIdRef = useRef<string>("");
 
   // SFTP session refs
   const sftpSessionsRef = useRef<Map<string, string>>(new Map()); // connectionId -> sftpId
@@ -2898,6 +2907,7 @@ export const useSftpState = (
 
       // Reset cancellation flag and set initial progress state
       cancelFolderUploadRef.current = false;
+      currentFolderUploadTransferIdRef.current = "";
       if (totalFiles > 1) {
         setFolderUploadProgress({
           isUploading: true,
@@ -2905,6 +2915,10 @@ export const useSftpState = (
           currentIndex: 0,
           totalFiles,
           cancelled: false,
+          currentFileBytes: 0,
+          currentFileTotalBytes: 0,
+          currentFileSpeed: 0,
+          currentTransferId: "",
         });
       }
 
@@ -2933,6 +2947,12 @@ export const useSftpState = (
             } else if (entry.file) {
               // Update progress before processing this file
               fileIndex++;
+              const transferId = crypto.randomUUID();
+              const fileTotalBytes = entry.file.size;
+              
+              // Store current transfer ID for potential cancellation
+              currentFolderUploadTransferIdRef.current = transferId;
+              
               if (totalFiles > 1) {
                 setFolderUploadProgress({
                   isUploading: true,
@@ -2940,6 +2960,10 @@ export const useSftpState = (
                   currentIndex: fileIndex,
                   totalFiles,
                   cancelled: false,
+                  currentFileBytes: 0,
+                  currentFileTotalBytes: fileTotalBytes,
+                  currentFileSpeed: 0,
+                  currentTransferId: transferId,
                 });
               }
 
@@ -2965,15 +2989,34 @@ export const useSftpState = (
               } else if (sftpId) {
                 // Try progress API first, fallback to basic binary write
                 if (bridge.writeSftpBinaryWithProgress) {
+                  // Progress callback to update byte-level progress
+                  const onProgress = (transferred: number, total: number, speed: number) => {
+                    if (totalFiles > 1 && !cancelFolderUploadRef.current) {
+                      setFolderUploadProgress(prev => ({
+                        ...prev,
+                        currentFileBytes: transferred,
+                        currentFileTotalBytes: total,
+                        currentFileSpeed: speed,
+                      }));
+                    }
+                  };
+
                   const result = await bridge.writeSftpBinaryWithProgress(
                     sftpId,
                     targetPath,
                     arrayBuffer,
-                    crypto.randomUUID(),
-                    undefined, // onProgress
+                    transferId,
+                    onProgress,
                     undefined, // onComplete
                     undefined, // onError
                   );
+
+                  // Check if upload was cancelled
+                  if (result?.cancelled) {
+                    logger.info("[SFTP] File upload cancelled:", entry.relativePath);
+                    // The cancellation was already handled, just skip this file
+                    continue;
+                  }
 
                   if (!result || result.success === false) {
                     if (bridge.writeSftpBinary) {
@@ -2988,11 +3031,16 @@ export const useSftpState = (
                   throw new Error("No SFTP write method available");
                 }
               }
+              
+              // Clear current transfer ID after successful upload
+              currentFolderUploadTransferIdRef.current = "";
 
               // Only add file uploads to results (not directories)
               results.push({ fileName: entry.relativePath, success: true });
             }
           } catch (error) {
+            // Clear current transfer ID on error
+            currentFolderUploadTransferIdRef.current = "";
             // Only log file upload errors (directory errors are expected for existing dirs)
             if (!entry.isDirectory) {
               logger.error(`Failed to upload ${entry.relativePath}:`, error);
@@ -3005,6 +3053,8 @@ export const useSftpState = (
           }
         }
       } finally {
+        // Clear the current transfer ID
+        currentFolderUploadTransferIdRef.current = "";
         // Always reset progress state when done
         setFolderUploadProgress({
           isUploading: false,
@@ -3012,6 +3062,10 @@ export const useSftpState = (
           currentIndex: 0,
           totalFiles: 0,
           cancelled: cancelFolderUploadRef.current,
+          currentFileBytes: 0,
+          currentFileTotalBytes: 0,
+          currentFileSpeed: 0,
+          currentTransferId: "",
         });
       }
 
@@ -3024,8 +3078,30 @@ export const useSftpState = (
   );
 
   // Cancel folder upload in progress
-  const cancelFolderUpload = useCallback(() => {
+  const cancelFolderUpload = useCallback(async () => {
+    // Set the flag to stop processing new files
     cancelFolderUploadRef.current = true;
+    
+    // Cancel the current file transfer if one is in progress
+    const currentTransferId = currentFolderUploadTransferIdRef.current;
+    if (currentTransferId) {
+      const bridge = netcattyBridge.get();
+      if (bridge?.cancelSftpUpload) {
+        try {
+          await bridge.cancelSftpUpload(currentTransferId);
+          logger.info("[SFTP] Current file upload cancelled:", currentTransferId);
+        } catch (err) {
+          logger.warn("[SFTP] Failed to cancel current file upload:", err);
+        }
+      }
+    }
+    
+    // Update progress state to show cancelled
+    setFolderUploadProgress(prev => ({
+      ...prev,
+      cancelled: true,
+      isUploading: false,
+    }));
   }, []);
 
   // Select an application from system file picker

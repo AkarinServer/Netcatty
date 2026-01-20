@@ -228,7 +228,10 @@ declare global {
       onProgress?: (transferred: number, total: number, speed: number) => void,
       onComplete?: () => void,
       onError?: (error: string) => void
-    ): Promise<{ success: boolean; transferId: string }>;
+    ): Promise<{ success: boolean; transferId: string; cancelled?: boolean }>;
+
+    // Cancel an in-progress SFTP upload
+    cancelSftpUpload?(transferId: string): Promise<{ success: boolean }>;
 
     // Transfer with progress
     uploadFile?(sftpId: string, localPath: string, remotePath: string, transferId: string): Promise<void>;

@@ -29,6 +29,9 @@ let electronModule = null;
 // Storage for jump host connections that need to be cleaned up
 const jumpConnectionsMap = new Map(); // connId -> { connections: SSHClient[], socket: stream }
 
+// Storage for active SFTP uploads that can be cancelled
+const activeSftpUploads = new Map(); // transferId -> { cancelled: boolean, stream: Readable }
+
 /**
  * Send message to renderer safely
  */
@@ -737,6 +740,7 @@ async function writeSftp(event, payload) {
 
 /**
  * Write binary data with progress callback
+ * Supports cancellation via activeSftpUploads map
  */
 async function writeSftpBinaryWithProgress(event, payload) {
   const client = sftpClients.get(payload.sftpId);
@@ -752,6 +756,13 @@ async function writeSftpBinaryWithProgress(event, payload) {
   const { Readable } = require("stream");
   const readableStream = new Readable({
     read() {
+      // Check for cancellation
+      const uploadState = activeSftpUploads.get(transferId);
+      if (uploadState?.cancelled) {
+        this.destroy(new Error("Upload cancelled"));
+        return;
+      }
+
       const chunkSize = 65536;
       if (transferredBytes < totalBytes) {
         const end = Math.min(transferredBytes + chunkSize, totalBytes);
@@ -782,6 +793,9 @@ async function writeSftpBinaryWithProgress(event, payload) {
     }
   });
 
+  // Register this upload for potential cancellation
+  activeSftpUploads.set(transferId, { cancelled: false, stream: readableStream });
+
   try {
     await client.put(readableStream, remotePath);
 
@@ -791,9 +805,35 @@ async function writeSftpBinaryWithProgress(event, payload) {
     return { success: true, transferId };
   } catch (err) {
     const contents = electronModule.webContents.fromId(event.sender.id);
-    contents?.send("netcatty:upload:error", { transferId, error: err.message });
-    throw err;
+    // Only send error if it's not a cancellation
+    if (err.message !== "Upload cancelled") {
+      contents?.send("netcatty:upload:error", { transferId, error: err.message });
+      throw err;
+    }
+    contents?.send("netcatty:upload:cancelled", { transferId });
+    return { success: false, transferId, cancelled: true };
+  } finally {
+    // Cleanup
+    activeSftpUploads.delete(transferId);
   }
+}
+
+/**
+ * Cancel an in-progress SFTP upload
+ */
+async function cancelSftpUpload(event, payload) {
+  const { transferId } = payload;
+  const uploadState = activeSftpUploads.get(transferId);
+  if (uploadState) {
+    uploadState.cancelled = true;
+    try {
+      uploadState.stream?.destroy();
+    } catch {
+      // Ignore destruction errors
+    }
+    activeSftpUploads.delete(transferId);
+  }
+  return { success: true };
 }
 
 /**
@@ -905,6 +945,7 @@ function registerHandlers(ipcMain) {
   ipcMain.handle("netcatty:sftp:readBinary", readSftpBinary);
   ipcMain.handle("netcatty:sftp:write", writeSftp);
   ipcMain.handle("netcatty:sftp:writeBinaryWithProgress", writeSftpBinaryWithProgress);
+  ipcMain.handle("netcatty:sftp:cancelUpload", cancelSftpUpload);
   ipcMain.handle("netcatty:sftp:close", closeSftp);
   ipcMain.handle("netcatty:sftp:mkdir", mkdirSftp);
   ipcMain.handle("netcatty:sftp:delete", deleteSftp);
@@ -930,6 +971,7 @@ module.exports = {
   readSftpBinary,
   writeSftp,
   writeSftpBinaryWithProgress,
+  cancelSftpUpload,
   closeSftp,
   mkdirSftp,
   deleteSftp,

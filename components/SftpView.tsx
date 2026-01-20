@@ -2656,7 +2656,25 @@ const SftpViewInner: React.FC<SftpViewProps> = ({ hosts, keys, identities }) => 
                           total: sftp.folderUploadProgress.totalFiles,
                         })}
                       </span>
+                      {sftp.folderUploadProgress.currentFileTotalBytes > 0 && (
+                        <span className="text-xs text-muted-foreground ml-2 flex-shrink-0">
+                          {sftp.formatFileSize(sftp.folderUploadProgress.currentFileBytes)} / {sftp.formatFileSize(sftp.folderUploadProgress.currentFileTotalBytes)}
+                          {sftp.folderUploadProgress.currentFileSpeed > 0 && (
+                            <> ({sftp.formatFileSize(sftp.folderUploadProgress.currentFileSpeed)}/s)</>
+                          )}
+                        </span>
+                      )}
                     </div>
+                    {sftp.folderUploadProgress.currentFileTotalBytes > 0 && (
+                      <div className="w-full bg-muted/30 rounded-full h-1.5 mt-1">
+                        <div
+                          className="bg-primary h-1.5 rounded-full transition-all duration-150 ease-out"
+                          style={{
+                            width: `${Math.min((sftp.folderUploadProgress.currentFileBytes / sftp.folderUploadProgress.currentFileTotalBytes) * 100, 100)}%`,
+                          }}
+                        />
+                      </div>
+                    )}
                     {sftp.folderUploadProgress.currentFile && (
                       <div className="text-xs text-muted-foreground truncate mt-0.5">
                         {sftp.folderUploadProgress.currentFile}
