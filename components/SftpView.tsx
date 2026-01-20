@@ -212,6 +212,9 @@ const SftpPaneViewInner: React.FC<SftpPaneViewProps> = ({
   const [newFolderName, setNewFolderName] = useState("");
   const [showNewFileDialog, setShowNewFileDialog] = useState(false);
   const [newFileName, setNewFileName] = useState("");
+  const [fileNameError, setFileNameError] = useState<string | null>(null);
+  const [showOverwriteConfirm, setShowOverwriteConfirm] = useState(false);
+  const [overwriteTarget, setOverwriteTarget] = useState<string | null>(null);
   const [showRenameDialog, setShowRenameDialog] = useState(false);
   const [renameTarget, setRenameTarget] = useState<string | null>(null);
   const [renameName, setRenameName] = useState("");
@@ -560,6 +563,53 @@ const SftpPaneViewInner: React.FC<SftpPaneViewProps> = ({
     }, 150);
   };
 
+  // Filename validation - constants defined inline to satisfy eslint
+  const validateFileName = useCallback((name: string): string | null => {
+    const INVALID_FILENAME_CHARS = /[/\\:*?"<>|]/;
+    const RESERVED_NAMES = new Set([
+      'CON', 'PRN', 'AUX', 'NUL',
+      'COM1', 'COM2', 'COM3', 'COM4', 'COM5', 'COM6', 'COM7', 'COM8', 'COM9',
+      'LPT1', 'LPT2', 'LPT3', 'LPT4', 'LPT5', 'LPT6', 'LPT7', 'LPT8', 'LPT9',
+    ]);
+
+    const trimmed = name.trim();
+    if (!trimmed) return null;
+
+    // Check for invalid characters
+    const invalidMatch = trimmed.match(INVALID_FILENAME_CHARS);
+    if (invalidMatch) {
+      return t('sftp.error.invalidFileName', { chars: invalidMatch[0] });
+    }
+
+    // Check for reserved names (Windows)
+    const baseName = trimmed.split('.')[0].toUpperCase();
+    if (RESERVED_NAMES.has(baseName)) {
+      return t('sftp.error.reservedName');
+    }
+
+    return null;
+  }, [t]);
+
+  // Smart default filename generator
+  const getNextUntitledName = useCallback((existingFiles: string[]): string => {
+    const existingSet = new Set(existingFiles.map(f => f.toLowerCase()));
+
+    if (!existingSet.has('untitled.txt')) {
+      return 'untitled.txt';
+    }
+
+    let counter = 1;
+    while (counter < 1000) {
+      const name = `untitled (${counter}).txt`;
+      if (!existingSet.has(name.toLowerCase())) {
+        return name;
+      }
+      counter++;
+    }
+
+    return `untitled_${Date.now()}.txt`;
+  }, []);
+
   // File operations
   const handleCreateFolder = async () => {
     if (!newFolderName.trim() || isCreating) return;
@@ -575,18 +625,46 @@ const SftpPaneViewInner: React.FC<SftpPaneViewProps> = ({
     }
   };
 
-  const handleCreateFile = async () => {
-    if (!newFileName.trim() || isCreatingFile) return;
+  const handleCreateFile = async (forceOverwrite = false) => {
+    const trimmedName = newFileName.trim();
+    if (!trimmedName || isCreatingFile) return;
+
+    // Validate filename
+    const error = validateFileName(trimmedName);
+    if (error) {
+      setFileNameError(error);
+      return;
+    }
+
+    // Check if file exists (unless we're forcing overwrite)
+    if (!forceOverwrite) {
+      const existingFile = pane.files.find(
+        f => f.name.toLowerCase() === trimmedName.toLowerCase() && f.type === 'file'
+      );
+      if (existingFile) {
+        setOverwriteTarget(trimmedName);
+        setShowOverwriteConfirm(true);
+        return;
+      }
+    }
+
     setIsCreatingFile(true);
     try {
-      await onCreateFile(newFileName.trim());
+      await onCreateFile(trimmedName);
       setShowNewFileDialog(false);
+      setShowOverwriteConfirm(false);
+      setOverwriteTarget(null);
       setNewFileName("");
+      setFileNameError(null);
     } catch {
       /* Error handling */
     } finally {
       setIsCreatingFile(false);
     }
+  };
+
+  const handleConfirmOverwrite = async () => {
+    await handleCreateFile(true);
   };
 
   const handleRename = async () => {
@@ -1158,7 +1236,12 @@ const SftpPaneViewInner: React.FC<SftpPaneViewProps> = ({
             variant="ghost"
             size="icon"
             className="h-6 w-6"
-            onClick={() => setShowNewFileDialog(true)}
+            onClick={() => {
+              const defaultName = getNextUntitledName(pane.files.map(f => f.name));
+              setNewFileName(defaultName);
+              setFileNameError(null);
+              setShowNewFileDialog(true);
+            }}
             title={t("sftp.newFile")}
           >
             <FilePlus size={14} />
@@ -1310,53 +1393,73 @@ const SftpPaneViewInner: React.FC<SftpPaneViewProps> = ({
         </div>
       </div>
 
-      {/* File list */}
-      <div
-        ref={fileListRef}
-        className={cn(
-          "flex-1 min-h-0 overflow-y-auto relative",
-          isDragOverPane && "ring-2 ring-primary/30 ring-inset",
-        )}
-        onScroll={handleFileListScroll}
-      >
-        {pane.loading && sortedDisplayFiles.length === 0 ? (
-          <div className="flex items-center justify-center h-full">
-            <Loader2 size={24} className="animate-spin text-muted-foreground" />
-          </div>
-        ) : pane.error && !pane.reconnecting ? (
-          <div className="flex flex-col items-center justify-center h-full gap-2 text-destructive">
-            <AlertCircle size={24} />
-            <span className="text-sm">{t(pane.error)}</span>
-            <Button variant="outline" size="sm" onClick={onRefresh}>
-              {t("sftp.retry")}
-            </Button>
-          </div>
-        ) : sortedDisplayFiles.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
-            <Folder size={32} className="mb-2 opacity-50" />
-            <span className="text-sm">{t("sftp.emptyDirectory")}</span>
-          </div>
-        ) : (
+      {/* File list with empty area context menu */}
+      <ContextMenu>
+        <ContextMenuTrigger asChild>
           <div
+            ref={fileListRef}
             className={cn(
-              shouldVirtualize ? "relative" : "divide-y divide-border/30",
+              "flex-1 min-h-0 overflow-y-auto relative",
+              isDragOverPane && "ring-2 ring-primary/30 ring-inset",
             )}
-            style={shouldVirtualize ? { height: totalHeight } : undefined}
+            onScroll={handleFileListScroll}
           >
-            {fileRows}
-          </div>
-        )}
+            {pane.loading && sortedDisplayFiles.length === 0 ? (
+              <div className="flex items-center justify-center h-full">
+                <Loader2 size={24} className="animate-spin text-muted-foreground" />
+              </div>
+            ) : pane.error && !pane.reconnecting ? (
+              <div className="flex flex-col items-center justify-center h-full gap-2 text-destructive">
+                <AlertCircle size={24} />
+                <span className="text-sm">{t(pane.error)}</span>
+                <Button variant="outline" size="sm" onClick={onRefresh}>
+                  {t("sftp.retry")}
+                </Button>
+              </div>
+            ) : sortedDisplayFiles.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
+                <Folder size={32} className="mb-2 opacity-50" />
+                <span className="text-sm">{t("sftp.emptyDirectory")}</span>
+              </div>
+            ) : (
+              <div
+                className={cn(
+                  shouldVirtualize ? "relative" : "divide-y divide-border/30",
+                )}
+                style={shouldVirtualize ? { height: totalHeight } : undefined}
+              >
+                {fileRows}
+              </div>
+            )}
 
-        {/* Drop overlay */}
-        {isDragOverPane && draggedFiles && draggedFiles[0]?.side !== side && (
-          <div className="absolute inset-0 flex items-center justify-center bg-primary/5 pointer-events-none">
-            <div className="flex flex-col items-center gap-2 text-primary">
-              <ArrowDown size={32} />
-              <span className="text-sm font-medium">{t("sftp.dropFilesHere")}</span>
-            </div>
+            {/* Drop overlay */}
+            {isDragOverPane && draggedFiles && draggedFiles[0]?.side !== side && (
+              <div className="absolute inset-0 flex items-center justify-center bg-primary/5 pointer-events-none">
+                <div className="flex flex-col items-center gap-2 text-primary">
+                  <ArrowDown size={32} />
+                  <span className="text-sm font-medium">{t("sftp.dropFilesHere")}</span>
+                </div>
+              </div>
+            )}
           </div>
-        )}
-      </div>
+        </ContextMenuTrigger>
+        <ContextMenuContent>
+          <ContextMenuItem onClick={onRefresh}>
+            <RefreshCw size={14} className="mr-2" />{t("sftp.context.refresh")}
+          </ContextMenuItem>
+          <ContextMenuItem onClick={() => setShowNewFolderDialog(true)}>
+            <FolderPlus size={14} className="mr-2" />{t("sftp.newFolder")}
+          </ContextMenuItem>
+          <ContextMenuItem onClick={() => {
+            const defaultName = getNextUntitledName(pane.files.map(f => f.name));
+            setNewFileName(defaultName);
+            setFileNameError(null);
+            setShowNewFileDialog(true);
+          }}>
+            <FilePlus size={14} className="mr-2" />{t("sftp.newFile")}
+          </ContextMenuItem>
+        </ContextMenuContent>
+      </ContextMenu>
 
       {/* Footer */}
       <div className="h-9 shrink-0 px-4 flex items-center justify-between text-[11px] text-muted-foreground border-t border-border/40 bg-secondary/30">
@@ -1430,7 +1533,12 @@ const SftpPaneViewInner: React.FC<SftpPaneViewProps> = ({
         </DialogContent>
       </Dialog>
 
-      <Dialog open={showNewFileDialog} onOpenChange={setShowNewFileDialog}>
+      <Dialog open={showNewFileDialog} onOpenChange={(open) => {
+        setShowNewFileDialog(open);
+        if (!open) {
+          setFileNameError(null);
+        }
+      }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>{t("sftp.newFile")}</DialogTitle>
@@ -1440,11 +1548,18 @@ const SftpPaneViewInner: React.FC<SftpPaneViewProps> = ({
               <Label>{t("sftp.fileName")}</Label>
               <Input
                 value={newFileName}
-                onChange={(e) => setNewFileName(e.target.value)}
+                onChange={(e) => {
+                  setNewFileName(e.target.value);
+                  setFileNameError(null);
+                }}
                 placeholder={t("sftp.fileName.placeholder")}
                 onKeyDown={(e) => e.key === "Enter" && handleCreateFile()}
                 autoFocus
+                className={fileNameError ? "border-destructive" : ""}
               />
+              {fileNameError && (
+                <p className="text-xs text-destructive">{fileNameError}</p>
+              )}
             </div>
           </div>
           <DialogFooter>
@@ -1455,13 +1570,46 @@ const SftpPaneViewInner: React.FC<SftpPaneViewProps> = ({
               {t("common.cancel")}
             </Button>
             <Button
-              onClick={handleCreateFile}
+              onClick={() => handleCreateFile()}
               disabled={!newFileName.trim() || isCreatingFile}
             >
               {isCreatingFile && (
                 <Loader2 size={14} className="mr-2 animate-spin" />
               )}
               {t("common.create")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Overwrite Confirmation Dialog */}
+      <Dialog open={showOverwriteConfirm} onOpenChange={setShowOverwriteConfirm}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{t("sftp.overwrite.title")}</DialogTitle>
+            <DialogDescription>
+              {t("sftp.overwrite.desc", { name: overwriteTarget || "" })}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowOverwriteConfirm(false);
+                setOverwriteTarget(null);
+              }}
+            >
+              {t("common.cancel")}
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleConfirmOverwrite}
+              disabled={isCreatingFile}
+            >
+              {isCreatingFile && (
+                <Loader2 size={14} className="mr-2 animate-spin" />
+              )}
+              {t("sftp.overwrite.confirm")}
             </Button>
           </DialogFooter>
         </DialogContent>

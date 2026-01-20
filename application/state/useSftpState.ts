@@ -2134,6 +2134,19 @@ export const useSftpState = (
         ? null
         : sftpSessionsRef.current.get(targetPane.connection!.id);
 
+      // Validate source session exists for remote sources
+      if (!sourcePane.connection?.isLocal && !sourceSftpId) {
+        const sourceSide = targetSide === "left" ? "right" : "left";
+        handleSessionError(sourceSide, new Error("Source SFTP session lost"));
+        throw new Error("Source SFTP session not found");
+      }
+
+      // Validate target session exists for remote targets
+      if (!targetPane.connection?.isLocal && !targetSftpId) {
+        handleSessionError(targetSide, new Error("Target SFTP session lost"));
+        throw new Error("Target SFTP session not found");
+      }
+
       // Check if file already exists at target (conflict detection)
       // Skip if user already resolved conflict with replace/duplicate
       if (!task.isDirectory && !task.skipConflictCheck) {
