@@ -22,6 +22,7 @@ export interface SftpPaneCallbacks {
     onClearSelection: () => void;
     onSetFilter: (filter: string) => void;
     onCreateDirectory: (name: string) => Promise<void>;
+    onCreateFile: (name: string) => Promise<void>;
     onDeleteFiles: (fileNames: string[]) => Promise<void>;
     onRenameFile: (oldName: string, newName: string) => Promise<void>;
     onCopyToOtherPane: (files: { name: string; isDirectory: boolean }[]) => void;
