@@ -1888,6 +1888,8 @@ export const useSftpState = (
           if (bridge?.writeLocalFile) {
             const emptyBuffer = new ArrayBuffer(0);
             await bridge.writeLocalFile(fullPath, emptyBuffer);
+          } else {
+            throw new Error("Local file writing not supported");
           }
         } else {
           const sftpId = sftpSessionsRef.current.get(pane.connection.id);
@@ -1896,7 +1898,17 @@ export const useSftpState = (
             return;
           }
           // Write empty content to create the file
-          await netcattyBridge.get()?.writeSftp(sftpId, fullPath, "");
+          const bridge = netcattyBridge.get();
+          if (bridge?.writeSftpBinary) {
+            // Use binary write with empty buffer for consistency
+            const emptyBuffer = new ArrayBuffer(0);
+            await bridge.writeSftpBinary(sftpId, fullPath, emptyBuffer);
+          } else if (bridge?.writeSftp) {
+            // Fallback to text write with empty string
+            await bridge.writeSftp(sftpId, fullPath, "");
+          } else {
+            throw new Error("No write method available");
+          }
         }
         await refresh(side);
       } catch (err) {

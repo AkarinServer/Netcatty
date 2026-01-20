@@ -1187,8 +1187,13 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
         // Write an empty file
         await writeLocalFile(fullPath, new ArrayBuffer(0));
       } else {
-        // Write empty content to create the file
-        await writeSftp(await ensureSftp(), fullPath, "");
+        // Write empty content to create the file using binary write for consistency
+        try {
+          await writeSftpBinary(await ensureSftp(), fullPath, new ArrayBuffer(0));
+        } catch {
+          // Fallback to text write if binary write is not available
+          await writeSftp(await ensureSftp(), fullPath, "");
+        }
       }
       await loadFiles(currentPath, { force: true });
     } catch (e) {
