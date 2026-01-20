@@ -17,7 +17,56 @@ const { createProxySocket } = require("./proxyUtils.cjs");
 const DEFAULT_KEY_NAMES = ["id_ed25519", "id_ecdsa", "id_rsa"];
 
 /**
+ * Check if an SSH private key is encrypted (requires passphrase)
+ * @param {string} keyContent - The content of the private key file
+ * @returns {boolean} - True if the key is encrypted
+ */
+function isKeyEncrypted(keyContent) {
+  // Check for PKCS#8 encrypted format (-----BEGIN ENCRYPTED PRIVATE KEY-----)
+  if (keyContent.includes("-----BEGIN ENCRYPTED PRIVATE KEY-----")) {
+    return true;
+  }
+
+  // Check for legacy PEM format encryption (e.g., RSA PRIVATE KEY with encryption)
+  if (keyContent.includes("Proc-Type:") && keyContent.includes("ENCRYPTED")) {
+    return true;
+  }
+
+  // Check for OpenSSH format keys
+  if (keyContent.includes("-----BEGIN OPENSSH PRIVATE KEY-----")) {
+    try {
+      // Extract the base64 content between the markers
+      const base64Match = keyContent.match(
+        /-----BEGIN OPENSSH PRIVATE KEY-----\s*([\s\S]*?)\s*-----END OPENSSH PRIVATE KEY-----/
+      );
+      if (base64Match) {
+        const base64Content = base64Match[1].replace(/\s/g, "");
+        const keyBuffer = Buffer.from(base64Content, "base64");
+
+        // OpenSSH key format: "openssh-key-v1\0" followed by cipher name
+        // If ciphername is "none", the key is not encrypted
+        const authMagic = "openssh-key-v1\0";
+        if (keyBuffer.toString("ascii", 0, authMagic.length) === authMagic) {
+          // After magic, read ciphername (length-prefixed string)
+          let offset = authMagic.length;
+          const cipherNameLen = keyBuffer.readUInt32BE(offset);
+          offset += 4;
+          const cipherName = keyBuffer.toString("ascii", offset, offset + cipherNameLen);
+          return cipherName !== "none";
+        }
+      }
+    } catch {
+      // If parsing fails, assume it might be encrypted to be safe
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
  * Find default SSH private key from user's ~/.ssh directory
+ * Skips encrypted keys that require a passphrase to allow password/keyboard-interactive auth
  * @returns {{ privateKey: string, keyPath: string, keyName: string } | null}
  */
 function findDefaultPrivateKey() {
@@ -27,6 +76,12 @@ function findDefaultPrivateKey() {
     if (fs.existsSync(keyPath)) {
       try {
         const privateKey = fs.readFileSync(keyPath, "utf8");
+        // Skip encrypted keys - they require a passphrase and would abort
+        // authentication before password/keyboard-interactive can be tried
+        if (isKeyEncrypted(privateKey)) {
+          log("Skipping encrypted default key", { keyPath, keyName: name });
+          continue;
+        }
         log("Found default key", { keyPath, keyName: name });
         return { privateKey, keyPath, keyName: name };
       } catch (e) {
