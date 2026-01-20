@@ -2989,15 +2989,34 @@ export const useSftpState = (
               } else if (sftpId) {
                 // Try progress API first, fallback to basic binary write
                 if (bridge.writeSftpBinaryWithProgress) {
-                  // Progress callback to update byte-level progress
+                  // Progress callback with throttling using requestAnimationFrame
+                  // This prevents excessive React re-renders during fast uploads
+                  let pendingProgressUpdate: { transferred: number; total: number; speed: number } | null = null;
+                  let rafScheduled = false;
+
                   const onProgress = (transferred: number, total: number, speed: number) => {
                     if (totalFiles > 1 && !cancelFolderUploadRef.current) {
-                      setFolderUploadProgress(prev => ({
-                        ...prev,
-                        currentFileBytes: transferred,
-                        currentFileTotalBytes: total,
-                        currentFileSpeed: speed,
-                      }));
+                      // Store the latest progress data
+                      pendingProgressUpdate = { transferred, total, speed };
+
+                      // Only schedule RAF if not already scheduled
+                      if (!rafScheduled) {
+                        rafScheduled = true;
+                        requestAnimationFrame(() => {
+                          rafScheduled = false;
+                          // Capture the update value before clearing it to avoid race conditions
+                          const update = pendingProgressUpdate;
+                          pendingProgressUpdate = null;
+                          if (update && !cancelFolderUploadRef.current) {
+                            setFolderUploadProgress(prev => ({
+                              ...prev,
+                              currentFileBytes: update.transferred,
+                              currentFileTotalBytes: update.total,
+                              currentFileSpeed: update.speed,
+                            }));
+                          }
+                        });
+                      }
                     }
                   };
 
@@ -3014,8 +3033,8 @@ export const useSftpState = (
                   // Check if upload was cancelled
                   if (result?.cancelled) {
                     logger.info("[SFTP] File upload cancelled:", entry.relativePath);
-                    // The cancellation was already handled, just skip this file
-                    continue;
+                    // Break out of the loop immediately - cancelFolderUploadRef.current should already be true
+                    break;
                   }
 
                   if (!result || result.success === false) {

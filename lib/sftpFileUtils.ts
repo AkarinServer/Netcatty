@@ -475,6 +475,7 @@ function entryToFile(entry: FileSystemFileEntry): Promise<File> {
 
 /**
  * Recursively process a FileSystemEntry and collect all files
+ * Optimized with parallel processing for faster folder traversal
  * @param entry - The file system entry to process
  * @param basePath - The base path (folder name) to prepend
  * @returns Array of DropEntry objects with files and their relative paths
@@ -512,18 +513,25 @@ async function processEntry(
       const reader = dirEntry.createReader();
       const entries = await readDirectoryEntries(reader);
 
-      // Helper to yield to main thread - prevents UI freezing during large folder parsing
-      const yieldToMain = () => new Promise<void>(resolve => setTimeout(resolve, 0));
+      // Process entries in parallel batches for better performance
+      // Use a concurrency limit to avoid overwhelming the browser
+      const BATCH_SIZE = 50;
 
-      // Process all entries in the directory with periodic yielding
-      for (let i = 0; i < entries.length; i++) {
-        // Yield every 10 entries to keep UI responsive
-        if (i > 0 && i % 10 === 0) {
-          await yieldToMain();
+      for (let i = 0; i < entries.length; i += BATCH_SIZE) {
+        const batch = entries.slice(i, i + BATCH_SIZE);
+        // Process batch in parallel
+        const batchResults = await Promise.all(
+          batch.map(childEntry => processEntry(childEntry, currentPath))
+        );
+        // Flatten and add results
+        for (const childResults of batchResults) {
+          results.push(...childResults);
         }
-        const childEntry = entries[i];
-        const childResults = await processEntry(childEntry, currentPath);
-        results.push(...childResults);
+
+        // Yield to main thread between batches to keep UI responsive
+        if (i + BATCH_SIZE < entries.length) {
+          await new Promise<void>(resolve => setTimeout(resolve, 0));
+        }
       }
     } catch (error) {
       console.warn(`Failed to read directory: ${entry.name}`, error);

@@ -2670,7 +2670,7 @@ const SftpViewInner: React.FC<SftpViewProps> = ({ hosts, keys, identities }) => 
                         <div
                           className="bg-primary h-1.5 rounded-full transition-all duration-150 ease-out"
                           style={{
-                            width: `${Math.min((sftp.folderUploadProgress.currentFileBytes / sftp.folderUploadProgress.currentFileTotalBytes) * 100, 100)}%`,
+                            width: `${Math.min((sftp.folderUploadProgress.currentFileBytes / Math.max(sftp.folderUploadProgress.currentFileTotalBytes, 1)) * 100, 100)}%`,
                           }}
                         />
                       </div>

@@ -741,17 +741,27 @@ async function writeSftp(event, payload) {
 /**
  * Write binary data with progress callback
  * Supports cancellation via activeSftpUploads map
+ * Optimized for performance with throttled progress updates
  */
 async function writeSftpBinaryWithProgress(event, payload) {
   const client = sftpClients.get(payload.sftpId);
   if (!client) throw new Error("SFTP session not found");
 
   const { sftpId, path: remotePath, content, transferId } = payload;
-  const buffer = Buffer.from(content);
+
+  // Optimize: Use Buffer.isBuffer to avoid unnecessary copy if already a Buffer
+  // For ArrayBuffer from renderer, we still need to convert but use a more efficient method
+  const buffer = Buffer.isBuffer(content) ? content : Buffer.from(content);
   const totalBytes = buffer.length;
   let transferredBytes = 0;
   let lastProgressTime = Date.now();
   let lastTransferredBytes = 0;
+  let lastProgressSentTime = 0;
+
+  // Throttle settings: send progress at most every 100ms or every 1MB
+  const PROGRESS_THROTTLE_MS = 100;
+  const PROGRESS_THROTTLE_BYTES = 1024 * 1024; // 1MB
+  let lastProgressSentBytes = 0;
 
   const { Readable } = require("stream");
   const readableStream = new Readable({
@@ -763,10 +773,12 @@ async function writeSftpBinaryWithProgress(event, payload) {
         return;
       }
 
-      const chunkSize = 65536;
+      // Use larger chunk size for better performance (256KB instead of 64KB)
+      const chunkSize = 262144;
       if (transferredBytes < totalBytes) {
         const end = Math.min(transferredBytes + chunkSize, totalBytes);
-        const chunk = buffer.slice(transferredBytes, end);
+        // Use subarray instead of slice to avoid copying
+        const chunk = buffer.subarray(transferredBytes, end);
         transferredBytes = end;
 
         const now = Date.now();
@@ -778,13 +790,22 @@ async function writeSftpBinaryWithProgress(event, payload) {
           lastTransferredBytes = transferredBytes;
         }
 
-        const contents = electronModule.webContents.fromId(event.sender.id);
-        contents?.send("netcatty:upload:progress", {
-          transferId,
-          transferred: transferredBytes,
-          totalBytes,
-          speed,
-        });
+        // Throttle IPC progress events: only send if enough time or bytes have passed
+        const timeSinceLastProgress = now - lastProgressSentTime;
+        const bytesSinceLastProgress = transferredBytes - lastProgressSentBytes;
+        const isComplete = transferredBytes >= totalBytes;
+
+        if (isComplete || timeSinceLastProgress >= PROGRESS_THROTTLE_MS || bytesSinceLastProgress >= PROGRESS_THROTTLE_BYTES) {
+          const contents = electronModule.webContents.fromId(event.sender.id);
+          contents?.send("netcatty:upload:progress", {
+            transferId,
+            transferred: transferredBytes,
+            totalBytes,
+            speed,
+          });
+          lastProgressSentTime = now;
+          lastProgressSentBytes = transferredBytes;
+        }
 
         this.push(chunk);
       } else {
@@ -820,6 +841,9 @@ async function writeSftpBinaryWithProgress(event, payload) {
 
 /**
  * Cancel an in-progress SFTP upload
+ * Note: We only set the cancelled flag and destroy the stream here.
+ * The cleanup (deleting from activeSftpUploads) is handled by writeSftpBinaryWithProgress's finally block
+ * to avoid race conditions.
  */
 async function cancelSftpUpload(event, payload) {
   const { transferId } = payload;
@@ -832,7 +856,8 @@ async function cancelSftpUpload(event, payload) {
       // Log but continue - stream may already be destroyed
       console.warn("[SFTP] Error destroying upload stream:", err.message);
     }
-    activeSftpUploads.delete(transferId);
+    // Don't delete here - let the finally block in writeSftpBinaryWithProgress handle cleanup
+    // This avoids race conditions where the upload might still be in progress
   }
   return { success: true };
 }
