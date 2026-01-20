@@ -1707,6 +1707,12 @@ export const useSftpState = (
             reconnecting: true,
             error: "Reconnecting...",
           }));
+        } else if (!lastHost) {
+          // No host info available - prompt user to manually reconnect
+          updateActiveTab(side, (prev) => ({
+            ...prev,
+            error: "Connection lost. Please reconnect manually.",
+          }));
         }
       }
     },
@@ -2443,7 +2449,7 @@ export const useSftpState = (
               : t,
           ),
         );
-        await processTransfer(task, sourcePane, targetPane);
+        await processTransfer(task, sourcePane, targetPane, targetSide);
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps -- processTransfer is defined inline, not a dependency
@@ -2532,7 +2538,7 @@ export const useSftpState = (
       if (sourcePane?.connection && targetPane?.connection) {
         // Small delay to ensure state is updated
         setTimeout(async () => {
-          await processTransfer(updatedTask, sourcePane, targetPane);
+          await processTransfer(updatedTask, sourcePane, targetPane, targetSide);
         }, 100);
       }
     },
