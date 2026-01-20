@@ -5,18 +5,31 @@
 
 const net = require("node:net");
 const { Client: SSHClient } = require("ssh2");
+const keyboardInteractiveHandler = require("./keyboardInteractiveHandler.cjs");
 
 // Active port forwarding tunnels
 const portForwardingTunnels = new Map();
 
 /**
+ * Send message to renderer safely
+ */
+function safeSend(sender, channel, payload) {
+  try {
+    if (!sender || sender.isDestroyed()) return;
+    sender.send(channel, payload);
+  } catch {
+    // Ignore destroyed webContents during shutdown.
+  }
+}
+
+/**
  * Start a port forwarding tunnel
  */
 async function startPortForward(event, payload) {
-  const { 
-    tunnelId, 
+  const {
+    tunnelId,
     type, // 'local' | 'remote' | 'dynamic'
-    localPort, 
+    localPort,
     bindAddress = '127.0.0.1',
     remoteHost,
     remotePort,
@@ -26,34 +39,125 @@ async function startPortForward(event, payload) {
     password,
     privateKey,
   } = payload;
-  
+
   return new Promise((resolve, reject) => {
     const conn = new SSHClient();
     const sender = event.sender;
-    
+
     const sendStatus = (status, error = null) => {
       if (!sender.isDestroyed()) {
         sender.send("netcatty:portforward:status", { tunnelId, status, error });
       }
     };
-    
+
     const connectOpts = {
       host: hostname,
       port: port,
       username: username || 'root',
-      readyTimeout: 30000,
+      readyTimeout: 120000, // 2 minutes for 2FA input
       keepaliveInterval: 10000,
+      // Enable keyboard-interactive authentication (required for 2FA/MFA)
+      tryKeyboard: true,
     };
-    
+
     if (privateKey) {
       connectOpts.privateKey = privateKey;
-    } else if (password) {
+    }
+    if (password) {
       connectOpts.password = password;
     }
-    
+
+    // Build auth handler with keyboard-interactive support
+    const authMethods = [];
+    if (privateKey) authMethods.push("publickey");
+    if (password) authMethods.push("password");
+    authMethods.push("keyboard-interactive");
+    connectOpts.authHandler = authMethods;
+
+    // Handle keyboard-interactive authentication (2FA/MFA)
+    conn.on("keyboard-interactive", (name, instructions, instructionsLang, prompts, finish) => {
+      console.log(`[PortForward] ${hostname} keyboard-interactive auth requested`, {
+        name,
+        instructions,
+        promptCount: prompts?.length || 0,
+        prompts: prompts?.map(p => ({ prompt: p.prompt, echo: p.echo })),
+      });
+
+      // If there are no prompts, just call finish with empty array
+      if (!prompts || prompts.length === 0) {
+        console.log(`[PortForward] No prompts, finishing keyboard-interactive`);
+        finish([]);
+        return;
+      }
+
+      // Check if all prompts are password prompts that we can auto-answer
+      const responses = [];
+      const promptsNeedingUserInput = [];
+
+      for (let i = 0; i < prompts.length; i++) {
+        const prompt = prompts[i];
+        const promptText = (prompt.prompt || '').toLowerCase().trim();
+
+        // Auto-answer password prompts if we have a configured password
+        if (password && (
+          promptText.includes('password') ||
+          promptText === 'password:' ||
+          promptText === 'password'
+        )) {
+          console.log(`[PortForward] Auto-answering password prompt at index ${i}`);
+          responses[i] = password;
+        } else {
+          // This prompt needs user input (likely 2FA)
+          promptsNeedingUserInput.push({ index: i, prompt: prompt });
+          responses[i] = null; // Placeholder
+        }
+      }
+
+      // If all prompts were auto-answered, finish immediately
+      if (promptsNeedingUserInput.length === 0) {
+        console.log(`[PortForward] All prompts auto-answered, finishing keyboard-interactive`);
+        finish(responses);
+        return;
+      }
+
+      // If some prompts need user input, show the modal
+      const requestId = keyboardInteractiveHandler.generateRequestId('pf');
+
+      // Store finish callback with context about which responses are already filled
+      keyboardInteractiveHandler.storeRequest(requestId, (userResponses) => {
+        // Merge user responses with auto-filled responses
+        let userResponseIndex = 0;
+        for (let i = 0; i < prompts.length; i++) {
+          if (responses[i] === null) {
+            responses[i] = userResponses[userResponseIndex] || '';
+            userResponseIndex++;
+          }
+        }
+        console.log(`[PortForward] Merged responses, finishing keyboard-interactive`);
+        finish(responses);
+      }, sender.id, tunnelId);
+
+      // Send only the prompts that need user input
+      const promptsData = promptsNeedingUserInput.map((item) => ({
+        prompt: item.prompt.prompt,
+        echo: item.prompt.echo,
+      }));
+
+      console.log(`[PortForward] Showing modal for ${promptsData.length} prompts that need user input`);
+
+      safeSend(sender, "netcatty:keyboard-interactive", {
+        requestId,
+        sessionId: tunnelId,
+        name: name || "",
+        instructions: instructions || "",
+        prompts: promptsData,
+        hostname: hostname,
+      });
+    });
+
     conn.on('ready', () => {
       console.log(`[PortForward] SSH connection ready for tunnel ${tunnelId}`);
-      
+
       if (type === 'local') {
         // LOCAL FORWARDING: Listen on local port, forward to remote
         const server = net.createServer((socket) => {
@@ -69,13 +173,13 @@ async function startPortForward(event, payload) {
                 return;
               }
               socket.pipe(stream).pipe(socket);
-              
+
               socket.on('error', (e) => console.warn('[PortForward] Socket error:', e.message));
               stream.on('error', (e) => console.warn('[PortForward] Stream error:', e.message));
             }
           );
         });
-        
+
         server.on('error', (err) => {
           console.error(`[PortForward] Server error:`, err.message);
           sendStatus('error', err.message);
@@ -83,19 +187,19 @@ async function startPortForward(event, payload) {
           portForwardingTunnels.delete(tunnelId);
           reject(err);
         });
-        
+
         server.listen(localPort, bindAddress, () => {
           console.log(`[PortForward] Local forwarding active: ${bindAddress}:${localPort} -> ${remoteHost}:${remotePort}`);
-          portForwardingTunnels.set(tunnelId, { 
-            type: 'local', 
-            conn, 
+          portForwardingTunnels.set(tunnelId, {
+            type: 'local',
+            conn,
             server,
-            webContentsId: sender.id 
+            webContentsId: sender.id
           });
           sendStatus('active');
           resolve({ tunnelId, success: true });
         });
-        
+
       } else if (type === 'remote') {
         // REMOTE FORWARDING: Listen on remote port, forward to local
         conn.forwardIn(bindAddress, localPort, (err) => {
@@ -106,24 +210,24 @@ async function startPortForward(event, payload) {
             reject(err);
             return;
           }
-          
+
           console.log(`[PortForward] Remote forwarding active: remote ${bindAddress}:${localPort} -> local ${remoteHost}:${remotePort}`);
-          portForwardingTunnels.set(tunnelId, { 
-            type: 'remote', 
+          portForwardingTunnels.set(tunnelId, {
+            type: 'remote',
             conn,
-            webContentsId: sender.id 
+            webContentsId: sender.id
           });
           sendStatus('active');
           resolve({ tunnelId, success: true });
         });
-        
+
         // Handle incoming connections from remote
         conn.on('tcp connection', (info, accept, rejectConn) => {
           const stream = accept();
           const socket = net.connect(remotePort, remoteHost || '127.0.0.1', () => {
             stream.pipe(socket).pipe(stream);
           });
-          
+
           socket.on('error', (e) => {
             console.warn('[PortForward] Local socket error:', e.message);
             stream.end();
@@ -133,7 +237,7 @@ async function startPortForward(event, payload) {
             socket.end();
           });
         });
-        
+
       } else if (type === 'dynamic') {
         // DYNAMIC FORWARDING (SOCKS5 Proxy)
         const server = net.createServer((socket) => {
@@ -143,10 +247,10 @@ async function startPortForward(event, payload) {
               socket.end();
               return;
             }
-            
+
             // Reply: version, no auth required
             socket.write(Buffer.from([0x05, 0x00]));
-            
+
             // Wait for connection request
             socket.once('data', (request) => {
               if (request[0] !== 0x05 || request[1] !== 0x01) {
@@ -154,10 +258,10 @@ async function startPortForward(event, payload) {
                 socket.end();
                 return;
               }
-              
+
               let targetHost, targetPort;
               const addressType = request[3];
-              
+
               if (addressType === 0x01) {
                 // IPv4
                 targetHost = `${request[4]}.${request[5]}.${request[6]}.${request[7]}`;
@@ -177,7 +281,7 @@ async function startPortForward(event, payload) {
                 socket.end();
                 return;
               }
-              
+
               // Forward through SSH tunnel
               conn.forwardOut(
                 bindAddress,
@@ -190,7 +294,7 @@ async function startPortForward(event, payload) {
                     socket.end();
                     return;
                   }
-                  
+
                   // Success reply
                   const reply = Buffer.alloc(10);
                   reply[0] = 0x05;
@@ -199,9 +303,9 @@ async function startPortForward(event, payload) {
                   reply[3] = 0x01;
                   reply.writeUInt16BE(0, 8);
                   socket.write(reply);
-                  
+
                   socket.pipe(stream).pipe(socket);
-                  
+
                   socket.on('error', () => stream.end());
                   stream.on('error', () => socket.end());
                 }
@@ -209,7 +313,7 @@ async function startPortForward(event, payload) {
             });
           });
         });
-        
+
         server.on('error', (err) => {
           console.error(`[PortForward] SOCKS server error:`, err.message);
           sendStatus('error', err.message);
@@ -217,14 +321,14 @@ async function startPortForward(event, payload) {
           portForwardingTunnels.delete(tunnelId);
           reject(err);
         });
-        
+
         server.listen(localPort, bindAddress, () => {
           console.log(`[PortForward] Dynamic SOCKS5 proxy active on ${bindAddress}:${localPort}`);
-          portForwardingTunnels.set(tunnelId, { 
-            type: 'dynamic', 
-            conn, 
+          portForwardingTunnels.set(tunnelId, {
+            type: 'dynamic',
+            conn,
             server,
-            webContentsId: sender.id 
+            webContentsId: sender.id
           });
           sendStatus('active');
           resolve({ tunnelId, success: true });
@@ -233,26 +337,26 @@ async function startPortForward(event, payload) {
         reject(new Error(`Unknown forwarding type: ${type}`));
       }
     });
-    
+
     conn.on('error', (err) => {
       console.error(`[PortForward] SSH error:`, err.message);
       sendStatus('error', err.message);
       portForwardingTunnels.delete(tunnelId);
       reject(err);
     });
-    
+
     conn.on('close', () => {
       console.log(`[PortForward] SSH connection closed for tunnel ${tunnelId}`);
       const tunnel = portForwardingTunnels.get(tunnelId);
       if (tunnel) {
         if (tunnel.server) {
-          try { tunnel.server.close(); } catch {}
+          try { tunnel.server.close(); } catch { }
         }
         sendStatus('inactive');
         portForwardingTunnels.delete(tunnelId);
       }
     });
-    
+
     sendStatus('connecting');
     conn.connect(connectOpts);
   });
@@ -264,11 +368,11 @@ async function startPortForward(event, payload) {
 async function stopPortForward(event, payload) {
   const { tunnelId } = payload;
   const tunnel = portForwardingTunnels.get(tunnelId);
-  
+
   if (!tunnel) {
     return { tunnelId, success: false, error: 'Tunnel not found' };
   }
-  
+
   try {
     if (tunnel.server) {
       tunnel.server.close();
@@ -277,7 +381,7 @@ async function stopPortForward(event, payload) {
       tunnel.conn.end();
     }
     portForwardingTunnels.delete(tunnelId);
-    
+
     return { tunnelId, success: true };
   } catch (err) {
     return { tunnelId, success: false, error: err.message };
@@ -290,11 +394,11 @@ async function stopPortForward(event, payload) {
 async function getPortForwardStatus(event, payload) {
   const { tunnelId } = payload;
   const tunnel = portForwardingTunnels.get(tunnelId);
-  
+
   if (!tunnel) {
     return { tunnelId, status: 'inactive' };
   }
-  
+
   return { tunnelId, status: 'active', type: tunnel.type };
 }
 

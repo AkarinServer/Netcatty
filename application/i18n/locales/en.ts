@@ -399,6 +399,7 @@ const en: Messages = {
 
   // SFTP
   'sftp.newFolder': 'New Folder',
+  'sftp.newFile': 'New File',
   'sftp.filter': 'Filter',
   'sftp.filter.placeholder': 'Filter by filename...',
   'sftp.columns.name': 'Name',
@@ -433,6 +434,8 @@ const en: Messages = {
   'sftp.goHome': 'Go to home',
   'sftp.folderName': 'Folder name',
   'sftp.folderName.placeholder': 'Enter folder name',
+  'sftp.fileName': 'File name',
+  'sftp.fileName.placeholder': 'Enter file name',
   'sftp.prompt.newFolderName': 'New folder name?',
   'sftp.rename.title': 'Rename',
   'sftp.rename.newName': 'New name',
@@ -445,6 +448,12 @@ const en: Messages = {
   'sftp.error.uploadFailed': 'Upload failed',
   'sftp.error.deleteFailed': 'Delete failed',
   'sftp.error.createFolderFailed': 'Failed to create folder',
+  'sftp.error.createFileFailed': 'Failed to create file',
+  'sftp.error.invalidFileName': 'Filename contains invalid characters: {chars}',
+  'sftp.error.reservedName': 'This filename is reserved by the system',
+  'sftp.overwrite.title': 'File Already Exists',
+  'sftp.overwrite.desc': 'A file named "{name}" already exists. Do you want to replace it?',
+  'sftp.overwrite.confirm': 'Replace',
   'sftp.error.renameFailed': 'Failed to rename',
   'sftp.picker.title': 'Select Host',
   'sftp.picker.desc': 'Pick a host for the {side} pane',
@@ -542,11 +551,20 @@ const en: Messages = {
   'sftp.autoSync.success': 'File synced to remote: {fileName}',
   'sftp.autoSync.error': 'Failed to sync file: {error}',
 
+  // SFTP Folder Upload Progress
+  'sftp.upload.progress': 'Uploading {current} of {total} files...',
+  'sftp.upload.currentFile': 'Current: {fileName}',
+  'sftp.upload.cancelled': 'Upload cancelled',
+  'sftp.upload.cancel': 'Cancel',
+
   // SFTP Reconnecting
   'sftp.reconnecting.title': 'Reconnecting...',
   'sftp.reconnecting.desc': 'Connection lost, attempting to reconnect',
   'sftp.reconnected': 'Connection restored',
   'sftp.error.reconnectFailed': 'Failed to reconnect. Please try again.',
+  'sftp.error.connectionLostManual': 'Connection lost. Please reconnect manually.',
+  'sftp.error.connectionLostReconnecting': 'Connection lost. Reconnecting...',
+  'sftp.error.sessionLost': 'SFTP session lost. Please reconnect.',
 
   // Settings > SFTP Show Hidden Files
   'settings.sftp.showHiddenFiles': 'Show hidden files',
@@ -610,16 +628,17 @@ const en: Messages = {
   'hostDetails.keys.empty': 'No keys available',
   'hostDetails.certs.search': 'Search certificates...',
   'hostDetails.certs.empty': 'No certificates available',
-  'hostDetails.agentForwarding': 'Agent Forwarding',
-  'hostDetails.jumpHosts': 'Jump Hosts',
+  'hostDetails.agentForwarding': 'Forward SSH Agent',
+  'hostDetails.agentForwarding.desc': 'Allow remote server to use your local SSH keys (e.g., for git operations)',
+  'hostDetails.jumpHosts': 'Proxy via Hosts',
   'hostDetails.jumpHosts.hops': '{count} hop(s)',
   'hostDetails.jumpHosts.direct': 'Direct',
-  'hostDetails.jumpHosts.configure': 'Configure Jump Hosts',
-  'hostDetails.proxy': 'Proxy',
+  'hostDetails.jumpHosts.configure': 'Configure Proxy Hosts',
+  'hostDetails.proxy': 'Proxy via HTTP/SOCKS5',
   'hostDetails.proxy.none': 'None',
   'hostDetails.proxy.edit': 'Edit Proxy',
   'hostDetails.proxy.configure': 'Configure Proxy',
-  'hostDetails.proxyPanel.title': 'Proxy',
+  'hostDetails.proxyPanel.title': 'Proxy via HTTP/SOCKS5',
   'hostDetails.proxyPanel.hostPlaceholder': 'Proxy host',
   'hostDetails.proxyPanel.credentials': 'Credentials',
   'hostDetails.proxyPanel.usernamePlaceholder': 'Username',
@@ -1110,6 +1129,16 @@ const en: Messages = {
   'serial.field.configLabelPlaceholder': 'e.g. Arduino Uno',
   'serial.connectAndSave': 'Connect & Save',
   'serial.edit.title': 'Serial Port Settings',
+
+  // Keyboard Interactive Authentication (2FA/MFA)
+  'keyboard.interactive.title': 'Authentication Required',
+  'keyboard.interactive.desc': 'The server requires additional authentication.',
+  'keyboard.interactive.descWithHost': 'The server {hostname} requires additional authentication.',
+  'keyboard.interactive.response': 'Response',
+  'keyboard.interactive.enterCode': 'Enter verification code',
+  'keyboard.interactive.enterResponse': 'Enter response',
+  'keyboard.interactive.submit': 'Submit',
+  'keyboard.interactive.verifying': 'Verifying...',
 };
 
 export default en;

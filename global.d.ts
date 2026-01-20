@@ -185,6 +185,23 @@ interface NetcattyBridge {
     cb: (evt: { sessionId: string; error: string; hostname: string }) => void
   ): () => void;
   
+  // Keyboard-interactive authentication (2FA/MFA)
+  onKeyboardInteractive?(
+    cb: (request: {
+      requestId: string;
+      sessionId: string;
+      name: string;
+      instructions: string;
+      prompts: Array<{ prompt: string; echo: boolean }>;
+      hostname: string;
+    }) => void
+  ): () => void;
+  respondKeyboardInteractive?(
+    requestId: string,
+    responses: string[],
+    cancelled?: boolean
+  ): Promise<{ success: boolean; error?: string }>;
+  
   // SFTP operations
   openSftp(options: NetcattySSHOptions): Promise<string>;
   listSftp(sftpId: string, path: string): Promise<RemoteFile[]>;

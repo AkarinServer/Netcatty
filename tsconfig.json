@@ -26,5 +26,10 @@
     },
     "allowImportingTsExtensions": true,
     "noEmit": true
-  }
+  },
+  "include": [
+    "global.d.ts",
+    "**/*.ts",
+    "**/*.tsx"
+  ]
 }

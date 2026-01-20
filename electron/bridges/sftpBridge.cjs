@@ -11,6 +11,8 @@ const SftpClient = require("ssh2-sftp-client");
 const { Client: SSHClient } = require("ssh2");
 const { NetcattyAgent } = require("./netcattyAgent.cjs");
 const fileWatcherBridge = require("./fileWatcherBridge.cjs");
+const keyboardInteractiveHandler = require("./keyboardInteractiveHandler.cjs");
+const { createProxySocket } = require("./proxyUtils.cjs");
 
 // SFTP clients storage - shared reference passed from main
 let sftpClients = null;
@@ -18,6 +20,18 @@ let electronModule = null;
 
 // Storage for jump host connections that need to be cleaned up
 const jumpConnectionsMap = new Map(); // connId -> { connections: SSHClient[], socket: stream }
+
+/**
+ * Send message to renderer safely
+ */
+function safeSend(sender, channel, payload) {
+  try {
+    if (!sender || sender.isDestroyed()) return;
+    sender.send(channel, payload);
+  } catch {
+    // Ignore destroyed webContents during shutdown.
+  }
+}
 
 /**
  * Initialize the SFTP bridge with dependencies
@@ -28,129 +42,12 @@ function init(deps) {
 }
 
 /**
- * Create a socket through a proxy (HTTP CONNECT or SOCKS5)
- * Reused from sshBridge.cjs
- */
-function createProxySocket(proxy, targetHost, targetPort) {
-  return new Promise((resolve, reject) => {
-    if (proxy.type === 'http') {
-      // HTTP CONNECT proxy
-      const socket = net.connect(proxy.port, proxy.host, () => {
-        let authHeader = '';
-        if (proxy.username && proxy.password) {
-          const auth = Buffer.from(`${proxy.username}:${proxy.password}`).toString('base64');
-          authHeader = `Proxy-Authorization: Basic ${auth}\r\n`;
-        }
-        const connectRequest = `CONNECT ${targetHost}:${targetPort} HTTP/1.1\r\nHost: ${targetHost}:${targetPort}\r\n${authHeader}\r\n`;
-        socket.write(connectRequest);
-        
-        let response = '';
-        const onData = (data) => {
-          response += data.toString();
-          if (response.includes('\r\n\r\n')) {
-            socket.removeListener('data', onData);
-            if (response.startsWith('HTTP/1.1 200') || response.startsWith('HTTP/1.0 200')) {
-              resolve(socket);
-            } else {
-              socket.destroy();
-              reject(new Error(`HTTP proxy error: ${response.split('\r\n')[0]}`));
-            }
-          }
-        };
-        socket.on('data', onData);
-      });
-      socket.on('error', reject);
-    } else if (proxy.type === 'socks5') {
-      // SOCKS5 proxy
-      const socket = net.connect(proxy.port, proxy.host, () => {
-        // SOCKS5 greeting
-        const authMethods = proxy.username && proxy.password ? [0x00, 0x02] : [0x00];
-        socket.write(Buffer.from([0x05, authMethods.length, ...authMethods]));
-        
-        let step = 'greeting';
-        const onData = (data) => {
-          if (step === 'greeting') {
-            if (data[0] !== 0x05) {
-              socket.destroy();
-              reject(new Error('Invalid SOCKS5 response'));
-              return;
-            }
-            const method = data[1];
-            if (method === 0x02 && proxy.username && proxy.password) {
-              // Username/password auth
-              step = 'auth';
-              const userBuf = Buffer.from(proxy.username);
-              const passBuf = Buffer.from(proxy.password);
-              socket.write(Buffer.concat([
-                Buffer.from([0x01, userBuf.length]),
-                userBuf,
-                Buffer.from([passBuf.length]),
-                passBuf
-              ]));
-            } else if (method === 0x00) {
-              // No auth, proceed to connect
-              step = 'connect';
-              sendConnectRequest();
-            } else {
-              socket.destroy();
-              reject(new Error('SOCKS5 authentication method not supported'));
-            }
-          } else if (step === 'auth') {
-            if (data[1] !== 0x00) {
-              socket.destroy();
-              reject(new Error('SOCKS5 authentication failed'));
-              return;
-            }
-            step = 'connect';
-            sendConnectRequest();
-          } else if (step === 'connect') {
-            socket.removeListener('data', onData);
-            if (data[1] === 0x00) {
-              resolve(socket);
-            } else {
-              const errors = {
-                0x01: 'General failure',
-                0x02: 'Connection not allowed',
-                0x03: 'Network unreachable',
-                0x04: 'Host unreachable',
-                0x05: 'Connection refused',
-                0x06: 'TTL expired',
-                0x07: 'Command not supported',
-                0x08: 'Address type not supported',
-              };
-              socket.destroy();
-              reject(new Error(`SOCKS5 error: ${errors[data[1]] || 'Unknown'}`));
-            }
-          }
-        };
-        
-        const sendConnectRequest = () => {
-          // SOCKS5 connect request
-          const hostBuf = Buffer.from(targetHost);
-          const request = Buffer.concat([
-            Buffer.from([0x05, 0x01, 0x00, 0x03, hostBuf.length]),
-            hostBuf,
-            Buffer.from([(targetPort >> 8) & 0xff, targetPort & 0xff])
-          ]);
-          socket.write(request);
-        };
-        
-        socket.on('data', onData);
-      });
-      socket.on('error', reject);
-    } else {
-      reject(new Error(`Unknown proxy type: ${proxy.type}`));
-    }
-  });
-}
-
-/**
  * Connect through a chain of jump hosts for SFTP
  */
 async function connectThroughChainForSftp(event, options, jumpHosts, targetHost, targetPort) {
   const connections = [];
   let currentSocket = null;
-  
+
   try {
     // Connect through each jump host
     for (let i = 0; i < jumpHosts.length; i++) {
@@ -158,14 +55,14 @@ async function connectThroughChainForSftp(event, options, jumpHosts, targetHost,
       const isFirst = i === 0;
       const isLast = i === jumpHosts.length - 1;
       const hopLabel = jump.label || `${jump.hostname}:${jump.port || 22}`;
-      
+
       console.log(`[SFTP Chain] Hop ${i + 1}/${jumpHosts.length}: Connecting to ${hopLabel}...`);
-      
+
       const conn = new SSHClient();
       // Increase max listeners to prevent Node.js warning
       // Set to 0 (unlimited) since complex operations add many temp listeners
       conn.setMaxListeners(0);
-      
+
       // Build connection options
       const connOpts = {
         host: jump.hostname,
@@ -174,13 +71,15 @@ async function connectThroughChainForSftp(event, options, jumpHosts, targetHost,
         readyTimeout: 20000,
         keepaliveInterval: 10000,
         keepaliveCountMax: 3,
+        // Enable keyboard-interactive authentication (required for 2FA/MFA)
+        tryKeyboard: true,
         algorithms: {
           cipher: ['aes128-gcm@openssh.com', 'aes256-gcm@openssh.com', 'aes128-ctr', 'aes256-ctr'],
           kex: ['curve25519-sha256', 'curve25519-sha256@libssh.org', 'ecdh-sha2-nistp256', 'ecdh-sha2-nistp384', 'diffie-hellman-group14-sha256'],
           compress: ['none'],
         },
       };
-      
+
       // Auth - support agent (certificate), key, and password fallback
       const hasCertificate =
         typeof jump.certificate === "string" && jump.certificate.trim().length > 0;
@@ -210,7 +109,7 @@ async function connectThroughChainForSftp(event, options, jumpHosts, targetHost,
         if (connOpts.password) order.push("password");
         connOpts.authHandler = order;
       }
-      
+
       // If first hop and proxy is configured, connect through proxy
       if (isFirst && options.proxy) {
         currentSocket = await createProxySocket(options.proxy, jump.hostname, jump.port || 22);
@@ -223,7 +122,7 @@ async function connectThroughChainForSftp(event, options, jumpHosts, targetHost,
         delete connOpts.host;
         delete connOpts.port;
       }
-      
+
       // Connect this hop
       await new Promise((resolve, reject) => {
         conn.on('ready', () => {
@@ -240,9 +139,9 @@ async function connectThroughChainForSftp(event, options, jumpHosts, targetHost,
         });
         conn.connect(connOpts);
       });
-      
+
       connections.push(conn);
-      
+
       // Determine next target
       let nextHost, nextPort;
       if (isLast) {
@@ -255,7 +154,7 @@ async function connectThroughChainForSftp(event, options, jumpHosts, targetHost,
         nextHost = nextJump.hostname;
         nextPort = nextJump.port || 22;
       }
-      
+
       // Create forward stream to next hop
       console.log(`[SFTP Chain] Hop ${i + 1}/${jumpHosts.length}: Forwarding to ${nextHost}:${nextPort}...`);
       currentSocket = await new Promise((resolve, reject) => {
@@ -270,10 +169,10 @@ async function connectThroughChainForSftp(event, options, jumpHosts, targetHost,
         });
       });
     }
-    
+
     // Return the final forwarded stream and all connections for cleanup
-    return { 
-      socket: currentSocket, 
+    return {
+      socket: currentSocket,
       connections
     };
   } catch (err) {
@@ -292,15 +191,15 @@ async function connectThroughChainForSftp(event, options, jumpHosts, targetHost,
 async function openSftp(event, options) {
   const client = new SftpClient();
   const connId = options.sessionId || `${Date.now()}-sftp-${Math.random().toString(16).slice(2)}`;
-  
+
   // Check if we need to connect through jump hosts
   const jumpHosts = options.jumpHosts || [];
   const hasJumpHosts = jumpHosts.length > 0;
   const hasProxy = !!options.proxy;
-  
+
   let chainConnections = [];
   let connectionSocket = null;
-  
+
   // Handle chain/proxy connections
   if (hasJumpHosts) {
     console.log(`[SFTP] Opening connection through ${jumpHosts.length} jump host(s) to ${options.hostname}:${options.port || 22}`);
@@ -321,13 +220,16 @@ async function openSftp(event, options) {
       options.port || 22
     );
   }
-  
+
   const connectOpts = {
     host: options.hostname,
     port: options.port || 22,
     username: options.username || "root",
+    // Enable keyboard-interactive authentication (required for 2FA/MFA)
+    tryKeyboard: true,
+    readyTimeout: 120000, // 2 minutes for 2FA input
   };
-  
+
   // Use the tunneled socket if we have one
   if (connectionSocket) {
     connectOpts.sock = connectionSocket;
@@ -335,7 +237,7 @@ async function openSftp(event, options) {
     delete connectOpts.host;
     delete connectOpts.port;
   }
-  
+
   const hasCertificate = typeof options.certificate === "string" && options.certificate.trim().length > 0;
 
   let authAgent = null;
@@ -363,19 +265,122 @@ async function openSftp(event, options) {
     if (connectOpts.password) order.push("password");
     connectOpts.authHandler = order;
   }
-  
+
+  // Add keyboard-interactive authentication support
+  // ssh2-sftp-client exposes the underlying ssh2 Client through its `on` method
+  const kiHandler = (name, instructions, instructionsLang, prompts, finish) => {
+    console.log(`[SFTP] ${options.hostname} keyboard-interactive auth requested`, {
+      name,
+      instructions,
+      promptCount: prompts?.length || 0,
+      prompts: prompts?.map(p => ({ prompt: p.prompt, echo: p.echo })),
+    });
+
+    // If there are no prompts, just call finish with empty array
+    if (!prompts || prompts.length === 0) {
+      console.log(`[SFTP] No prompts, finishing keyboard-interactive`);
+      finish([]);
+      return;
+    }
+
+    // Check if all prompts are password prompts that we can auto-answer
+    const responses = [];
+    const promptsNeedingUserInput = [];
+
+    for (let i = 0; i < prompts.length; i++) {
+      const prompt = prompts[i];
+      const promptText = (prompt.prompt || '').toLowerCase().trim();
+
+      // Auto-answer password prompts if we have a configured password
+      if (options.password && (
+        promptText.includes('password') ||
+        promptText === 'password:' ||
+        promptText === 'password'
+      )) {
+        console.log(`[SFTP] Auto-answering password prompt at index ${i}`);
+        responses[i] = options.password;
+      } else {
+        // This prompt needs user input (likely 2FA)
+        promptsNeedingUserInput.push({ index: i, prompt: prompt });
+        responses[i] = null; // Placeholder
+      }
+    }
+
+    // If all prompts were auto-answered, finish immediately
+    if (promptsNeedingUserInput.length === 0) {
+      console.log(`[SFTP] All prompts auto-answered, finishing keyboard-interactive`);
+      finish(responses);
+      return;
+    }
+
+    // If some prompts need user input, show the modal
+    const requestId = keyboardInteractiveHandler.generateRequestId('sftp');
+
+    // Store finish callback with context about which responses are already filled
+    keyboardInteractiveHandler.storeRequest(requestId, (userResponses) => {
+      // Merge user responses with auto-filled responses
+      let userResponseIndex = 0;
+      for (let i = 0; i < prompts.length; i++) {
+        if (responses[i] === null) {
+          responses[i] = userResponses[userResponseIndex] || '';
+          userResponseIndex++;
+        }
+      }
+      console.log(`[SFTP] Merged responses, finishing keyboard-interactive`);
+      finish(responses);
+    }, event.sender.id, connId);
+
+    // Send only the prompts that need user input
+    const promptsData = promptsNeedingUserInput.map((item) => ({
+      prompt: item.prompt.prompt,
+      echo: item.prompt.echo,
+    }));
+
+    console.log(`[SFTP] Showing modal for ${promptsData.length} prompts that need user input`);
+
+    safeSend(event.sender, "netcatty:keyboard-interactive", {
+      requestId,
+      sessionId: connId,
+      name: name || "",
+      instructions: instructions || "",
+      prompts: promptsData,
+      hostname: options.hostname,
+    });
+  };
+
+  // Add keyboard-interactive listener BEFORE connecting
+  client.on("keyboard-interactive", kiHandler);
+
+  // Enable keyboard-interactive authentication in authHandler
+  if (connectOpts.authHandler) {
+    // Add keyboard-interactive after the existing methods
+    if (!connectOpts.authHandler.includes("keyboard-interactive")) {
+      connectOpts.authHandler.push("keyboard-interactive");
+    }
+  } else {
+    // Create authHandler with keyboard-interactive support
+    const authMethods = [];
+    if (connectOpts.privateKey) authMethods.push("publickey");
+    if (connectOpts.password) authMethods.push("password");
+    authMethods.push("keyboard-interactive");
+    connectOpts.authHandler = authMethods;
+  }
+
+  // Increase timeout to allow for keyboard-interactive auth
+  connectOpts.readyTimeout = 120000; // 2 minutes for 2FA input
+
   try {
     await client.connect(connectOpts);
-    
+
     // Increase max listeners AFTER connect, when the internal ssh2 Client exists
     // This prevents Node.js MaxListenersExceededWarning when performing many operations
     // ssh2-sftp-client adds temporary listeners for each operation, so we need a high limit
     if (client.client && typeof client.client.setMaxListeners === 'function') {
       client.client.setMaxListeners(0); // 0 means unlimited
     }
-    
+
     sftpClients.set(connId, client);
-    
+
     // Store jump connections for cleanup when SFTP is closed
     if (chainConnections.length > 0) {
       jumpConnectionsMap.set(connId, {
@@ -383,7 +388,7 @@ async function openSftp(event, options) {
         socket: connectionSocket
       });
     }
-    
+
     console.log(`[SFTP] Connection established: ${connId}`);
     return { sftpId: connId };
   } catch (err) {
@@ -402,15 +407,15 @@ async function openSftp(event, options) {
 async function listSftp(event, payload) {
   const client = sftpClients.get(payload.sftpId);
   if (!client) throw new Error("SFTP session not found");
-  
+
   const list = await client.list(payload.path || ".");
   const basePath = payload.path || ".";
-  
+
   // Process items and resolve symlinks
   const results = await Promise.all(list.map(async (item) => {
     let type;
     let linkTarget = null;
-    
+
     if (item.type === "d") {
       type = "directory";
     } else if (item.type === "l") {
@@ -433,7 +438,7 @@ async function listSftp(event, payload) {
     } else {
       type = "file";
     }
-    
+
     // Extract permissions from longname or rights
     let permissions = undefined;
     if (item.rights) {
@@ -446,7 +451,7 @@ async function listSftp(event, payload) {
         permissions = match[1];
       }
     }
-    
+
     return {
       name: item.name,
       type,
@@ -456,7 +461,7 @@ async function listSftp(event, payload) {
       permissions,
     };
   }));
-  
+
   return results;
 }
 
@@ -489,7 +494,7 @@ async function readSftpBinary(event, payload) {
 async function writeSftp(event, payload) {
   const client = sftpClients.get(payload.sftpId);
   if (!client) throw new Error("SFTP session not found");
-  
+
   await client.put(Buffer.from(payload.content, "utf-8"), payload.path);
   return true;
 }
@@ -500,14 +505,14 @@ async function writeSftp(event, payload) {
 async function writeSftpBinaryWithProgress(event, payload) {
   const client = sftpClients.get(payload.sftpId);
   if (!client) throw new Error("SFTP session not found");
-  
+
   const { sftpId, path: remotePath, content, transferId } = payload;
   const buffer = Buffer.from(content);
   const totalBytes = buffer.length;
   let transferredBytes = 0;
   let lastProgressTime = Date.now();
   let lastTransferredBytes = 0;
-  
+
   const { Readable } = require("stream");
   const readableStream = new Readable({
     read() {
@@ -516,7 +521,7 @@ async function writeSftpBinaryWithProgress(event, payload) {
         const end = Math.min(transferredBytes + chunkSize, totalBytes);
         const chunk = buffer.slice(transferredBytes, end);
         transferredBytes = end;
-        
+
         const now = Date.now();
         const elapsed = (now - lastProgressTime) / 1000;
         let speed = 0;
@@ -525,7 +530,7 @@ async function writeSftpBinaryWithProgress(event, payload) {
           lastProgressTime = now;
           lastTransferredBytes = transferredBytes;
         }
-        
+
         const contents = electronModule.webContents.fromId(event.sender.id);
         contents?.send("netcatty:upload:progress", {
           transferId,
@@ -533,20 +538,20 @@ async function writeSftpBinaryWithProgress(event, payload) {
           totalBytes,
           speed,
         });
-        
+
         this.push(chunk);
       } else {
         this.push(null);
       }
     }
   });
-  
+
   try {
     await client.put(readableStream, remotePath);
-    
+
     const contents = electronModule.webContents.fromId(event.sender.id);
     contents?.send("netcatty:upload:complete", { transferId });
-    
+
     return { success: true, transferId };
   } catch (err) {
     const contents = electronModule.webContents.fromId(event.sender.id);
@@ -562,21 +567,21 @@ async function writeSftpBinaryWithProgress(event, payload) {
 async function closeSftp(event, payload) {
   const client = sftpClients.get(payload.sftpId);
   if (!client) return;
-  
+
   // Stop file watchers and clean up temp files for this SFTP session
   try {
     fileWatcherBridge.stopWatchersForSession(payload.sftpId, true);
   } catch (err) {
     console.warn("[SFTP] Error stopping file watchers:", err.message);
   }
-  
+
   try {
     await client.end();
   } catch (err) {
     console.warn("SFTP close failed", err);
   }
   sftpClients.delete(payload.sftpId);
-  
+
   // Clean up jump connections if any
   const jumpData = jumpConnectionsMap.get(payload.sftpId);
   if (jumpData) {
@@ -594,7 +599,7 @@ async function closeSftp(event, payload) {
 async function mkdirSftp(event, payload) {
   const client = sftpClients.get(payload.sftpId);
   if (!client) throw new Error("SFTP session not found");
-  
+
   await client.mkdir(payload.path, true);
   return true;
 }
@@ -605,7 +610,7 @@ async function mkdirSftp(event, payload) {
 async function deleteSftp(event, payload) {
   const client = sftpClients.get(payload.sftpId);
   if (!client) throw new Error("SFTP session not found");
-  
+
   const stat = await client.stat(payload.path);
   if (stat.isDirectory) {
     await client.rmdir(payload.path, true);
@@ -621,7 +626,7 @@ async function deleteSftp(event, payload) {
 async function renameSftp(event, payload) {
   const client = sftpClients.get(payload.sftpId);
   if (!client) throw new Error("SFTP session not found");
-  
+
   await client.rename(payload.oldPath, payload.newPath);
   return true;
 }
@@ -632,7 +637,7 @@ async function renameSftp(event, payload) {
 async function statSftp(event, payload) {
   const client = sftpClients.get(payload.sftpId);
   if (!client) throw new Error("SFTP session not found");
-  
+
   const stat = await client.stat(payload.path);
   return {
     name: path.basename(payload.path),
@@ -649,7 +654,7 @@ async function statSftp(event, payload) {
 async function chmodSftp(event, payload) {
   const client = sftpClients.get(payload.sftpId);
   if (!client) throw new Error("SFTP session not found");
-  
+
   await client.chmod(payload.path, parseInt(payload.mode, 8));
   return true;
 }

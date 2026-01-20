@@ -9,6 +9,7 @@ const chainProgressListeners = new Map();
 const authFailedListeners = new Map();
 const languageChangeListeners = new Set();
 const fullscreenChangeListeners = new Set();
+const keyboardInteractiveListeners = new Set();
 
 ipcRenderer.on("netcatty:data", (_event, payload) => {
   const set = dataListeners.get(payload.sessionId);
@@ -84,6 +85,17 @@ ipcRenderer.on("netcatty:auth:failed", (_event, payload) => {
       }
     });
   }
+});
+
+// Keyboard-interactive authentication events (2FA/MFA)
+ipcRenderer.on("netcatty:keyboard-interactive", (_event, payload) => {
+  keyboardInteractiveListeners.forEach((cb) => {
+    try {
+      cb(payload);
+    } catch (err) {
+      console.error("Keyboard-interactive callback failed", err);
+    }
+  });
 });
 
 // Transfer progress events
@@ -284,6 +296,18 @@ const api = {
     if (!authFailedListeners.has(sessionId)) authFailedListeners.set(sessionId, new Set());
     authFailedListeners.get(sessionId).add(cb);
     return () => authFailedListeners.get(sessionId)?.delete(cb);
+  },
+  // Keyboard-interactive authentication (2FA/MFA)
+  onKeyboardInteractive: (cb) => {
+    keyboardInteractiveListeners.add(cb);
+    return () => keyboardInteractiveListeners.delete(cb);
+  },
+  respondKeyboardInteractive: async (requestId, responses, cancelled = false) => {
+    return ipcRenderer.invoke("netcatty:keyboard-interactive:respond", {
+      requestId,
+      responses,
+      cancelled,
+    });
   },
   openSftp: async (options) => {
     const result = await ipcRenderer.invoke("netcatty:sftp:open", options);

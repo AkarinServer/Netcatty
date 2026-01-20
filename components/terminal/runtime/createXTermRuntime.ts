@@ -17,6 +17,7 @@ import {
   resolveXTermPerformanceConfig,
 } from "../../../infrastructure/config/xtermPerformance";
 import { logger } from "../../../lib/logger";
+import { normalizeLineEndings } from "../../../lib/utils";
 import type {
   Host,
   KeyBinding,
@@ -106,7 +107,7 @@ export const createXTermRuntime = (ctx: CreateXTermRuntimeContext): XTermRuntime
   const platform = detectPlatform();
   const deviceMemoryGb =
     typeof navigator !== "undefined" &&
-    typeof (navigator as { deviceMemory?: number }).deviceMemory === "number"
+      typeof (navigator as { deviceMemory?: number }).deviceMemory === "number"
       ? (navigator as { deviceMemory?: number }).deviceMemory
       : undefined;
 
@@ -358,7 +359,7 @@ export const createXTermRuntime = (ctx: CreateXTermRuntimeContext): XTermRuntime
         case "paste": {
           navigator.clipboard.readText().then((text) => {
             const id = ctx.sessionRef.current;
-            if (id) ctx.terminalBackend.writeToSession(id, text);
+            if (id) ctx.terminalBackend.writeToSession(id, normalizeLineEndings(text));
           });
           break;
         }
@@ -390,7 +391,7 @@ export const createXTermRuntime = (ctx: CreateXTermRuntimeContext): XTermRuntime
       try {
         const text = await navigator.clipboard.readText();
         if (text && ctx.sessionRef.current) {
-          ctx.terminalBackend.writeToSession(ctx.sessionRef.current, text);
+          ctx.terminalBackend.writeToSession(ctx.sessionRef.current, normalizeLineEndings(text));
         }
       } catch (err) {
         logger.warn("[Terminal] Failed to paste from clipboard:", err);

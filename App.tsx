@@ -19,6 +19,7 @@ import { Input } from './components/ui/input';
 import { Label } from './components/ui/label';
 import { ToastProvider, toast } from './components/ui/toast';
 import { VaultView, VaultSection } from './components/VaultView';
+import { KeyboardInteractiveModal, KeyboardInteractiveRequest } from './components/KeyboardInteractiveModal';
 import { cn } from './lib/utils';
 import { ConnectionLog, Host, HostProtocol, SerialConfig, TerminalTheme } from './types';
 import { LogView as LogViewType } from './application/state/useSessionState';
@@ -150,6 +151,8 @@ function App({ settings }: { settings: SettingsState }) {
   const [protocolSelectHost, setProtocolSelectHost] = useState<Host | null>(null);
   // Navigation state for VaultView sections
   const [navigateToSection, setNavigateToSection] = useState<VaultSection | null>(null);
+  // Keyboard-interactive authentication state (2FA/MFA)
+  const [keyboardInteractiveRequest, setKeyboardInteractiveRequest] = useState<KeyboardInteractiveRequest | null>(null);
 
   const {
     theme,
@@ -290,6 +293,45 @@ function App({ settings }: { settings: SettingsState }) {
     hosts,
     keys: keys.map((k) => ({ id: k.id, privateKey: k.privateKey })),
   });
+
+  // Keyboard-interactive authentication (2FA/MFA) event listener
+  useEffect(() => {
+    const bridge = netcattyBridge.get();
+    if (!bridge?.onKeyboardInteractive) return;
+
+    const unsubscribe = bridge.onKeyboardInteractive((request) => {
+      console.log('[App] Keyboard-interactive request received:', request);
+      setKeyboardInteractiveRequest({
+        requestId: request.requestId,
+        name: request.name,
+        instructions: request.instructions,
+        prompts: request.prompts,
+        hostname: request.hostname,
+      });
+    });
+
+    return () => {
+      unsubscribe?.();
+    };
+  }, []);
+
+  // Handle keyboard-interactive submit
+  const handleKeyboardInteractiveSubmit = useCallback((requestId: string, responses: string[]) => {
+    const bridge = netcattyBridge.get();
+    if (bridge?.respondKeyboardInteractive) {
+      void bridge.respondKeyboardInteractive(requestId, responses, false);
+    }
+    setKeyboardInteractiveRequest(null);
+  }, []);
+
+  // Handle keyboard-interactive cancel
+  const handleKeyboardInteractiveCancel = useCallback((requestId: string) => {
+    const bridge = netcattyBridge.get();
+    if (bridge?.respondKeyboardInteractive) {
+      void bridge.respondKeyboardInteractive(requestId, [], true);
+    }
+    setKeyboardInteractiveRequest(null);
+  }, []);
 
   // Debounce ref for moveFocus to prevent double-triggering when focus switches
   const lastMoveFocusTimeRef = useRef<number>(0);
@@ -989,6 +1031,13 @@ function App({ settings }: { settings: SettingsState }) {
           />
         </Suspense>
       )}
+
+      {/* Global Keyboard-Interactive Authentication Modal (2FA/MFA) */}
+      <KeyboardInteractiveModal
+        request={keyboardInteractiveRequest}
+        onSubmit={handleKeyboardInteractiveSubmit}
+        onCancel={handleKeyboardInteractiveCancel}
+      />
     </div>
   );
 }

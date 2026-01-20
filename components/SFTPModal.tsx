@@ -45,7 +45,7 @@ import { useSftpBackend } from "../application/state/useSftpBackend";
 import { useSftpFileAssociations } from "../application/state/useSftpFileAssociations";
 import { useSettingsState } from "../application/state/useSettingsState";
 import { logger } from "../lib/logger";
-import { getFileExtension, isKnownBinaryFile, FileOpenerType, SystemAppInfo } from "../lib/sftpFileUtils";
+import { getFileExtension, isKnownBinaryFile, FileOpenerType, SystemAppInfo, extractDropEntries } from "../lib/sftpFileUtils";
 import { cn } from "../lib/utils";
 import { Host, RemoteFile } from "../types";
 import { filterHiddenFiles } from "./sftp";
@@ -871,8 +871,10 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
   const handleUploadFile = async (
     file: File,
     taskId: string,
+    relativePath?: string,
   ): Promise<boolean> => {
     const startTime = Date.now();
+    const displayName = relativePath || file.name;
 
     // Update task to uploading with start time
     setUploadTasks((prev) =>
@@ -891,7 +893,7 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
 
     try {
       const arrayBuffer = await file.arrayBuffer();
-      const fullPath = joinPath(currentPath, file.name);
+      const fullPath = joinPath(currentPath, displayName);
 
       if (isLocalSession) {
         await writeLocalFile(fullPath, arrayBuffer);
@@ -1049,6 +1051,95 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
     }, 3000);
   };
 
+  // Upload files/folders from drag-and-drop (supports folders via DataTransfer API)
+  const handleUploadFromDrop = async (dataTransfer: DataTransfer) => {
+    // Extract all entries (files and folders) using webkitGetAsEntry
+    const entries = await extractDropEntries(dataTransfer);
+    if (entries.length === 0) return;
+
+    // Track created directories to avoid duplicates
+    const createdDirs = new Set<string>();
+
+    // Helper to ensure directory exists
+    const ensureDirectory = async (dirPath: string) => {
+      if (createdDirs.has(dirPath)) return;
+      try {
+        if (isLocalSession) {
+          await mkdirLocal(dirPath);
+        } else {
+          const sftpId = await ensureSftp();
+          await mkdirSftp(sftpId, dirPath);
+        }
+        createdDirs.add(dirPath);
+      } catch {
+        // Directory may already exist
+        createdDirs.add(dirPath);
+      }
+    };
+
+    // Sort entries: directories first, then by path depth
+    const sortedEntries = [...entries].sort((a, b) => {
+      if (a.isDirectory && !b.isDirectory) return -1;
+      if (!a.isDirectory && b.isDirectory) return 1;
+      const aDepth = a.relativePath.split('/').length;
+      const bDepth = b.relativePath.split('/').length;
+      return aDepth - bDepth;
+    });
+
+    // Separate files and directories
+    const fileEntries = sortedEntries.filter(e => !e.isDirectory);
+
+    // Create tasks for files only (directories are created silently)
+    const newTasks: UploadTask[] = fileEntries.map((entry) => ({
+      id: crypto.randomUUID(),
+      fileName: entry.relativePath,
+      status: "pending" as const,
+      progress: 0,
+      totalBytes: entry.file.size,
+      transferredBytes: 0,
+      speed: 0,
+      startTime: 0,
+    }));
+
+    if (newTasks.length > 0) {
+      setUploadTasks((prev) => [...prev, ...newTasks]);
+    }
+    setUploading(true);
+
+    // Process all entries
+    let taskIndex = 0;
+    for (const entry of sortedEntries) {
+      const targetPath = joinPath(currentPath, entry.relativePath);
+
+      if (entry.isDirectory) {
+        // Create directory
+        await ensureDirectory(targetPath);
+      } else if (entry.file) {
+        // Ensure parent directories exist
+        const pathParts = entry.relativePath.split('/');
+        if (pathParts.length > 1) {
+          let parentPath = currentPath;
+          for (let i = 0; i < pathParts.length - 1; i++) {
+            parentPath = joinPath(parentPath, pathParts[i]);
+            await ensureDirectory(parentPath);
+          }
+        }
+
+        // Upload file
+        await handleUploadFile(entry.file, newTasks[taskIndex].id, entry.relativePath);
+        taskIndex++;
+      }
+    }
+
+    setUploading(false);
+    await loadFiles(currentPath, { force: true });
+
+    // Auto-clear completed tasks after 3 seconds
+    setTimeout(() => {
+      setUploadTasks((prev) => prev.filter((t) => t.status !== "completed"));
+    }, 3000);
+  };
+
   const handleDelete = async (file: RemoteFile) => {
     if (!confirm(t("sftp.confirm.deleteOne", { name: file.name }))) return;
     try {
@@ -1082,6 +1173,32 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
     } catch (e) {
       toast.error(
         e instanceof Error ? e.message : t("sftp.error.createFolderFailed"),
+        "SFTP",
+      );
+    }
+  };
+
+  const handleCreateFile = async () => {
+    const fileName = prompt(t("sftp.fileName.placeholder"));
+    if (!fileName) return;
+    try {
+      const fullPath = joinPath(currentPath, fileName);
+      if (isLocalSession) {
+        // Write an empty file
+        await writeLocalFile(fullPath, new ArrayBuffer(0));
+      } else {
+        // Write empty content to create the file using binary write for consistency
+        try {
+          await writeSftpBinary(await ensureSftp(), fullPath, new ArrayBuffer(0));
+        } catch {
+          // Fallback to text write if binary write is not available
+          await writeSftp(await ensureSftp(), fullPath, "");
+        }
+      }
+      await loadFiles(currentPath, { force: true });
+    } catch (e) {
+      toast.error(
+        e instanceof Error ? e.message : t("sftp.error.createFileFailed"),
         "SFTP",
       );
     }
@@ -1392,8 +1509,9 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
     e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      handleUploadMultiple(e.dataTransfer.files);
+    // Use the new drop handler that supports folders
+    if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
+      handleUploadFromDrop(e.dataTransfer);
     }
   };
 
@@ -1907,6 +2025,14 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
             >
               <Plus size={14} className="mr-1.5" /> {t("sftp.newFolder")}
             </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7"
+              onClick={handleCreateFile}
+            >
+              <Plus size={14} className="mr-1.5" /> {t("sftp.newFile")}
+            </Button>
             <input
               type="file"
               className="hidden"
@@ -2188,6 +2314,9 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
             <ContextMenuContent>
               <ContextMenuItem onClick={handleCreateFolder}>
                 <Plus className="h-4 w-4 mr-2" /> {t("sftp.newFolder")}
+              </ContextMenuItem>
+              <ContextMenuItem onClick={handleCreateFile}>
+                <Plus className="h-4 w-4 mr-2" /> {t("sftp.newFile")}
               </ContextMenuItem>
               <ContextMenuItem onClick={() => inputRef.current?.click()}>
                 <Upload className="h-4 w-4 mr-2" /> {t("sftp.uploadFiles")}

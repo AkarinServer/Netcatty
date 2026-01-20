@@ -80,6 +80,7 @@ import {
   Download,
   Edit2,
   ExternalLink,
+  FilePlus,
   Folder,
   FolderPlus,
   HardDrive,
@@ -179,6 +180,7 @@ const SftpPaneViewInner: React.FC<SftpPaneViewProps> = ({
     onClearSelection,
     onSetFilter,
     onCreateDirectory,
+    onCreateFile,
     onDeleteFiles,
     onRenameFile,
     onCopyToOtherPane,
@@ -208,12 +210,18 @@ const SftpPaneViewInner: React.FC<SftpPaneViewProps> = ({
   const [hostSearch, setHostSearch] = useState("");
   const [showNewFolderDialog, setShowNewFolderDialog] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
+  const [showNewFileDialog, setShowNewFileDialog] = useState(false);
+  const [newFileName, setNewFileName] = useState("");
+  const [fileNameError, setFileNameError] = useState<string | null>(null);
+  const [showOverwriteConfirm, setShowOverwriteConfirm] = useState(false);
+  const [overwriteTarget, setOverwriteTarget] = useState<string | null>(null);
   const [showRenameDialog, setShowRenameDialog] = useState(false);
   const [renameTarget, setRenameTarget] = useState<string | null>(null);
   const [renameName, setRenameName] = useState("");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteTargets, setDeleteTargets] = useState<string[]>([]);
   const [isCreating, setIsCreating] = useState(false);
+  const [isCreatingFile, setIsCreatingFile] = useState(false);
   const [isRenaming, setIsRenaming] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -555,6 +563,53 @@ const SftpPaneViewInner: React.FC<SftpPaneViewProps> = ({
     }, 150);
   };
 
+  // Filename validation - constants defined inline to satisfy eslint
+  const validateFileName = useCallback((name: string): string | null => {
+    const INVALID_FILENAME_CHARS = /[/\\:*?"<>|]/;
+    const RESERVED_NAMES = new Set([
+      'CON', 'PRN', 'AUX', 'NUL',
+      'COM1', 'COM2', 'COM3', 'COM4', 'COM5', 'COM6', 'COM7', 'COM8', 'COM9',
+      'LPT1', 'LPT2', 'LPT3', 'LPT4', 'LPT5', 'LPT6', 'LPT7', 'LPT8', 'LPT9',
+    ]);
+
+    const trimmed = name.trim();
+    if (!trimmed) return null;
+
+    // Check for invalid characters
+    const invalidMatch = trimmed.match(INVALID_FILENAME_CHARS);
+    if (invalidMatch) {
+      return t('sftp.error.invalidFileName', { chars: invalidMatch[0] });
+    }
+
+    // Check for reserved names (Windows)
+    const baseName = trimmed.split('.')[0].toUpperCase();
+    if (RESERVED_NAMES.has(baseName)) {
+      return t('sftp.error.reservedName');
+    }
+
+    return null;
+  }, [t]);
+
+  // Smart default filename generator
+  const getNextUntitledName = useCallback((existingFiles: string[]): string => {
+    const existingSet = new Set(existingFiles.map(f => f.toLowerCase()));
+
+    if (!existingSet.has('untitled.txt')) {
+      return 'untitled.txt';
+    }
+
+    let counter = 1;
+    while (counter < 1000) {
+      const name = `untitled (${counter}).txt`;
+      if (!existingSet.has(name.toLowerCase())) {
+        return name;
+      }
+      counter++;
+    }
+
+    return `untitled_${Date.now()}.txt`;
+  }, []);
+
   // File operations
   const handleCreateFolder = async () => {
     if (!newFolderName.trim() || isCreating) return;
@@ -568,6 +623,48 @@ const SftpPaneViewInner: React.FC<SftpPaneViewProps> = ({
     } finally {
       setIsCreating(false);
     }
+  };
+
+  const handleCreateFile = async (forceOverwrite = false) => {
+    const trimmedName = newFileName.trim();
+    if (!trimmedName || isCreatingFile) return;
+
+    // Validate filename
+    const error = validateFileName(trimmedName);
+    if (error) {
+      setFileNameError(error);
+      return;
+    }
+
+    // Check if file exists (unless we're forcing overwrite)
+    if (!forceOverwrite) {
+      const existingFile = pane.files.find(
+        f => f.name.toLowerCase() === trimmedName.toLowerCase() && f.type === 'file'
+      );
+      if (existingFile) {
+        setOverwriteTarget(trimmedName);
+        setShowOverwriteConfirm(true);
+        return;
+      }
+    }
+
+    setIsCreatingFile(true);
+    try {
+      await onCreateFile(trimmedName);
+      setShowNewFileDialog(false);
+      setShowOverwriteConfirm(false);
+      setOverwriteTarget(null);
+      setNewFileName("");
+      setFileNameError(null);
+    } catch {
+      /* Error handling */
+    } finally {
+      setIsCreatingFile(false);
+    }
+  };
+
+  const handleConfirmOverwrite = async () => {
+    await handleCreateFile(true);
   };
 
   const handleRename = async () => {
@@ -634,21 +731,21 @@ const SftpPaneViewInner: React.FC<SftpPaneViewProps> = ({
     setIsDragOverPane(false);
     setDragOverEntry(null);
 
-    // Check if this is external file drop (from OS)
-    const droppedFiles = e.dataTransfer.files;
-    if (droppedFiles && droppedFiles.length > 0) {
-      // Handle external file upload using the callback
-      if (onUploadExternalFiles) {
-        await onUploadExternalFiles(droppedFiles);
+    // Check if this is an internal drag from another pane (draggedFiles is set by onDragStart)
+    if (draggedFiles && draggedFiles.length > 0) {
+      // Handle internal pane-to-pane transfer
+      if (draggedFiles[0]?.side !== side) {
+        onReceiveFromOtherPane(
+          draggedFiles.map((f) => ({ name: f.name, isDirectory: f.isDirectory })),
+        );
       }
       return;
     }
 
-    // Otherwise, handle internal drag from other pane
-    if (!draggedFiles || draggedFiles[0]?.side === side) return;
-    onReceiveFromOtherPane(
-      draggedFiles.map((f) => ({ name: f.name, isDirectory: f.isDirectory })),
-    );
+    // Otherwise, this is an external file/folder drop (from OS)
+    if (e.dataTransfer.items.length > 0 && onUploadExternalFiles) {
+      await onUploadExternalFiles(e.dataTransfer);
+    }
   };
 
   const handleFileDragStart = useCallback(
@@ -918,6 +1015,9 @@ const SftpPaneViewInner: React.FC<SftpPaneViewProps> = ({
             <ContextMenuItem onClick={() => setShowNewFolderDialog(true)}>
               <FolderPlus size={14} className="mr-2" /> {t("sftp.newFolder")}
             </ContextMenuItem>
+            <ContextMenuItem onClick={() => setShowNewFileDialog(true)}>
+              <FilePlus size={14} className="mr-2" /> {t("sftp.newFile")}
+            </ContextMenuItem>
           </ContextMenuContent>
         )}
       </ContextMenu>
@@ -944,6 +1044,7 @@ const SftpPaneViewInner: React.FC<SftpPaneViewProps> = ({
       pane.connection,
       pane.selectedFiles,
       setShowNewFolderDialog,
+      setShowNewFileDialog,
       t,
     ],
   );
@@ -1132,6 +1233,20 @@ const SftpPaneViewInner: React.FC<SftpPaneViewProps> = ({
             <FolderPlus size={14} />
           </Button>
           <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6"
+            onClick={() => {
+              const defaultName = getNextUntitledName(pane.files.map(f => f.name));
+              setNewFileName(defaultName);
+              setFileNameError(null);
+              setShowNewFileDialog(true);
+            }}
+            title={t("sftp.newFile")}
+          >
+            <FilePlus size={14} />
+          </Button>
+          <Button
             variant={showFilterBar || pane.filter ? "secondary" : "ghost"}
             size="icon"
             className={cn("h-6 w-6", pane.filter && "text-primary")}
@@ -1278,53 +1393,73 @@ const SftpPaneViewInner: React.FC<SftpPaneViewProps> = ({
         </div>
       </div>
 
-      {/* File list */}
-      <div
-        ref={fileListRef}
-        className={cn(
-          "flex-1 min-h-0 overflow-y-auto relative",
-          isDragOverPane && "ring-2 ring-primary/30 ring-inset",
-        )}
-        onScroll={handleFileListScroll}
-      >
-        {pane.loading && sortedDisplayFiles.length === 0 ? (
-          <div className="flex items-center justify-center h-full">
-            <Loader2 size={24} className="animate-spin text-muted-foreground" />
-          </div>
-        ) : pane.error && !pane.reconnecting ? (
-          <div className="flex flex-col items-center justify-center h-full gap-2 text-destructive">
-            <AlertCircle size={24} />
-            <span className="text-sm">{pane.error}</span>
-            <Button variant="outline" size="sm" onClick={onRefresh}>
-              {t("sftp.retry")}
-            </Button>
-          </div>
-        ) : sortedDisplayFiles.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
-            <Folder size={32} className="mb-2 opacity-50" />
-            <span className="text-sm">{t("sftp.emptyDirectory")}</span>
-          </div>
-        ) : (
+      {/* File list with empty area context menu */}
+      <ContextMenu>
+        <ContextMenuTrigger asChild>
           <div
+            ref={fileListRef}
             className={cn(
-              shouldVirtualize ? "relative" : "divide-y divide-border/30",
+              "flex-1 min-h-0 overflow-y-auto relative",
+              isDragOverPane && "ring-2 ring-primary/30 ring-inset",
             )}
-            style={shouldVirtualize ? { height: totalHeight } : undefined}
+            onScroll={handleFileListScroll}
           >
-            {fileRows}
-          </div>
-        )}
+            {pane.loading && sortedDisplayFiles.length === 0 ? (
+              <div className="flex items-center justify-center h-full">
+                <Loader2 size={24} className="animate-spin text-muted-foreground" />
+              </div>
+            ) : pane.error && !pane.reconnecting ? (
+              <div className="flex flex-col items-center justify-center h-full gap-2 text-destructive">
+                <AlertCircle size={24} />
+                <span className="text-sm">{t(pane.error)}</span>
+                <Button variant="outline" size="sm" onClick={onRefresh}>
+                  {t("sftp.retry")}
+                </Button>
+              </div>
+            ) : sortedDisplayFiles.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
+                <Folder size={32} className="mb-2 opacity-50" />
+                <span className="text-sm">{t("sftp.emptyDirectory")}</span>
+              </div>
+            ) : (
+              <div
+                className={cn(
+                  shouldVirtualize ? "relative" : "divide-y divide-border/30",
+                )}
+                style={shouldVirtualize ? { height: totalHeight } : undefined}
+              >
+                {fileRows}
+              </div>
+            )}
 
-        {/* Drop overlay */}
-        {isDragOverPane && draggedFiles && draggedFiles[0]?.side !== side && (
-          <div className="absolute inset-0 flex items-center justify-center bg-primary/5 pointer-events-none">
-            <div className="flex flex-col items-center gap-2 text-primary">
-              <ArrowDown size={32} />
-              <span className="text-sm font-medium">{t("sftp.dropFilesHere")}</span>
-            </div>
+            {/* Drop overlay */}
+            {isDragOverPane && draggedFiles && draggedFiles[0]?.side !== side && (
+              <div className="absolute inset-0 flex items-center justify-center bg-primary/5 pointer-events-none">
+                <div className="flex flex-col items-center gap-2 text-primary">
+                  <ArrowDown size={32} />
+                  <span className="text-sm font-medium">{t("sftp.dropFilesHere")}</span>
+                </div>
+              </div>
+            )}
           </div>
-        )}
-      </div>
+        </ContextMenuTrigger>
+        <ContextMenuContent>
+          <ContextMenuItem onClick={onRefresh}>
+            <RefreshCw size={14} className="mr-2" />{t("sftp.context.refresh")}
+          </ContextMenuItem>
+          <ContextMenuItem onClick={() => setShowNewFolderDialog(true)}>
+            <FolderPlus size={14} className="mr-2" />{t("sftp.newFolder")}
+          </ContextMenuItem>
+          <ContextMenuItem onClick={() => {
+            const defaultName = getNextUntitledName(pane.files.map(f => f.name));
+            setNewFileName(defaultName);
+            setFileNameError(null);
+            setShowNewFileDialog(true);
+          }}>
+            <FilePlus size={14} className="mr-2" />{t("sftp.newFile")}
+          </ContextMenuItem>
+        </ContextMenuContent>
+      </ContextMenu>
 
       {/* Footer */}
       <div className="h-9 shrink-0 px-4 flex items-center justify-between text-[11px] text-muted-foreground border-t border-border/40 bg-secondary/30">
@@ -1393,6 +1528,88 @@ const SftpPaneViewInner: React.FC<SftpPaneViewProps> = ({
                 <Loader2 size={14} className="mr-2 animate-spin" />
               )}
               {t("common.create")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showNewFileDialog} onOpenChange={(open) => {
+        setShowNewFileDialog(open);
+        if (!open) {
+          setFileNameError(null);
+        }
+      }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{t("sftp.newFile")}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>{t("sftp.fileName")}</Label>
+              <Input
+                value={newFileName}
+                onChange={(e) => {
+                  setNewFileName(e.target.value);
+                  setFileNameError(null);
+                }}
+                placeholder={t("sftp.fileName.placeholder")}
+                onKeyDown={(e) => e.key === "Enter" && handleCreateFile()}
+                autoFocus
+                className={fileNameError ? "border-destructive" : ""}
+              />
+              {fileNameError && (
+                <p className="text-xs text-destructive">{fileNameError}</p>
+              )}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowNewFileDialog(false)}
+            >
+              {t("common.cancel")}
+            </Button>
+            <Button
+              onClick={() => handleCreateFile()}
+              disabled={!newFileName.trim() || isCreatingFile}
+            >
+              {isCreatingFile && (
+                <Loader2 size={14} className="mr-2 animate-spin" />
+              )}
+              {t("common.create")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Overwrite Confirmation Dialog */}
+      <Dialog open={showOverwriteConfirm} onOpenChange={setShowOverwriteConfirm}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{t("sftp.overwrite.title")}</DialogTitle>
+            <DialogDescription>
+              {t("sftp.overwrite.desc", { name: overwriteTarget || "" })}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowOverwriteConfirm(false);
+                setOverwriteTarget(null);
+              }}
+            >
+              {t("common.cancel")}
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleConfirmOverwrite}
+              disabled={isCreatingFile}
+            >
+              {isCreatingFile && (
+                <Loader2 size={14} className="mr-2 animate-spin" />
+              )}
+              {t("sftp.overwrite.confirm")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1723,6 +1940,14 @@ const SftpViewInner: React.FC<SftpViewProps> = ({ hosts, keys, identities }) => 
     (name: string) => sftpRef.current.createDirectory("right", name),
     [],
   );
+  const handleCreateFileLeft = useCallback(
+    (name: string) => sftpRef.current.createFile("left", name),
+    [],
+  );
+  const handleCreateFileRight = useCallback(
+    (name: string) => sftpRef.current.createFile("right", name),
+    [],
+  );
   const handleDeleteFilesLeft = useCallback(
     (names: string[]) => sftpRef.current.deleteFiles("left", names),
     [],
@@ -1927,24 +2152,32 @@ const SftpViewInner: React.FC<SftpViewProps> = ({ hosts, keys, identities }) => 
     [handleOpenFileWithForSide],
   );
 
-  // Handle external file upload from OS drag-and-drop (shared logic)
+  // Handle external file/folder upload from OS drag-and-drop (shared logic)
   // Uses sftpRef.current internally, so dependencies are stable.
   // toast and logger are globally stable, t is the only real dependency.
   const handleUploadExternalFilesForSide = useCallback(
-    async (side: "left" | "right", files: FileList) => {
+    async (side: "left" | "right", dataTransfer: DataTransfer) => {
       try {
-        const results = await sftpRef.current.uploadExternalFiles(side, files);
+        const results = await sftpRef.current.uploadExternalFiles(side, dataTransfer);
+
+        // Check if upload was cancelled
+        if (sftpRef.current.folderUploadProgress.cancelled) {
+          toast.info(t('sftp.upload.cancelled'), "SFTP");
+          return;
+        }
+
         const failCount = results.filter(r => !r.success).length;
+        // Count only files, not directories for success message
+        const successCount = results.filter(r => r.success).length;
 
         if (failCount === 0) {
-          // All files uploaded successfully
-          const successCount = results.length;
+          // All items uploaded successfully
           const message = successCount === 1
             ? `${t('sftp.upload')}: ${results[0].fileName}`
             : `${t('sftp.uploadFiles')}: ${successCount}`;
           toast.success(message, "SFTP");
         } else {
-          // Some or all files failed
+          // Some or all items failed
           const failedFiles = results.filter(r => !r.success);
           failedFiles.forEach(failed => {
             const errorMsg = failed.error ? ` - ${failed.error}` : '';
@@ -1967,12 +2200,12 @@ const SftpViewInner: React.FC<SftpViewProps> = ({ hosts, keys, identities }) => 
   );
 
   const handleUploadExternalFilesLeft = useCallback(
-    (files: FileList) => handleUploadExternalFilesForSide("left", files),
+    (dataTransfer: DataTransfer) => handleUploadExternalFilesForSide("left", dataTransfer),
     [handleUploadExternalFilesForSide],
   );
 
   const handleUploadExternalFilesRight = useCallback(
-    (files: FileList) => handleUploadExternalFilesForSide("right", files),
+    (dataTransfer: DataTransfer) => handleUploadExternalFilesForSide("right", dataTransfer),
     [handleUploadExternalFilesForSide],
   );
 
@@ -2090,6 +2323,7 @@ const SftpViewInner: React.FC<SftpViewProps> = ({ hosts, keys, identities }) => 
       onClearSelection: handleClearSelectionLeft,
       onSetFilter: handleSetFilterLeft,
       onCreateDirectory: handleCreateDirectoryLeft,
+      onCreateFile: handleCreateFileLeft,
       onDeleteFiles: handleDeleteFilesLeft,
       onRenameFile: handleRenameFileLeft,
       onCopyToOtherPane: handleCopyToOtherPaneLeft,
@@ -2117,6 +2351,7 @@ const SftpViewInner: React.FC<SftpViewProps> = ({ hosts, keys, identities }) => 
       onClearSelection: handleClearSelectionRight,
       onSetFilter: handleSetFilterRight,
       onCreateDirectory: handleCreateDirectoryRight,
+      onCreateFile: handleCreateFileRight,
       onDeleteFiles: handleDeleteFilesRight,
       onRenameFile: handleRenameFileRight,
       onCopyToOtherPane: handleCopyToOtherPaneRight,
@@ -2381,14 +2616,15 @@ const SftpViewInner: React.FC<SftpViewProps> = ({ hosts, keys, identities }) => 
           onSelectHost={handleHostSelectRight}
         />
 
-        {sftp.transfers.length > 0 && (
+        {/* Transfer status area - shows folder uploads and file transfers */}
+        {(sftp.transfers.length > 0 || sftp.folderUploadProgress.isUploading) && (
           <div className="border-t border-border/70 bg-secondary/80 backdrop-blur-sm shrink-0">
             <div className="flex items-center justify-between px-4 py-2 text-xs text-muted-foreground border-b border-border/40">
               <span className="font-medium">
                 Transfers
-                {sftp.activeTransfersCount > 0 && (
+                {(sftp.activeTransfersCount > 0 || sftp.folderUploadProgress.isUploading) && (
                   <span className="ml-2 text-primary">
-                    ({sftp.activeTransfersCount} active)
+                    ({sftp.activeTransfersCount + (sftp.folderUploadProgress.isUploading ? 1 : 0)} active)
                   </span>
                 )}
               </span>
@@ -2406,6 +2642,37 @@ const SftpViewInner: React.FC<SftpViewProps> = ({ hosts, keys, identities }) => 
                 )}
             </div>
             <div className="max-h-40 overflow-auto">
+              {/* Folder upload progress - shown at top when active */}
+              {sftp.folderUploadProgress.isUploading && (
+                <div className="flex items-center gap-3 px-4 py-2 border-b border-border/30 bg-primary/5">
+                  <div className="flex-shrink-0">
+                    <Loader2 size={16} className="animate-spin text-primary" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="font-medium truncate">
+                        {t("sftp.upload.progress", {
+                          current: sftp.folderUploadProgress.currentIndex,
+                          total: sftp.folderUploadProgress.totalFiles,
+                        })}
+                      </span>
+                    </div>
+                    {sftp.folderUploadProgress.currentFile && (
+                      <div className="text-xs text-muted-foreground truncate mt-0.5">
+                        {sftp.folderUploadProgress.currentFile}
+                      </div>
+                    )}
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 px-2 text-xs flex-shrink-0"
+                    onClick={() => sftp.cancelFolderUpload()}
+                  >
+                    {t("sftp.upload.cancel")}
+                  </Button>
+                </div>
+              )}
               {visibleTransfers.map((task) => (
                 <SftpTransferItem
                   key={task.id}

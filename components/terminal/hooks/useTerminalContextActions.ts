@@ -2,6 +2,7 @@ import type { Terminal as XTerm } from "@xterm/xterm";
 import { useCallback } from "react";
 import type { RefObject } from "react";
 import { logger } from "../../../lib/logger";
+import { normalizeLineEndings } from "../../../lib/utils";
 
 type TerminalBackendWriteApi = {
   writeToSession: (sessionId: string, data: string) => void;
@@ -32,7 +33,7 @@ export const useTerminalContextActions = ({
     if (!term) return;
     try {
       const text = await navigator.clipboard.readText();
-      if (text && sessionRef.current) terminalBackend.writeToSession(sessionRef.current, text);
+      if (text && sessionRef.current) terminalBackend.writeToSession(sessionRef.current, normalizeLineEndings(text));
     } catch (err) {
       logger.warn("Failed to paste from clipboard", err);
     }
