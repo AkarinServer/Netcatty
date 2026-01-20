@@ -50,8 +50,13 @@ function storeRequest(requestId, finishCallback, webContentsId, sessionId) {
  * Handle keyboard-interactive authentication response from renderer
  */
 function handleResponse(_event, payload) {
+  console.log(`[KeyboardInteractive] handleResponse called with payload:`, JSON.stringify(payload));
+
   const { requestId, responses, cancelled } = payload;
   const pending = keyboardInteractiveRequests.get(requestId);
+
+  console.log(`[KeyboardInteractive] Looking for request ${requestId}, found:`, !!pending);
+  console.log(`[KeyboardInteractive] Current pending requests:`, Array.from(keyboardInteractiveRequests.keys()));
 
   if (!pending) {
     console.warn(`[KeyboardInteractive] No pending request for ${requestId}`);
@@ -69,7 +74,7 @@ function handleResponse(_event, payload) {
     console.log(`[KeyboardInteractive] Auth cancelled for ${requestId}`);
     pending.finishCallback([]); // Empty responses to cancel
   } else {
-    console.log(`[KeyboardInteractive] Auth response received for ${requestId}`);
+    console.log(`[KeyboardInteractive] Auth response received for ${requestId}, responses count:`, responses?.length);
     pending.finishCallback(responses);
   }
 

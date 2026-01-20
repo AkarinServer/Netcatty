@@ -80,6 +80,7 @@ async function startPortForward(event, payload) {
         name,
         instructions,
         promptCount: prompts?.length || 0,
+        prompts: prompts?.map(p => ({ prompt: p.prompt, echo: p.echo })),
       });
 
       // If there are no prompts, just call finish with empty array
@@ -89,15 +90,60 @@ async function startPortForward(event, payload) {
         return;
       }
 
-      // Generate a unique request ID and store the finish callback
-      const requestId = keyboardInteractiveHandler.generateRequestId('pf');
-      keyboardInteractiveHandler.storeRequest(requestId, finish, sender.id, tunnelId);
+      // Check if all prompts are password prompts that we can auto-answer
+      const responses = [];
+      const promptsNeedingUserInput = [];
 
-      // Send the prompts to the renderer for user input
-      const promptsData = prompts.map((p) => ({
-        prompt: p.prompt,
-        echo: p.echo,
+      for (let i = 0; i < prompts.length; i++) {
+        const prompt = prompts[i];
+        const promptText = (prompt.prompt || '').toLowerCase().trim();
+
+        // Auto-answer password prompts if we have a configured password
+        if (password && (
+          promptText.includes('password') ||
+          promptText === 'password:' ||
+          promptText === 'password'
+        )) {
+          console.log(`[PortForward] Auto-answering password prompt at index ${i}`);
+          responses[i] = password;
+        } else {
+          // This prompt needs user input (likely 2FA)
+          promptsNeedingUserInput.push({ index: i, prompt: prompt });
+          responses[i] = null; // Placeholder
+        }
+      }
+
+      // If all prompts were auto-answered, finish immediately
+      if (promptsNeedingUserInput.length === 0) {
+        console.log(`[PortForward] All prompts auto-answered, finishing keyboard-interactive`);
+        finish(responses);
+        return;
+      }
+
+      // If some prompts need user input, show the modal
+      const requestId = keyboardInteractiveHandler.generateRequestId('pf');
+
+      // Store finish callback with context about which responses are already filled
+      keyboardInteractiveHandler.storeRequest(requestId, (userResponses) => {
+        // Merge user responses with auto-filled responses
+        let userResponseIndex = 0;
+        for (let i = 0; i < prompts.length; i++) {
+          if (responses[i] === null) {
+            responses[i] = userResponses[userResponseIndex] || '';
+            userResponseIndex++;
+          }
+        }
+        console.log(`[PortForward] Merged responses, finishing keyboard-interactive`);
+        finish(responses);
+      }, sender.id, tunnelId);
+
+      // Send only the prompts that need user input
+      const promptsData = promptsNeedingUserInput.map((item) => ({
+        prompt: item.prompt.prompt,
+        echo: item.prompt.echo,
       }));
+
+      console.log(`[PortForward] Showing modal for ${promptsData.length} prompts that need user input`);
 
       safeSend(sender, "netcatty:keyboard-interactive", {
         requestId,

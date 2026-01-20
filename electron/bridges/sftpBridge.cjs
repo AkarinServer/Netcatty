@@ -273,6 +273,7 @@ async function openSftp(event, options) {
       name,
       instructions,
       promptCount: prompts?.length || 0,
+      prompts: prompts?.map(p => ({ prompt: p.prompt, echo: p.echo })),
     });
 
     // If there are no prompts, just call finish with empty array
@@ -282,15 +283,60 @@ async function openSftp(event, options) {
       return;
     }
 
-    // Generate a unique request ID and store the finish callback
-    const requestId = keyboardInteractiveHandler.generateRequestId('sftp');
-    keyboardInteractiveHandler.storeRequest(requestId, finish, event.sender.id, connId);
+    // Check if all prompts are password prompts that we can auto-answer
+    const responses = [];
+    const promptsNeedingUserInput = [];
 
-    // Send the prompts to the renderer for user input
-    const promptsData = prompts.map((p) => ({
-      prompt: p.prompt,
-      echo: p.echo,
+    for (let i = 0; i < prompts.length; i++) {
+      const prompt = prompts[i];
+      const promptText = (prompt.prompt || '').toLowerCase().trim();
+
+      // Auto-answer password prompts if we have a configured password
+      if (options.password && (
+        promptText.includes('password') ||
+        promptText === 'password:' ||
+        promptText === 'password'
+      )) {
+        console.log(`[SFTP] Auto-answering password prompt at index ${i}`);
+        responses[i] = options.password;
+      } else {
+        // This prompt needs user input (likely 2FA)
+        promptsNeedingUserInput.push({ index: i, prompt: prompt });
+        responses[i] = null; // Placeholder
+      }
+    }
+
+    // If all prompts were auto-answered, finish immediately
+    if (promptsNeedingUserInput.length === 0) {
+      console.log(`[SFTP] All prompts auto-answered, finishing keyboard-interactive`);
+      finish(responses);
+      return;
+    }
+
+    // If some prompts need user input, show the modal
+    const requestId = keyboardInteractiveHandler.generateRequestId('sftp');
+
+    // Store finish callback with context about which responses are already filled
+    keyboardInteractiveHandler.storeRequest(requestId, (userResponses) => {
+      // Merge user responses with auto-filled responses
+      let userResponseIndex = 0;
+      for (let i = 0; i < prompts.length; i++) {
+        if (responses[i] === null) {
+          responses[i] = userResponses[userResponseIndex] || '';
+          userResponseIndex++;
+        }
+      }
+      console.log(`[SFTP] Merged responses, finishing keyboard-interactive`);
+      finish(responses);
+    }, event.sender.id, connId);
+
+    // Send only the prompts that need user input
+    const promptsData = promptsNeedingUserInput.map((item) => ({
+      prompt: item.prompt.prompt,
+      echo: item.prompt.echo,
     }));
+
+    console.log(`[SFTP] Showing modal for ${promptsData.length} prompts that need user input`);
 
     safeSend(event.sender, "netcatty:keyboard-interactive", {
       requestId,
