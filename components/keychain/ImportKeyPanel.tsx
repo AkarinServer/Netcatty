@@ -84,7 +84,6 @@ export const ImportKeyPanel: React.FC<ImportKeyPanelProps> = ({
             <input
                 ref={fileInputRef}
                 type="file"
-                accept=".pem,.key,.pub,.ppk,*"
                 className="hidden"
                 onChange={handleFileImport}
             />

@@ -7,6 +7,12 @@ export type ApplicationInfo = {
   platform: string;
 };
 
+export type SshAgentStatus = {
+  running: boolean;
+  startupType: string | null;
+  error: string | null;
+};
+
 export const useApplicationBackend = () => {
   const openExternal = useCallback(async (url: string) => {
     try {
@@ -27,6 +33,12 @@ export const useApplicationBackend = () => {
     return info ?? null;
   }, []);
 
-  return { openExternal, getApplicationInfo };
+  const checkSshAgent = useCallback(async (): Promise<SshAgentStatus | null> => {
+    const bridge = netcattyBridge.get();
+    const status = await bridge?.checkSshAgent?.();
+    return status ?? null;
+  }, []);
+
+  return { openExternal, getApplicationInfo, checkSshAgent };
 };
 

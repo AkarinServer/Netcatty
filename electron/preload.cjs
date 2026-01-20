@@ -276,6 +276,12 @@ const api = {
   generateKeyPair: async (options) => {
     return ipcRenderer.invoke("netcatty:key:generate", options);
   },
+  checkSshAgent: async () => {
+    return ipcRenderer.invoke("netcatty:ssh:check-agent");
+  },
+  getDefaultKeys: async () => {
+    return ipcRenderer.invoke("netcatty:ssh:get-default-keys");
+  },
   resizeSession: (sessionId, cols, rows) => {
     ipcRenderer.send("netcatty:resize", { sessionId, cols, rows });
   },

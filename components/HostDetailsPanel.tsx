@@ -1,20 +1,29 @@
 import {
+  AlertTriangle,
   Check,
   ChevronDown,
+  FolderLock,
   FolderPlus,
+  Forward,
   Globe,
   Key,
+  KeyRound,
   Link2,
+  MapPin,
+  Palette,
   Plus,
+  Settings2,
   Shield,
   Tag,
   TerminalSquare,
   User,
   Variable,
+  Wifi,
   X,
 } from "lucide-react";
 import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { useI18n } from "../application/i18n/I18nProvider";
+import { useApplicationBackend } from "../application/state/useApplicationBackend";
 import { TERMINAL_THEMES } from "../infrastructure/config/terminalThemes";
 import { MIN_FONT_SIZE, MAX_FONT_SIZE } from "../infrastructure/config/fonts";
 import { cn } from "../lib/utils";
@@ -81,6 +90,7 @@ const HostDetailsPanel: React.FC<HostDetailsPanelProps> = ({
   onCreateTag,
 }) => {
   const { t } = useI18n();
+  const { checkSshAgent } = useApplicationBackend();
   const [form, setForm] = useState<Host>(
     () =>
       initialData ||
@@ -115,6 +125,22 @@ const HostDetailsPanel: React.FC<HostDetailsPanelProps> = ({
   // New group creation state
   const [newGroupName, setNewGroupName] = useState("");
   const [newGroupParent, setNewGroupParent] = useState("");
+
+  // SSH Agent status for Windows (only checked when agentForwarding is enabled)
+  const [sshAgentStatus, setSshAgentStatus] = useState<{
+    running: boolean;
+    startupType: string | null;
+    error: string | null;
+  } | null>(null);
+
+  // Check SSH Agent status when agentForwarding is toggled on (Windows only)
+  useEffect(() => {
+    if (form.agentForwarding) {
+      checkSshAgent().then(setSshAgentStatus);
+    } else {
+      setSshAgentStatus(null);
+    }
+  }, [form.agentForwarding, checkSshAgent]);
 
   // Group input state for inline creation suggestion
   const [groupInputValue, setGroupInputValue] = useState(form.group || "");
@@ -481,9 +507,12 @@ const HostDetailsPanel: React.FC<HostDetailsPanelProps> = ({
     >
       <AsidePanelContent>
         <Card className="p-3 space-y-2 bg-card border-border/80">
-          <p className="text-xs font-semibold">
-            {t("hostDetails.section.address")}
-          </p>
+          <div className="flex items-center gap-2">
+            <MapPin size={14} className="text-muted-foreground" />
+            <p className="text-xs font-semibold">
+              {t("hostDetails.section.address")}
+            </p>
+          </div>
           <div className="flex items-center gap-2">
             <DistroAvatar
               host={form as Host}
@@ -504,9 +533,12 @@ const HostDetailsPanel: React.FC<HostDetailsPanelProps> = ({
         </Card>
 
         <Card className="p-3 space-y-3 bg-card border-border/80">
-          <p className="text-xs font-semibold">
-            {t("hostDetails.section.general")}
-          </p>
+          <div className="flex items-center gap-2">
+            <Settings2 size={14} className="text-muted-foreground" />
+            <p className="text-xs font-semibold">
+              {t("hostDetails.section.general")}
+            </p>
+          </div>
           <Input
             placeholder={t("hostDetails.label.placeholder")}
             value={form.label}
@@ -557,9 +589,12 @@ const HostDetailsPanel: React.FC<HostDetailsPanelProps> = ({
         </Card>
 
         <Card className="p-3 space-y-3 bg-card border-border/80">
-          <p className="text-xs font-semibold">
-            {t("hostDetails.section.portCredentials")}
-          </p>
+          <div className="flex items-center gap-2">
+            <KeyRound size={14} className="text-muted-foreground" />
+            <p className="text-xs font-semibold">
+              {t("hostDetails.section.portCredentials")}
+            </p>
+          </div>
           <div className="flex items-center gap-2">
             <div className="flex-1 min-w-0 h-10 flex items-center gap-2 bg-secondary/70 border border-border/70 rounded-md px-3">
               <span className="text-xs text-muted-foreground">SSH on</span>
@@ -927,9 +962,12 @@ const HostDetailsPanel: React.FC<HostDetailsPanelProps> = ({
         </Card>
 
         <Card className="p-3 space-y-3 bg-card border-border/80">
-          <p className="text-xs font-semibold">
-            {t("hostDetails.section.sftp")}
-          </p>
+          <div className="flex items-center gap-2">
+            <FolderLock size={14} className="text-muted-foreground" />
+            <p className="text-xs font-semibold">
+              {t("hostDetails.section.sftp")}
+            </p>
+          </div>
           <div className="flex items-center justify-between">
             <div className="space-y-0.5">
               <div className="text-sm font-medium">
@@ -952,9 +990,12 @@ const HostDetailsPanel: React.FC<HostDetailsPanelProps> = ({
         </Card>
 
         <Card className="p-3 space-y-3 bg-card border-border/80">
-          <p className="text-xs font-semibold">
-            {t("hostDetails.section.appearance")}
-          </p>
+          <div className="flex items-center gap-2">
+            <Palette size={14} className="text-muted-foreground" />
+            <p className="text-xs font-semibold">
+              {t("hostDetails.section.appearance")}
+            </p>
+          </div>
 
           {/* SSH Theme Selection */}
           <button
@@ -1041,7 +1082,10 @@ const HostDetailsPanel: React.FC<HostDetailsPanelProps> = ({
         </Card>
 
         <Card className="p-3 space-y-3 bg-card border-border/80">
-          <p className="text-xs font-semibold">{t("hostDetails.section.mosh")}</p>
+          <div className="flex items-center gap-2">
+            <Wifi size={14} className="text-muted-foreground" />
+            <p className="text-xs font-semibold">{t("hostDetails.section.mosh")}</p>
+          </div>
           <ToggleRow
             label="Mosh"
             enabled={!!form.moshEnabled}
@@ -1051,6 +1095,10 @@ const HostDetailsPanel: React.FC<HostDetailsPanelProps> = ({
 
         {/* Agent Forwarding */}
         <Card className="p-3 space-y-2 bg-card border-border/80">
+          <div className="flex items-center gap-2">
+            <Forward size={14} className="text-muted-foreground" />
+            <p className="text-xs font-semibold">{t("hostDetails.section.agentForwarding")}</p>
+          </div>
           <ToggleRow
             label={t("hostDetails.agentForwarding")}
             enabled={!!form.agentForwarding}
@@ -1059,6 +1107,19 @@ const HostDetailsPanel: React.FC<HostDetailsPanelProps> = ({
           <p className="text-xs text-muted-foreground">
             {t("hostDetails.agentForwarding.desc")}
           </p>
+          {form.agentForwarding && sshAgentStatus && !sshAgentStatus.running && (
+            <div className="flex items-start gap-2 p-2 rounded-md bg-yellow-500/10 border border-yellow-500/20">
+              <AlertTriangle size={14} className="text-yellow-500 mt-0.5 flex-shrink-0" />
+              <div className="space-y-1">
+                <p className="text-xs text-yellow-600 dark:text-yellow-400 font-medium">
+                  {t("hostDetails.agentForwarding.agentNotRunning")}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {t("hostDetails.agentForwarding.agentNotRunningHint")}
+                </p>
+              </div>
+            </div>
+          )}
         </Card>
 
         {/* Proxy via Hosts (Jump Hosts / ProxyJump) */}

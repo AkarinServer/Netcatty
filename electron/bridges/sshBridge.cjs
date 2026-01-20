@@ -6,10 +6,63 @@
 const net = require("node:net");
 const fs = require("node:fs");
 const path = require("node:path");
+const os = require("node:os");
+const { exec } = require("node:child_process");
 const { Client: SSHClient, utils: sshUtils } = require("ssh2");
 const { NetcattyAgent } = require("./netcattyAgent.cjs");
 const keyboardInteractiveHandler = require("./keyboardInteractiveHandler.cjs");
 const { createProxySocket } = require("./proxyUtils.cjs");
+
+// Default SSH key names in priority order
+const DEFAULT_KEY_NAMES = ["id_ed25519", "id_ecdsa", "id_rsa"];
+
+/**
+ * Find default SSH private key from user's ~/.ssh directory
+ * @returns {{ privateKey: string, keyPath: string, keyName: string } | null}
+ */
+function findDefaultPrivateKey() {
+  const sshDir = path.join(os.homedir(), ".ssh");
+  for (const name of DEFAULT_KEY_NAMES) {
+    const keyPath = path.join(sshDir, name);
+    if (fs.existsSync(keyPath)) {
+      try {
+        const privateKey = fs.readFileSync(keyPath, "utf8");
+        log("Found default key", { keyPath, keyName: name });
+        return { privateKey, keyPath, keyName: name };
+      } catch (e) {
+        log("Failed to read default key", { keyPath, error: e.message });
+        continue;
+      }
+    }
+  }
+  return null;
+}
+
+/**
+ * Check if Windows SSH Agent service is running
+ * @returns {Promise<{ running: boolean, startupType: string | null, error: string | null }>}
+ */
+function checkWindowsSshAgent() {
+  return new Promise((resolve) => {
+    if (process.platform !== "win32") {
+      resolve({ running: true, startupType: null, error: null });
+      return;
+    }
+    exec("sc query ssh-agent", (err, stdout) => {
+      if (err) {
+        resolve({ running: false, startupType: null, error: "SSH Agent service not found" });
+        return;
+      }
+      const running = stdout.includes("RUNNING");
+      const stopped = stdout.includes("STOPPED");
+      resolve({
+        running,
+        startupType: stopped ? "stopped" : (running ? "running" : "unknown"),
+        error: null,
+      });
+    });
+  });
+}
 
 // Simple file logger for debugging
 const logFile = path.join(require("os").tmpdir(), "netcatty-ssh.log");
@@ -302,6 +355,17 @@ async function startSSHSession(event, options) {
 
     if (options.password) {
       connectOpts.password = options.password;
+    }
+
+    // Fallback to default SSH key if no authentication method is configured
+    let usedDefaultKey = null;
+    if (!connectOpts.privateKey && !connectOpts.password && !connectOpts.agent) {
+      const defaultKey = findDefaultPrivateKey();
+      if (defaultKey) {
+        log("Using default SSH key as fallback", { keyPath: defaultKey.keyPath });
+        connectOpts.privateKey = defaultKey.privateKey;
+        usedDefaultKey = defaultKey;
+      }
     }
 
     // Agent forwarding
@@ -831,6 +895,20 @@ function registerHandlers(ipcMain) {
   ipcMain.handle("netcatty:ssh:exec", execCommand);
   ipcMain.handle("netcatty:ssh:pwd", getSessionPwd);
   ipcMain.handle("netcatty:key:generate", generateKeyPair);
+  ipcMain.handle("netcatty:ssh:check-agent", async () => {
+    return await checkWindowsSshAgent();
+  });
+  ipcMain.handle("netcatty:ssh:get-default-keys", async () => {
+    const sshDir = path.join(os.homedir(), ".ssh");
+    const keys = [];
+    for (const name of DEFAULT_KEY_NAMES) {
+      const keyPath = path.join(sshDir, name);
+      if (fs.existsSync(keyPath)) {
+        keys.push({ name, path: keyPath });
+      }
+    }
+    return keys;
+  });
   // Register the shared keyboard-interactive response handler
   keyboardInteractiveHandler.registerHandler(ipcMain);
 }
@@ -843,4 +921,6 @@ module.exports = {
   execCommand,
   getSessionPwd,
   generateKeyPair,
+  checkWindowsSshAgent,
+  findDefaultPrivateKey,
 };
