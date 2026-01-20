@@ -828,8 +828,9 @@ async function cancelSftpUpload(event, payload) {
     uploadState.cancelled = true;
     try {
       uploadState.stream?.destroy();
-    } catch {
-      // Ignore destruction errors
+    } catch (err) {
+      // Log but continue - stream may already be destroyed
+      console.warn("[SFTP] Error destroying upload stream:", err.message);
     }
     activeSftpUploads.delete(transferId);
   }
