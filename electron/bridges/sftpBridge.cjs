@@ -9,6 +9,14 @@ const os = require("node:os");
 const net = require("node:net");
 const SftpClient = require("ssh2-sftp-client");
 const { Client: SSHClient } = require("ssh2");
+let SFTPWrapper;
+try {
+  // Try to load SFTPWrapper from ssh2 internals for sudo support
+  const sftpModule = require("ssh2/lib/protocol/SFTP");
+  SFTPWrapper = sftpModule.SFTP || sftpModule;
+} catch (e) {
+  console.warn("[SFTP] Failed to load SFTPWrapper from ssh2, sudo mode will not work:", e.message);
+}
 const { NetcattyAgent } = require("./netcattyAgent.cjs");
 const fileWatcherBridge = require("./fileWatcherBridge.cjs");
 const keyboardInteractiveHandler = require("./keyboardInteractiveHandler.cjs");
@@ -185,6 +193,226 @@ async function connectThroughChainForSftp(event, options, jumpHosts, targetHost,
 }
 
 /**
+ * Establish an SFTP connection using sudo
+ * @param {SSHClient} client - Connected SSH client
+ * @param {string} password - User password for sudo
+ */
+async function connectSudoSftp(client, password) {
+  if (!SFTPWrapper) {
+    throw new Error("SFTPWrapper not available, cannot use sudo mode");
+  }
+
+  // Known sftp-server paths to try
+  const sftpPaths = [
+    "/usr/lib/openssh/sftp-server",
+    "/usr/libexec/openssh/sftp-server",
+    "/usr/lib/ssh/sftp-server",
+    "/usr/libexec/sftp-server",
+    "/usr/local/libexec/sftp-server",
+    "/usr/local/lib/sftp-server"
+  ];
+
+  console.log("[SFTP] Probing sftp-server path for sudo mode...");
+  
+  let serverPath = null;
+  // Try to find the path
+  for (const p of sftpPaths) {
+    try {
+      await new Promise((resolve, reject) => {
+        client.exec(`test -x ${p}`, (err, stream) => {
+          if (err) return reject(err);
+          stream.on('exit', (code) => {
+            if (code === 0) resolve();
+            else reject(new Error('Not found'));
+          });
+        });
+      });
+      serverPath = p;
+      break;
+    } catch (e) {
+      // Continue probing
+    }
+  }
+
+  if (!serverPath) {
+    // Fallback: try to find it in path or assume standard location
+    console.warn("[SFTP] Could not probe sftp-server, trying default /usr/lib/openssh/sftp-server");
+    serverPath = "/usr/lib/openssh/sftp-server";
+  } else {
+    console.log(`[SFTP] Found sftp-server at ${serverPath}`);
+  }
+
+  return new Promise((resolve, reject) => {
+    // Use sudo -S to read password from stdin
+    // Use -p '' to set a specific prompt we can detect
+    // Use sh -c 'printf SFTPREADY; exec ...' to synchronize the start of sftp-server
+    // We use printf instead of echo to avoid trailing newline which could confuse SFTPWrapper
+    const prompt = "SUDOPASSWORD:";
+    const readyMarker = "SFTPREADY";
+    const readyMarkerBuffer = Buffer.from(readyMarker);
+    // Add -e to sftp-server to log to stderr for debugging
+    const cmd = `sudo -S -p '${prompt}' sh -c 'printf ${readyMarker}; exec ${serverPath} -e'`;
+    
+    console.log(`[SFTP] Executing sudo command: ${cmd}`);
+
+    // Disable pty to ensure clean binary stream for SFTP
+    client.exec(cmd, { pty: false }, (err, stream) => {
+      if (err) return reject(err);
+
+      // Add stream lifecycle logging
+      stream.on('close', () => console.log("[SFTP] Stream closed"));
+      stream.on('end', () => console.log("[SFTP] Stream ended"));
+      stream.on('error', (e) => console.error("[SFTP] Stream error:", e.message));
+
+      let sftpInitialized = false;
+      let sftp = null;
+      let settled = false;
+      let stdoutBuffer = Buffer.alloc(0);
+      let stderrBuffer = "";
+      let pendingAfterMarker = null;
+      let sftpCreated = false;
+      const timeoutMs = 20000;
+      const timeoutId = setTimeout(() => {
+        if (sftpInitialized || settled) return;
+        settled = true;
+        stream.stderr?.removeListener('data', onStderr);
+        stream.removeListener('data', onStdout);
+        const error = new Error("SFTP sudo handshake timed out");
+        reject(error);
+      }, timeoutMs);
+
+      const finalize = (err, result) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeoutId);
+        stream.stderr?.removeListener('data', onStderr);
+        stream.removeListener('data', onStdout);
+        if (err) reject(err);
+        else resolve(result);
+      };
+
+      const createSftp = () => {
+        if (sftpCreated) return;
+        sftpCreated = true;
+        try {
+          const chanInfo = {
+            type: 'sftp',
+            incoming: stream.incoming,
+            outgoing: stream.outgoing
+          };
+          sftp = new SFTPWrapper(client, chanInfo, {
+             // debug: (str) => console.log(`[SFTP DEBUG] ${str}`)
+          });
+
+          // Route any remaining channel data directly into the SFTP parser
+          if (client._chanMgr && typeof stream.incoming?.id === "number") {
+            client._chanMgr.update(stream.incoming.id, sftp);
+          }
+
+          sftp.on('ready', () => {
+            sftpInitialized = true;
+            console.log("[SFTP] Protocol ready");
+            finalize(null, sftp);
+          });
+
+          sftp.on('error', (err) => {
+            console.error("[SFTP] Protocol error:", err.message);
+            if (!sftpInitialized) {
+              finalize(err);
+            }
+          });
+
+          stream.on('end', () => {
+            try { sftp.push(null); } catch {}
+          });
+        } catch (e) {
+          console.error("[SFTP] Initialization failed:", e.message);
+          finalize(e);
+        }
+      };
+
+      const initSftp = () => {
+        if (sftpInitialized) return;
+        console.log("[SFTP] Sudo success, initializing SFTP protocol...");
+        if (!sftpCreated) createSftp();
+        try {
+          // Start the handshake
+          console.log("[SFTP] Sending INIT packet...");
+          sftp._init();
+          if (pendingAfterMarker && pendingAfterMarker.length > 0) {
+            try {
+              sftp.push(pendingAfterMarker);
+            } catch (pushErr) {
+              console.warn("[SFTP] Failed to push buffered data:", pushErr.message);
+            }
+            pendingAfterMarker = null;
+          }
+        } catch (e) {
+          console.error("[SFTP] Initialization failed:", e.message);
+          finalize(e);
+        }
+      };
+
+      const onStdout = (data) => {
+        const chunk = Buffer.isBuffer(data) ? data : Buffer.from(data);
+        stdoutBuffer = stdoutBuffer.length > 0 ? Buffer.concat([stdoutBuffer, chunk]) : chunk;
+        const markerIndex = stdoutBuffer.indexOf(readyMarkerBuffer);
+        if (markerIndex !== -1) {
+          const afterMarkerIndex = markerIndex + readyMarkerBuffer.length;
+          if (afterMarkerIndex < stdoutBuffer.length) {
+            pendingAfterMarker = stdoutBuffer.subarray(afterMarkerIndex);
+          }
+          // Found marker, stop listening to stdout here so SFTPWrapper can take over
+          stream.removeListener('data', onStdout);
+          stdoutBuffer = Buffer.alloc(0);
+          
+          console.log("[SFTP] SFTPREADY detected, waiting for stream to stabilize...");
+
+          // Delay SFTP initialization to ensure sftp-server is fully started and stream is clean
+          // Increased timeout to 1000ms to be safe
+          setTimeout(() => {
+              initSftp();
+          }, 1000);
+        } else if (stdoutBuffer.length > 256) {
+          stdoutBuffer = stdoutBuffer.subarray(stdoutBuffer.length - 256);
+        }
+      };
+
+      const onStderr = (data) => {
+        const chunk = data.toString();
+        console.log("[SFTP] stderr:", chunk); 
+        stderrBuffer += chunk;
+        if (stderrBuffer.includes(prompt)) {
+          console.log("[SFTP] Sudo requested password, sending...");
+          // Send password
+          if (password) {
+            stream.write(password + '\n');
+          } else {
+            console.warn('[SFTP] sudo requested password but none provided');
+            stream.write('\n');
+          }
+          stderrBuffer = "";
+        } else if (stderrBuffer.length > 256) {
+          stderrBuffer = stderrBuffer.slice(-256);
+        }
+      };
+
+      stream.on('data', onStdout);
+      stream.stderr.on('data', onStderr);
+
+      // Error handling
+      stream.on('exit', (code) => {
+        console.log(`[SFTP] Stream exited with code ${code}`);
+        if (!sftpInitialized && code !== 0) {
+          const error = new Error(`SFTP server exited with code ${code}`);
+          finalize(error);
+        }
+      });
+    });
+  });
+}
+
+/**
  * Open a new SFTP connection
  * Supports jump host connections when options.jumpHosts is provided
  */
@@ -264,6 +492,9 @@ async function openSftp(event, options) {
     const order = ["agent"];
     if (connectOpts.password) order.push("password");
     connectOpts.authHandler = order;
+  } else if (options.privateKey && connectOpts.password) {
+    // Prefer key auth when both key and password are present (password still needed for sudo)
+    connectOpts.authHandler = ["publickey", "password"];
   }
 
   // Add keyboard-interactive authentication support
@@ -370,8 +601,44 @@ async function openSftp(event, options) {
   connectOpts.readyTimeout = 120000; // 2 minutes for 2FA input
 
   try {
-    await client.connect(connectOpts);
+    if (options.sudo) {
+      console.log(`[SFTP] Using sudo mode for connection: ${connId}`);
+      const sshClient = client.client;
 
+      await new Promise((resolve, reject) => {
+        // Set up error handler for initial connection
+        const onConnectError = (err) => reject(err);
+        sshClient.once('error', onConnectError);
+
+        sshClient.once('ready', async () => {
+          sshClient.removeListener('error', onConnectError);
+          try {
+            // Use provided password or try empty if using key auth (and hope for nopasswd sudo)
+            const sudoPass = options.password || "";
+            const sftpWrapper = await connectSudoSftp(sshClient, sudoPass);
+
+            // Inject into sftp-client
+            client.sftp = sftpWrapper;
+
+            // Important: attach cleanup listener expected by sftp-client
+            client.sftp.on('close', () => client.end());
+
+            resolve();
+          } catch (e) {
+            sshClient.end();
+            reject(e);
+          }
+        });
+
+        try {
+          sshClient.connect(connectOpts);
+        } catch (e) {
+          reject(e);
+        }
+      });
+    } else {
+      await client.connect(connectOpts);
+    }
     // Increase max listeners AFTER connect, when the internal ssh2 Client exists
     // This prevents Node.js MaxListenersExceededWarning when performing many operations
     // ssh2-sftp-client adds temporary listeners for each operation, so we need a high limit

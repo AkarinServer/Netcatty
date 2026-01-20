@@ -14,6 +14,7 @@ import {
 } from "./ui/dialog";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
+import { Switch } from "./ui/switch";
 import {
   Select,
   SelectContent,
@@ -257,6 +258,24 @@ const HostForm: React.FC<HostFormProps> = ({
           </div>
 
           <div className="space-y-3 pt-2">
+            <div className="flex items-center justify-between space-x-2 border rounded-md p-3">
+              <div className="space-y-0.5">
+                <Label htmlFor="sftp-sudo" className="text-base">
+                  {t("hostDetails.sftp.sudo")}
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  {t("hostDetails.sftp.sudo.desc")}
+                </p>
+              </div>
+              <Switch
+                id="sftp-sudo"
+                checked={formData.sftpSudo || false}
+                onCheckedChange={(checked) =>
+                  setFormData({ ...formData, sftpSudo: checked })
+                }
+              />
+            </div>
+
             <Label>{t("hostForm.auth.method")}</Label>
             <div className="grid grid-cols-2 gap-4">
               <div

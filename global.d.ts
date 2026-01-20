@@ -63,6 +63,8 @@ interface NetcattySSHOptions {
   jumpHosts?: NetcattyJumpHost[];
   // SSH-level keepalive interval in seconds (0 = disabled)
   keepaliveInterval?: number;
+  // Use sudo for SFTP server
+  sudo?: boolean;
 }
 
 interface SftpStatResult {

@@ -90,6 +90,8 @@ export interface Host {
   telnetPassword?: string; // Telnet-specific password
   // Serial-specific configuration (for protocol='serial' hosts)
   serialConfig?: SerialConfig;
+  // SFTP specific configuration
+  sftpSudo?: boolean; // Use sudo for SFTP operations (requires password)
 }
 
 export type KeyType = 'RSA' | 'ECDSA' | 'ED25519';
