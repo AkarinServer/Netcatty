@@ -51,6 +51,8 @@ export const useSftpTransfers = ({
   const [conflicts, setConflicts] = useState<FileConflict[]>([]);
 
   const progressIntervalsRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
+  // Track cancelled task IDs for checking during async operations
+  const cancelledTasksRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     const intervalsRef = progressIntervalsRef.current;
@@ -116,6 +118,11 @@ export const useSftpTransfers = ({
     sourceEncoding: SftpFilenameEncoding,
     targetEncoding: SftpFilenameEncoding,
   ): Promise<void> => {
+    // Check if task was cancelled before starting
+    if (cancelledTasksRef.current.has(task.id) || cancelledTasksRef.current.has(task.parentTaskId || "")) {
+      throw new Error("Transfer cancelled");
+    }
+
     if (netcattyBridge.get()?.startStreamTransfer) {
       return new Promise((resolve, reject) => {
         const options = {
@@ -227,6 +234,11 @@ export const useSftpTransfers = ({
     sourceEncoding: SftpFilenameEncoding,
     targetEncoding: SftpFilenameEncoding,
   ) => {
+    // Check if task was cancelled before starting
+    if (cancelledTasksRef.current.has(task.id) || cancelledTasksRef.current.has(task.parentTaskId || "")) {
+      throw new Error("Transfer cancelled");
+    }
+
     if (targetIsLocal) {
       await netcattyBridge.get()?.mkdirLocal?.(task.targetPath);
     } else if (targetSftpId) {
@@ -244,6 +256,11 @@ export const useSftpTransfers = ({
 
     for (const file of files) {
       if (file.name === "..") continue;
+
+      // Check if task was cancelled during iteration
+      if (cancelledTasksRef.current.has(task.id) || cancelledTasksRef.current.has(task.parentTaskId || "")) {
+        throw new Error("Transfer cancelled");
+      }
 
       const childTask: TransferTask = {
         ...task,
@@ -488,6 +505,16 @@ export const useSftpTransfers = ({
       if (useSimulatedProgress) {
         stopProgressSimulation(task.id);
       }
+
+      // Check if this was a cancellation
+      const isCancelled = cancelledTasksRef.current.has(task.id) ||
+        (err instanceof Error && err.message === "Transfer cancelled");
+
+      if (isCancelled) {
+        // Don't update status - cancelTransfer already set it to cancelled
+        return;
+      }
+
       updateTask({
         status: "failed",
         error: err instanceof Error ? err.message : "Transfer failed",
@@ -578,6 +605,9 @@ export const useSftpTransfers = ({
 
   const cancelTransfer = useCallback(
     async (transferId: string) => {
+      // Add to cancelled set so async operations can check
+      cancelledTasksRef.current.add(transferId);
+
       stopProgressSimulation(transferId);
 
       setTransfers((prev) =>
@@ -601,6 +631,11 @@ export const useSftpTransfers = ({
           logger.warn("Failed to cancel transfer at backend:", err);
         }
       }
+
+      // Clean up cancelled task ID after a delay to ensure all async ops see it
+      setTimeout(() => {
+        cancelledTasksRef.current.delete(transferId);
+      }, 5000);
     },
     [stopProgressSimulation],
   );
