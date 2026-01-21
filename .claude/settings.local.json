@@ -7,7 +7,13 @@
       "Bash(gh pr view:*)",
       "Bash(gh pr list:*)",
       "Bash(gh api:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(gh issue view:*)",
+      "Bash(npm run dev:*)",
+      "Bash(git checkout:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nfeat\\(sftp\\): bundle folder uploads and improve cancel/delete operations\n\n- Bundle folder uploads as single tasks showing aggregate progress\n- Add unique file transfer IDs for proper cancellation tracking\n- Fix cancel button to call cancelExternalUpload for external uploads\n- Improve backend cancel detection using cancelled flag instead of error message\n- Use SSH exec with rm -rf for fast folder deletion on remote servers\n- Add FolderUp icon for folder upload tasks in transfer queue\n- Add i18n key for upload cancelled message\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git push:*)",
+      "Bash(gh pr create --title \"feat\\(sftp\\): bundle folder uploads and improve cancel/delete operations\" --body \"$\\(cat <<''EOF''\n## Summary\n\n- **Bundle folder uploads as single tasks** - When uploading a folder from computer, show it as one aggregated task with total progress instead of individual files\n- **Fix cancel upload** - Properly cancel external uploads by calling the correct cancel function and using unique file transfer IDs for backend tracking\n- **Fast folder deletion** - Use SSH exec with `rm -rf` command for remote folder deletion instead of slow recursive SFTP rmdir\n- **UI improvements** - Add FolderUp icon for folder upload tasks, add cancelled status toast message\n\n## Changes\n\n### Bundle folder uploads\n- Added `detectRootFolders` helper to group entries by root folder\n- Create single bundled task per folder with aggregate byte count\n- Track progress across all files in the bundle\n\n### Fix cancel upload\n- Each file now uses unique `fileTransferId` for backend cancellation tracking\n- Added `activeFileTransferIdsRef` to track all active uploads\n- Modified `cancelExternalUpload` to cancel all active file uploads\n- Backend now checks `uploadState.cancelled` flag instead of just error message\n- Frontend catch block checks `cancelUploadRef.current` to break out of loop\n\n### Fast folder deletion\n- Added `execSshCommand` helper function in sftpBridge.cjs\n- Uses `client.client` \\(underlying ssh2 Client\\) to execute `rm -rf` command\n- Falls back to SFTP rmdir if SSH exec fails\n\n## Test plan\n- [ ] Drag a folder from computer to SFTP pane - should show as single task with aggregate progress\n- [ ] Click cancel button during folder upload - should stop immediately without errors\n- [ ] Delete a large folder on remote server - should complete quickly using rm -rf\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\nEOF\n\\)\")"
     ]
   }
 }

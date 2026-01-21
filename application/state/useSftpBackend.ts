@@ -168,6 +168,12 @@ export const useSftpBackend = () => {
     return bridge.cancelTransfer(transferId);
   }, []);
 
+  const cancelSftpUpload = useCallback(async (transferId: string) => {
+    const bridge = netcattyBridge.get();
+    if (!bridge?.cancelSftpUpload) return undefined;
+    return bridge.cancelSftpUpload(transferId);
+  }, []);
+
   const onTransferProgress = useCallback((transferId: string, cb: Parameters<NonNullable<NetcattyBridge["onTransferProgress"]>>[1]) => {
     const bridge = netcattyBridge.get();
     if (!bridge?.onTransferProgress) return undefined;
@@ -257,6 +263,7 @@ export const useSftpBackend = () => {
 
     startStreamTransfer,
     cancelTransfer,
+    cancelSftpUpload,
     onTransferProgress,
     selectApplication,
     downloadSftpToTempAndOpen,

@@ -1,18 +1,29 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useState, useRef, useMemo } from "react";
 import type { RemoteFile } from "../../../types";
 import { toast } from "../../ui/toast";
-import { extractDropEntries } from "../../../lib/sftpFileUtils";
+import {
+  UploadController,
+  uploadFromDataTransfer,
+  uploadFromFileList,
+  UploadBridge,
+  UploadCallbacks,
+  UploadTaskInfo,
+  UploadProgress,
+} from "../../../lib/uploadService";
 
 interface UploadTask {
   id: string;
   fileName: string;
-  status: "pending" | "uploading" | "completed" | "failed";
+  status: "pending" | "uploading" | "completed" | "failed" | "cancelled";
   progress: number;
   totalBytes: number;
   transferredBytes: number;
   speed: number;
   startTime: number;
   error?: string;
+  isDirectory?: boolean;
+  fileCount?: number;
+  completedCount?: number;
 }
 
 interface UseSftpModalTransfersParams {
@@ -37,6 +48,7 @@ interface UseSftpModalTransfersParams {
   writeSftp: (sftpId: string, path: string, data: string) => Promise<void>;
   mkdirLocal: (path: string) => Promise<void>;
   mkdirSftp: (sftpId: string, path: string) => Promise<void>;
+  cancelSftpUpload?: (taskId: string) => Promise<unknown>;
   setLoading: (loading: boolean) => void;
   t: (key: string, params?: Record<string, unknown>) => string;
 }
@@ -51,6 +63,8 @@ interface UseSftpModalTransfersResult {
   handleFileSelect: (e: React.ChangeEvent<HTMLInputElement>) => void;
   handleDrag: (e: React.DragEvent) => void;
   handleDrop: (e: React.DragEvent) => void;
+  cancelUpload: () => Promise<void>;
+  dismissTask: (taskId: string) => void;
 }
 
 export const useSftpModalTransfers = ({
@@ -64,15 +78,24 @@ export const useSftpModalTransfers = ({
   writeLocalFile,
   writeSftpBinaryWithProgress,
   writeSftpBinary,
-  writeSftp,
   mkdirLocal,
   mkdirSftp,
+  cancelSftpUpload,
   setLoading,
   t,
 }: UseSftpModalTransfersParams): UseSftpModalTransfersResult => {
   const [uploading, setUploading] = useState(false);
   const [uploadTasks, setUploadTasks] = useState<UploadTask[]>([]);
   const [dragActive, setDragActive] = useState(false);
+
+  // Upload controller for cancellation support
+  const uploadControllerRef = useRef<UploadController | null>(null);
+
+  // Cached SFTP ID to avoid multiple calls to ensureSftp
+  const cachedSftpIdRef = useRef<string | null>(null);
+
+  // Track cancelled transfer IDs to detect cancellation in bridge wrapper
+  const cancelledTransferIdsRef = useRef<Set<string>>(new Set());
 
   const handleDownload = useCallback(
     async (file: RemoteFile) => {
@@ -103,247 +126,269 @@ export const useSftpModalTransfers = ({
     [currentPath, ensureSftp, isLocalSession, joinPath, readLocalFile, readSftp, setLoading, t],
   );
 
-  const handleUploadFile = useCallback(async (
-    file: File,
-    taskId: string,
-    relativePath?: string,
-  ): Promise<boolean> => {
-    const startTime = Date.now();
-    const displayName = relativePath || file.name;
-
-    setUploadTasks((prev) =>
-      prev.map((t) =>
-        t.id === taskId
-          ? {
-            ...t,
-            status: "uploading" as const,
-            totalBytes: file.size,
-            startTime,
-            speed: 0,
+  // Create upload bridge that adapts the modal's functions to the service interface
+  const createUploadBridge = useMemo((): UploadBridge => {
+    return {
+      writeLocalFile,
+      mkdirLocal,
+      mkdirSftp: async (sftpId: string, path: string) => {
+        await mkdirSftp(sftpId, path);
+      },
+      writeSftpBinary: async (sftpId: string, path: string, data: ArrayBuffer) => {
+        await writeSftpBinary(sftpId, path, data);
+      },
+      writeSftpBinaryWithProgress: async (
+        sftpId: string,
+        path: string,
+        data: ArrayBuffer,
+        taskId: string,
+        onProgress: (transferred: number, total: number, speed: number) => void,
+        _onComplete?: () => void,
+        _onError?: (error: string) => void
+      ) => {
+        try {
+          const result = await writeSftpBinaryWithProgress(
+            sftpId,
+            path,
+            data,
+            taskId,
+            onProgress,
+            () => { },
+            () => { }
+          );
+          // Check if this transfer was cancelled
+          const wasCancelled = cancelledTransferIdsRef.current.has(taskId);
+          if (wasCancelled) {
+            cancelledTransferIdsRef.current.delete(taskId);
           }
-          : t,
-      ),
-    );
+          return { success: result, cancelled: wasCancelled };
+        } catch (error) {
+          // Check for fatal errors like session not found
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          if (errorMessage.includes("session not found") || errorMessage.includes("SFTP session")) {
+            // Mark as cancelled to stop the upload loop
+            cancelledTransferIdsRef.current.add(taskId);
+            return { success: false, cancelled: true };
+          }
+          throw error;
+        }
+      },
+      cancelSftpUpload,
+    };
+  }, [writeLocalFile, mkdirLocal, mkdirSftp, writeSftpBinary, writeSftpBinaryWithProgress, cancelSftpUpload]);
 
-    try {
-      const arrayBuffer = await file.arrayBuffer();
-      const fullPath = joinPath(currentPath, displayName);
-
-      if (isLocalSession) {
-        await writeLocalFile(fullPath, arrayBuffer);
-        const totalTime = (Date.now() - startTime) / 1000;
-        const finalSpeed = totalTime > 0 ? file.size / totalTime : 0;
-        setUploadTasks((prev) =>
-          prev.map((t) =>
-            t.id === taskId
+  // Create upload callbacks
+  const createUploadCallbacks = useCallback((): UploadCallbacks => {
+    return {
+      onScanningStart: (taskId: string) => {
+        const scanningTask: UploadTask = {
+          id: taskId,
+          fileName: "Scanning files...",
+          status: "pending",
+          progress: 0,
+          totalBytes: 0,
+          transferredBytes: 0,
+          speed: 0,
+          startTime: Date.now(),
+          isDirectory: true,
+        };
+        setUploadTasks(prev => [...prev, scanningTask]);
+      },
+      onScanningEnd: (taskId: string) => {
+        setUploadTasks(prev => prev.filter(t => t.id !== taskId));
+      },
+      onTaskCreated: (task: UploadTaskInfo) => {
+        const uploadTask: UploadTask = {
+          id: task.id,
+          fileName: task.displayName,
+          status: "uploading",
+          progress: 0,
+          totalBytes: task.totalBytes,
+          transferredBytes: 0,
+          speed: 0,
+          startTime: Date.now(),
+          isDirectory: task.isDirectory,
+          fileCount: task.fileCount,
+          completedCount: 0,
+        };
+        setUploadTasks(prev => [...prev, uploadTask]);
+      },
+      onTaskProgress: (taskId: string, progress: UploadProgress) => {
+        setUploadTasks(prev =>
+          prev.map(task =>
+            task.id === taskId && task.status === "uploading"
               ? {
-                ...t,
+                ...task,
+                transferredBytes: progress.transferred,
+                progress: progress.percent,
+                speed: progress.speed,
+              }
+              : task
+          )
+        );
+      },
+      onTaskCompleted: (taskId: string, totalBytes: number) => {
+        setUploadTasks(prev =>
+          prev.map(task =>
+            task.id === taskId
+              ? {
+                ...task,
                 status: "completed" as const,
                 progress: 100,
-                transferredBytes: file.size,
-                speed: finalSpeed,
+                transferredBytes: totalBytes,
+                speed: 0,
               }
-              : t,
-          ),
+              : task
+          )
         );
-        return true;
-      }
+      },
+      onTaskFailed: (taskId: string, error: string) => {
+        // Check if this is a fatal session error - mark as cancelled instead
+        const isFatalError = error.includes("session not found") ||
+          error.includes("SFTP session") ||
+          error.includes("connection") ||
+          error.includes("disconnected");
 
-      const sftpId = await ensureSftp();
+        setUploadTasks(prev =>
+          prev.map(task =>
+            task.id === taskId
+              ? {
+                ...task,
+                status: isFatalError ? "cancelled" as const : "failed" as const,
+                error: isFatalError ? t("sftp.error.sessionLost") : error,
+                speed: 0,
+              }
+              : task
+          )
+        );
 
-      const progressResult = await writeSftpBinaryWithProgress(
-        sftpId,
-        fullPath,
-        arrayBuffer,
-        taskId,
-        (transferred: number, total: number, speed: number) => {
-          const progress = total > 0 ? Math.round((transferred / total) * 100) : 0;
-          setUploadTasks((prev) =>
-            prev.map((t) =>
-              t.id === taskId && t.status === "uploading"
-                ? { ...t, transferredBytes: transferred, progress, speed }
-                : t,
-            ),
-          );
-        },
-        () => {
-          const totalTime = (Date.now() - startTime) / 1000;
-          const finalSpeed = totalTime > 0 ? file.size / totalTime : 0;
-          setUploadTasks((prev) =>
-            prev.map((t) =>
-              t.id === taskId
-                ? {
-                  ...t,
-                  status: "completed" as const,
-                  progress: 100,
-                  transferredBytes: file.size,
-                  speed: finalSpeed,
-                }
-                : t,
-            ),
-          );
-        },
-        (error: string) => {
-          setUploadTasks((prev) =>
-            prev.map((t) =>
-              t.id === taskId
-                ? { ...t, status: "failed" as const, error }
-                : t,
-            ),
-          );
-        },
-      );
-      if (progressResult) return true;
-
-      try {
-        await writeSftpBinary(sftpId, fullPath, arrayBuffer);
-      } catch {
-        const text = await file.text();
-        await writeSftp(sftpId, fullPath, text);
-      }
-
-      const totalTime = (Date.now() - startTime) / 1000;
-      const finalSpeed = totalTime > 0 ? file.size / totalTime : 0;
-
-      setUploadTasks((prev) =>
-        prev.map((t) =>
-          t.id === taskId
-            ? {
-              ...t,
-              status: "completed" as const,
-              progress: 100,
-              transferredBytes: file.size,
-              speed: finalSpeed,
-            }
-            : t,
-        ),
-      );
-      return true;
-    } catch (e) {
-      setUploadTasks((prev) =>
-        prev.map((task) =>
-          task.id === taskId
-            ? {
-              ...task,
-              status: "failed" as const,
-              error: e instanceof Error ? e.message : t("sftp.error.uploadFailed"),
-            }
-            : task,
-        ),
-      );
-      return false;
-    }
-  }, [currentPath, ensureSftp, isLocalSession, joinPath, t, writeLocalFile, writeSftp, writeSftpBinary, writeSftpBinaryWithProgress]);
+        // Auto-clear failed/cancelled tasks after 3 seconds
+        setTimeout(() => {
+          setUploadTasks(prev => prev.filter(t => t.id !== taskId));
+        }, 3000);
+      },
+      onTaskCancelled: (taskId: string) => {
+        setUploadTasks(prev =>
+          prev.map(task =>
+            task.id === taskId
+              ? {
+                ...task,
+                status: "cancelled" as const,
+                speed: 0,
+              }
+              : task
+          )
+        );
+        // Auto-clear cancelled tasks after 2 seconds
+        setTimeout(() => {
+          setUploadTasks(prev => prev.filter(t => t.id !== taskId));
+        }, 2000);
+      },
+    };
+  }, [t]);
 
   const handleUploadMultiple = useCallback(
     async (fileList: FileList) => {
       if (fileList.length === 0) return;
 
-      const newTasks: UploadTask[] = Array.from(fileList).map((file) => ({
-        id: crypto.randomUUID(),
-        fileName: file.name,
-        status: "pending" as const,
-        progress: 0,
-        totalBytes: file.size,
-        transferredBytes: 0,
-        speed: 0,
-        startTime: 0,
-      }));
-
-      setUploadTasks((prev) => [...prev, ...newTasks]);
       setUploading(true);
 
-      const filesToUpload = Array.from(fileList);
-      for (let i = 0; i < filesToUpload.length; i++) {
-        await handleUploadFile(filesToUpload[i], newTasks[i].id);
+      // Get SFTP ID for remote sessions
+      let sftpId: string | null = null;
+      if (!isLocalSession) {
+        sftpId = await ensureSftp();
+        cachedSftpIdRef.current = sftpId;
       }
 
-      setUploading(false);
-      await loadFiles(currentPath, { force: true });
+      // Create controller for cancellation
+      const controller = new UploadController();
+      uploadControllerRef.current = controller;
 
-      setTimeout(() => {
-        setUploadTasks((prev) => prev.filter((t) => t.status !== "completed"));
-      }, 3000);
+      const callbacks = createUploadCallbacks();
+
+      try {
+        await uploadFromFileList(
+          fileList,
+          {
+            targetPath: currentPath,
+            sftpId,
+            isLocal: isLocalSession,
+            bridge: createUploadBridge,
+            joinPath,
+            callbacks,
+          },
+          controller
+        );
+
+        await loadFiles(currentPath, { force: true });
+
+        // Auto-clear completed tasks after 3 seconds
+        setTimeout(() => {
+          setUploadTasks(prev => prev.filter(t => t.status !== "completed"));
+        }, 3000);
+      } catch (error) {
+        toast.error(
+          error instanceof Error ? error.message : t("sftp.error.uploadFailed"),
+          "SFTP"
+        );
+      } finally {
+        setUploading(false);
+        uploadControllerRef.current = null;
+        cachedSftpIdRef.current = null;
+      }
     },
-    [currentPath, handleUploadFile, loadFiles],
+    [currentPath, createUploadBridge, createUploadCallbacks, ensureSftp, isLocalSession, joinPath, loadFiles, t],
   );
 
   const handleUploadFromDrop = useCallback(
     async (dataTransfer: DataTransfer) => {
-      const entries = await extractDropEntries(dataTransfer);
-      if (entries.length === 0) return;
-
-      const createdDirs = new Set<string>();
-      const ensureDirectory = async (dirPath: string) => {
-        if (createdDirs.has(dirPath)) return;
-        try {
-          if (isLocalSession) {
-            await mkdirLocal(dirPath);
-          } else {
-            const sftpId = await ensureSftp();
-            await mkdirSftp(sftpId, dirPath);
-          }
-          createdDirs.add(dirPath);
-        } catch {
-          createdDirs.add(dirPath);
-        }
-      };
-
-      const sortedEntries = [...entries].sort((a, b) => {
-        if (a.isDirectory && !b.isDirectory) return -1;
-        if (!a.isDirectory && b.isDirectory) return 1;
-        const aDepth = a.relativePath.split("/").length;
-        const bDepth = b.relativePath.split("/").length;
-        return aDepth - bDepth;
-      });
-
-      const fileEntries = sortedEntries.filter((e) => !e.isDirectory);
-
-      const newTasks: UploadTask[] = fileEntries.map((entry) => ({
-        id: crypto.randomUUID(),
-        fileName: entry.relativePath,
-        status: "pending" as const,
-        progress: 0,
-        totalBytes: entry.file.size,
-        transferredBytes: 0,
-        speed: 0,
-        startTime: 0,
-      }));
-
-      if (newTasks.length > 0) {
-        setUploadTasks((prev) => [...prev, ...newTasks]);
-      }
       setUploading(true);
 
-      let taskIndex = 0;
-      for (const entry of sortedEntries) {
-        const targetPath = joinPath(currentPath, entry.relativePath);
-
-        if (entry.isDirectory) {
-          await ensureDirectory(targetPath);
-        } else if (entry.file) {
-          const pathParts = entry.relativePath.split("/");
-          if (pathParts.length > 1) {
-            let parentPath = currentPath;
-            for (let i = 0; i < pathParts.length - 1; i++) {
-              parentPath = joinPath(parentPath, pathParts[i]);
-              await ensureDirectory(parentPath);
-            }
-          }
-
-          await handleUploadFile(entry.file, newTasks[taskIndex].id, entry.relativePath);
-          taskIndex++;
-        }
+      // Get SFTP ID for remote sessions
+      let sftpId: string | null = null;
+      if (!isLocalSession) {
+        sftpId = await ensureSftp();
+        cachedSftpIdRef.current = sftpId;
       }
 
-      setUploading(false);
-      await loadFiles(currentPath, { force: true });
+      // Create controller for cancellation
+      const controller = new UploadController();
+      uploadControllerRef.current = controller;
 
-      setTimeout(() => {
-        setUploadTasks((prev) => prev.filter((t) => t.status !== "completed"));
-      }, 3000);
+      const callbacks = createUploadCallbacks();
+
+      try {
+        await uploadFromDataTransfer(
+          dataTransfer,
+          {
+            targetPath: currentPath,
+            sftpId,
+            isLocal: isLocalSession,
+            bridge: createUploadBridge,
+            joinPath,
+            callbacks,
+          },
+          controller
+        );
+
+        await loadFiles(currentPath, { force: true });
+
+        // Auto-clear completed tasks after 3 seconds
+        setTimeout(() => {
+          setUploadTasks(prev => prev.filter(t => t.status !== "completed"));
+        }, 3000);
+      } catch (error) {
+        toast.error(
+          error instanceof Error ? error.message : t("sftp.error.uploadFailed"),
+          "SFTP"
+        );
+      } finally {
+        setUploading(false);
+        uploadControllerRef.current = null;
+        cachedSftpIdRef.current = null;
+      }
     },
-    [currentPath, ensureSftp, handleUploadFile, isLocalSession, joinPath, loadFiles, mkdirLocal, mkdirSftp],
+    [currentPath, createUploadBridge, createUploadCallbacks, ensureSftp, isLocalSession, joinPath, loadFiles, t],
   );
 
   const handleFileSelect = useCallback(
@@ -378,6 +423,42 @@ export const useSftpModalTransfers = ({
     [handleUploadFromDrop],
   );
 
+  const cancelUpload = useCallback(async () => {
+    const controller = uploadControllerRef.current;
+    if (controller) {
+      // Mark all active transfer IDs as cancelled before calling cancel
+      const activeIds = controller.getActiveTransferIds();
+      for (const id of activeIds) {
+        cancelledTransferIdsRef.current.add(id);
+      }
+      await controller.cancel();
+    }
+
+    // Always clear all uploading/pending tasks immediately, even without controller
+    setUploadTasks(prev => {
+      const hasActiveTasks = prev.some(t => t.status === "uploading" || t.status === "pending");
+      if (!hasActiveTasks) return prev;
+
+      return prev.map(task =>
+        task.status === "uploading" || task.status === "pending"
+          ? { ...task, status: "cancelled" as const, speed: 0 }
+          : task
+      );
+    });
+
+    // Auto-clear cancelled tasks after 2 seconds
+    setTimeout(() => {
+      setUploadTasks(prev => prev.filter(t => t.status !== "cancelled"));
+    }, 2000);
+
+    // Also reset uploading state
+    setUploading(false);
+  }, []);
+
+  const dismissTask = useCallback((taskId: string) => {
+    setUploadTasks(prev => prev.filter(t => t.id !== taskId));
+  }, []);
+
   return {
     uploading,
     uploadTasks,
@@ -388,5 +469,7 @@ export const useSftpModalTransfers = ({
     handleFileSelect,
     handleDrag,
     handleDrop,
+    cancelUpload,
+    dismissTask,
   };
 };

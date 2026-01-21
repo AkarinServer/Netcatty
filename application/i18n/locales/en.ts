@@ -473,6 +473,7 @@ const en: Messages = {
   'sftp.rename.newName': 'New name',
   'sftp.rename.placeholder': 'Enter new name',
   'sftp.confirm.deleteOne': 'Delete "{name}"?',
+  'sftp.deleteConfirm.single': 'Delete "{name}"?',
   'sftp.deleteConfirm.title': 'Delete {count} item(s)?',
   'sftp.deleteConfirm.desc': 'This action cannot be undone. The following will be deleted:',
   'sftp.error.loadFailed': 'Failed to load directory',
