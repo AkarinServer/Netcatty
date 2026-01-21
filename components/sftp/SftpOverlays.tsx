@@ -1,5 +1,4 @@
 import React from "react";
-import { Loader2 } from "lucide-react";
 import type { Host, SftpFileEntry } from "../../types";
 import type { FileOpenerType, SystemAppInfo } from "../../lib/sftpFileUtils";
 import type { useSftpState } from "../../application/state/useSftpState";
@@ -39,7 +38,6 @@ interface SftpOverlaysProps {
   setFileOpenerTarget: (target: { file: SftpFileEntry; side: "left" | "right"; fullPath: string } | null) => void;
   handleFileOpenerSelect: (openerType: FileOpenerType, setAsDefault: boolean, systemApp?: SystemAppInfo) => void;
   handleSelectSystemApp: (systemApp: { path: string; name: string }) => void;
-  t: (key: string, params?: Record<string, unknown>) => string;
 }
 
 export const SftpOverlays: React.FC<SftpOverlaysProps> = ({
@@ -71,7 +69,6 @@ export const SftpOverlays: React.FC<SftpOverlaysProps> = ({
   setFileOpenerTarget,
   handleFileOpenerSelect,
   handleSelectSystemApp,
-  t,
 }) => {
   return (
     <>
@@ -98,14 +95,14 @@ export const SftpOverlays: React.FC<SftpOverlaysProps> = ({
       />
 
       {/* Transfer status area - shows folder uploads and file transfers */}
-      {(sftp.transfers.length > 0 || sftp.folderUploadProgress.isUploading) && (
+      {sftp.transfers.length > 0 && (
         <div className="border-t border-border/70 bg-secondary/80 backdrop-blur-sm shrink-0">
           <div className="flex items-center justify-between px-4 py-2 text-xs text-muted-foreground border-b border-border/40">
             <span className="font-medium">
               Transfers
-              {(sftp.activeTransfersCount > 0 || sftp.folderUploadProgress.isUploading) && (
+              {sftp.activeTransfersCount > 0 && (
                 <span className="ml-2 text-primary">
-                  ({sftp.activeTransfersCount + (sftp.folderUploadProgress.isUploading ? 1 : 0)} active)
+                  ({sftp.activeTransfersCount} active)
                 </span>
               )}
             </span>
@@ -123,60 +120,17 @@ export const SftpOverlays: React.FC<SftpOverlaysProps> = ({
               )}
           </div>
           <div className="max-h-40 overflow-auto">
-            {/* Folder upload progress - shown at top when active */}
-            {sftp.folderUploadProgress.isUploading && (
-              <div className="flex items-center gap-3 px-4 py-2 border-b border-border/30 bg-primary/5">
-                <div className="flex-shrink-0">
-                  <Loader2 size={16} className="animate-spin text-primary" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="font-medium truncate">
-                      {t("sftp.upload.progress", {
-                        current: sftp.folderUploadProgress.currentIndex,
-                        total: sftp.folderUploadProgress.totalFiles,
-                      })}
-                    </span>
-                    {sftp.folderUploadProgress.currentFileTotalBytes > 0 && (
-                      <span className="text-xs text-muted-foreground ml-2 flex-shrink-0">
-                        {sftp.formatFileSize(sftp.folderUploadProgress.currentFileBytes)} / {sftp.formatFileSize(sftp.folderUploadProgress.currentFileTotalBytes)}
-                        {sftp.folderUploadProgress.currentFileSpeed > 0 && (
-                          <> ({sftp.formatFileSize(sftp.folderUploadProgress.currentFileSpeed)}/s)</>
-                        )}
-                      </span>
-                    )}
-                  </div>
-                  {sftp.folderUploadProgress.currentFileTotalBytes > 0 && (
-                    <div className="w-full bg-muted/30 rounded-full h-1.5 mt-1">
-                      <div
-                        className="bg-primary h-1.5 rounded-full transition-all duration-150 ease-out"
-                        style={{
-                          width: `${Math.min((sftp.folderUploadProgress.currentFileBytes / Math.max(sftp.folderUploadProgress.currentFileTotalBytes, 1)) * 100, 100)}%`,
-                        }}
-                      />
-                    </div>
-                  )}
-                  {sftp.folderUploadProgress.currentFile && (
-                    <div className="text-xs text-muted-foreground truncate mt-0.5">
-                      {sftp.folderUploadProgress.currentFile}
-                    </div>
-                  )}
-                </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-6 px-2 text-xs flex-shrink-0"
-                  onClick={() => sftp.cancelFolderUpload()}
-                >
-                  {t("sftp.upload.cancel")}
-                </Button>
-              </div>
-            )}
             {visibleTransfers.map((task) => (
               <SftpTransferItem
                 key={task.id}
                 task={task}
-                onCancel={() => sftp.cancelTransfer(task.id)}
+                onCancel={() => {
+                  // External uploads use a different cancel mechanism
+                  if (task.sourceConnectionId === "external") {
+                    sftp.cancelExternalUpload();
+                  }
+                  sftp.cancelTransfer(task.id);
+                }}
                 onRetry={() => sftp.retryTransfer(task.id)}
                 onDismiss={() => sftp.dismissTransfer(task.id)}
               />

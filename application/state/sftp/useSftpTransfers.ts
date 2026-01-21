@@ -30,6 +30,8 @@ interface UseSftpTransfersResult {
     sourceSide: "left" | "right",
     targetSide: "left" | "right",
   ) => Promise<void>;
+  addExternalUpload: (task: TransferTask) => void;
+  updateExternalUpload: (taskId: string, updates: Partial<TransferTask>) => void;
   cancelTransfer: (transferId: string) => Promise<void>;
   retryTransfer: (transferId: string) => Promise<void>;
   clearCompletedTransfers: () => void;
@@ -637,6 +639,22 @@ export const useSftpTransfers = ({
     setTransfers((prev) => prev.filter((t) => t.id !== transferId));
   }, []);
 
+  const addExternalUpload = useCallback((task: TransferTask) => {
+    // Filter out any pending scanning tasks before adding the new task.
+    // This ensures that even if dismissExternalUpload's state update hasn't been applied yet
+    // (due to React state batching), the scanning placeholder will still be removed.
+    setTransfers((prev) => [
+      ...prev.filter(t => !(t.status === "pending" && t.fileName === "Scanning files...")),
+      task
+    ]);
+  }, []);
+
+  const updateExternalUpload = useCallback((taskId: string, updates: Partial<TransferTask>) => {
+    setTransfers((prev) =>
+      prev.map((t) => (t.id === taskId ? { ...t, ...updates } : t)),
+    );
+  }, []);
+
   const resolveConflict = useCallback(
     async (conflictId: string, action: "replace" | "skip" | "duplicate") => {
       const conflict = conflicts.find((c) => c.transferId === conflictId);
@@ -714,6 +732,8 @@ export const useSftpTransfers = ({
     conflicts,
     activeTransfersCount,
     startTransfer,
+    addExternalUpload,
+    updateExternalUpload,
     cancelTransfer,
     retryTransfer,
     clearCompletedTransfers,

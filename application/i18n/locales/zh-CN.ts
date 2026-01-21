@@ -330,6 +330,7 @@ const zhCN: Messages = {
   'sftp.rename.newName': '新名称',
   'sftp.rename.placeholder': '输入新名称',
   'sftp.confirm.deleteOne': '删除 "{name}"？',
+  'sftp.deleteConfirm.single': '删除 "{name}"？',
   'sftp.deleteConfirm.title': '删除 {count} 个项目？',
   'sftp.deleteConfirm.desc': '此操作不可撤销，将删除以下内容：',
   'sftp.error.loadFailed': '加载目录失败',
@@ -840,6 +841,7 @@ const zhCN: Messages = {
 
   // SFTP Folder Upload Progress
   'sftp.upload.progress': '正在上传 {current}/{total} 个文件...',
+  'sftp.upload.uploading': '正在上传...',
   'sftp.upload.currentFile': '当前: {fileName}',
   'sftp.upload.cancelled': '上传已取消',
   'sftp.upload.cancel': '取消',

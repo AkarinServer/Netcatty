@@ -274,12 +274,13 @@ export const useSftpViewFileOps = ({
       try {
         const results = await sftpRef.current.uploadExternalFiles(side, dataTransfer);
 
-        if (sftpRef.current.folderUploadProgress.cancelled) {
+        // Check if upload was cancelled
+        if (results.some((r) => r.cancelled)) {
           toast.info(t("sftp.upload.cancelled"), "SFTP");
           return;
         }
 
-        const failCount = results.filter((r) => !r.success).length;
+        const failCount = results.filter((r) => !r.success && !r.cancelled).length;
         const successCount = results.filter((r) => r.success).length;
 
         if (failCount === 0) {
@@ -289,7 +290,7 @@ export const useSftpViewFileOps = ({
               : `${t("sftp.uploadFiles")}: ${successCount}`;
           toast.success(message, "SFTP");
         } else {
-          const failedFiles = results.filter((r) => !r.success);
+          const failedFiles = results.filter((r) => !r.success && !r.cancelled);
           failedFiles.forEach((failed) => {
             const errorMsg = failed.error ? ` - ${failed.error}` : "";
             toast.error(

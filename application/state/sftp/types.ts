@@ -49,19 +49,6 @@ export interface FileWatchErrorEvent {
   error: string;
 }
 
-// Folder upload progress tracking
-export interface FolderUploadProgress {
-  isUploading: boolean;
-  currentFile: string;
-  currentIndex: number;
-  totalFiles: number;
-  cancelled: boolean;
-  currentFileBytes: number;
-  currentFileTotalBytes: number;
-  currentFileSpeed: number;
-  currentTransferId: string;
-}
-
 export interface SftpStateOptions {
   onFileWatchSynced?: (event: FileWatchSyncedEvent) => void;
   onFileWatchError?: (event: FileWatchErrorEvent) => void;

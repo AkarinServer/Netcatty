@@ -1094,13 +1094,17 @@ async function writeSftpBinaryWithProgress(event, payload) {
     return { success: true, transferId };
   } catch (err) {
     const contents = electronModule.webContents.fromId(event.sender.id);
-    // Only send error if it's not a cancellation
-    if (err.message !== "Upload cancelled") {
-      contents?.send("netcatty:upload:error", { transferId, error: err.message });
-      throw err;
+
+    // Check if this upload was cancelled - the error might not be exactly "Upload cancelled"
+    // when stream is destroyed, SFTP server may return different errors like "Write stream error"
+    const uploadState = activeSftpUploads.get(transferId);
+    if (uploadState?.cancelled || err.message === "Upload cancelled") {
+      contents?.send("netcatty:upload:cancelled", { transferId });
+      return { success: false, transferId, cancelled: true };
     }
-    contents?.send("netcatty:upload:cancelled", { transferId });
-    return { success: false, transferId, cancelled: true };
+
+    contents?.send("netcatty:upload:error", { transferId, error: err.message });
+    throw err;
   } finally {
     // Cleanup
     activeSftpUploads.delete(transferId);
@@ -1173,18 +1177,76 @@ async function mkdirSftp(event, payload) {
 }
 
 /**
+ * Execute a command via SSH using the underlying ssh2 client
+ * Returns { stdout, stderr, code }
+ */
+function execSshCommand(sshClient, command) {
+  return new Promise((resolve, reject) => {
+    sshClient.exec(command, (err, stream) => {
+      if (err) {
+        return reject(err);
+      }
+
+      let stdout = '';
+      let stderr = '';
+
+      stream.on('close', (code) => {
+        resolve({ stdout, stderr, code });
+      });
+
+      stream.on('data', (data) => {
+        stdout += data.toString();
+      });
+
+      stream.stderr.on('data', (data) => {
+        stderr += data.toString();
+      });
+    });
+  });
+}
+
+/**
  * Delete a file or directory
+ * For directories, uses SSH exec with 'rm -rf' for much faster deletion
  */
 async function deleteSftp(event, payload) {
   const client = sftpClients.get(payload.sftpId);
   if (!client) throw new Error("SFTP session not found");
 
   const encoding = resolveEncodingForRequest(payload.sftpId, payload.encoding);
+
   if (encoding === "utf-8") {
     const encodedPath = encodePath(payload.path, encoding);
     const stat = await client.stat(encodedPath);
     if (stat.isDirectory) {
-      await client.rmdir(encodedPath, true);
+      // For directories, try to use SSH exec for faster deletion
+      // The underlying ssh2 client is available as client.client
+      const sshClient = client.client;
+      if (sshClient && typeof sshClient.exec === 'function') {
+        try {
+          // Escape path for shell - wrap in single quotes and escape any single quotes in the path
+          const escapedPath = payload.path.replace(/'/g, "'\\''");
+          const command = `rm -rf '${escapedPath}'`;
+          console.log(`[SFTP] Using SSH exec for fast directory deletion: ${command}`);
+
+          const result = await execSshCommand(sshClient, command);
+
+          if (result.code !== 0) {
+            console.warn(`[SFTP] rm -rf returned code ${result.code}: ${result.stderr}`);
+            // Fall back to SFTP rmdir if rm -rf fails (e.g., permission denied)
+            await client.rmdir(encodedPath, true);
+          }
+          return true;
+        } catch (execErr) {
+          console.warn('[SFTP] SSH exec failed, falling back to SFTP rmdir:', execErr.message);
+          // Fall back to slow SFTP rmdir
+          await client.rmdir(encodedPath, true);
+          return true;
+        }
+      } else {
+        // No SSH client available, use SFTP rmdir
+        await client.rmdir(encodedPath, true);
+      }
     } else {
       await client.delete(encodedPath);
     }

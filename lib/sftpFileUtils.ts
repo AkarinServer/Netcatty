@@ -436,35 +436,6 @@ export interface DropEntry {
 }
 
 /**
- * Read entries from a FileSystemDirectoryEntry recursively
- * Uses the webkitGetAsEntry API to access folder contents
- */
-function readDirectoryEntries(
-  directoryReader: FileSystemDirectoryReader
-): Promise<FileSystemEntry[]> {
-  return new Promise((resolve, reject) => {
-    const allEntries: FileSystemEntry[] = [];
-
-    const readBatch = () => {
-      directoryReader.readEntries(
-        (entries) => {
-          if (entries.length === 0) {
-            resolve(allEntries);
-          } else {
-            allEntries.push(...entries);
-            // Continue reading (readEntries may not return all entries at once)
-            readBatch();
-          }
-        },
-        (error) => reject(error)
-      );
-    };
-
-    readBatch();
-  });
-}
-
-/**
  * Convert a FileSystemEntry to a File
  */
 function entryToFile(entry: FileSystemFileEntry): Promise<File> {
@@ -474,67 +445,93 @@ function entryToFile(entry: FileSystemFileEntry): Promise<File> {
 }
 
 /**
- * Recursively process a FileSystemEntry and collect all files
- * Optimized with parallel processing for faster folder traversal
- * @param entry - The file system entry to process
- * @param basePath - The base path (folder name) to prepend
+ * Read all entries from a directory reader
+ * Handles the fact that readEntries may not return all entries at once
+ */
+async function readAllDirectoryEntries(
+  directoryReader: FileSystemDirectoryReader
+): Promise<FileSystemEntry[]> {
+  const allEntries: FileSystemEntry[] = [];
+
+  // Keep reading until we get an empty result
+  let entries: FileSystemEntry[];
+  do {
+    entries = await new Promise<FileSystemEntry[]>((resolve, reject) => {
+      directoryReader.readEntries(resolve, reject);
+    });
+    for (const entry of entries) {
+      allEntries.push(entry);
+    }
+  } while (entries.length > 0);
+
+  return allEntries;
+}
+
+/**
+ * Process file system entries iteratively (non-recursive) to handle large folders
+ * Uses a queue-based approach to avoid stack overflow
+ * @param rootEntries - The root entries to process
  * @returns Array of DropEntry objects with files and their relative paths
  */
-async function processEntry(
-  entry: FileSystemEntry,
-  basePath: string = ""
+async function processEntriesIteratively(
+  rootEntries: FileSystemEntry[]
 ): Promise<DropEntry[]> {
   const results: DropEntry[] = [];
 
-  if (entry.isFile) {
-    const fileEntry = entry as FileSystemFileEntry;
-    try {
-      const file = await entryToFile(fileEntry);
-      results.push({
-        file,
-        relativePath: basePath ? `${basePath}/${entry.name}` : entry.name,
-        isDirectory: false,
-      });
-    } catch (error) {
-      console.warn(`Failed to read file entry: ${entry.name}`, error);
-    }
-  } else if (entry.isDirectory) {
-    const dirEntry = entry as FileSystemDirectoryEntry;
-    const currentPath = basePath ? `${basePath}/${entry.name}` : entry.name;
+  // Queue of entries to process: [entry, basePath]
+  const queue: Array<{ entry: FileSystemEntry; basePath: string }> = [];
 
-    // Add a placeholder for the directory itself (to ensure it gets created)
-    results.push({
-      file: null,  // Directories don't have file content
-      relativePath: currentPath,
-      isDirectory: true,
-    });
+  // Initialize queue with root entries
+  for (const entry of rootEntries) {
+    queue.push({ entry, basePath: "" });
+  }
 
-    try {
-      const reader = dirEntry.createReader();
-      const entries = await readDirectoryEntries(reader);
+  let processedCount = 0;
+  const YIELD_INTERVAL = 100; // Yield to main thread every N items
 
-      // Process entries in parallel batches for better performance
-      // Use a concurrency limit to avoid overwhelming the browser
-      const BATCH_SIZE = 50;
+  while (queue.length > 0) {
+    const { entry, basePath } = queue.shift()!;
 
-      for (let i = 0; i < entries.length; i += BATCH_SIZE) {
-        const batch = entries.slice(i, i + BATCH_SIZE);
-        // Process batch in parallel
-        const batchResults = await Promise.all(
-          batch.map(childEntry => processEntry(childEntry, currentPath))
-        );
-        // Flatten and add results
-        for (const childResults of batchResults) {
-          results.push(...childResults);
-        }
-
-        // Yield to main thread between batches to keep UI responsive
-        if (i + BATCH_SIZE < entries.length) {
-          await new Promise<void>(resolve => setTimeout(resolve, 0));
-        }
+    if (entry.isFile) {
+      const fileEntry = entry as FileSystemFileEntry;
+      try {
+        const file = await entryToFile(fileEntry);
+        results.push({
+          file,
+          relativePath: basePath ? `${basePath}/${entry.name}` : entry.name,
+          isDirectory: false,
+        });
+      } catch (error) {
+        console.warn(`Failed to read file entry: ${entry.name}`, error);
       }
-    } catch (error) {
-      console.warn(`Failed to read directory: ${entry.name}`, error);
+    } else if (entry.isDirectory) {
+      const dirEntry = entry as FileSystemDirectoryEntry;
+      const currentPath = basePath ? `${basePath}/${entry.name}` : entry.name;
+
+      // Add directory entry
+      results.push({
+        file: null,
+        relativePath: currentPath,
+        isDirectory: true,
+      });
+
+      try {
+        const reader = dirEntry.createReader();
+        const childEntries = await readAllDirectoryEntries(reader);
+
+        // Add child entries to the queue (not recursive!)
+        for (const childEntry of childEntries) {
+          queue.push({ entry: childEntry, basePath: currentPath });
+        }
+      } catch (error) {
+        console.warn(`Failed to read directory: ${entry.name}`, error);
+      }
+    }
+
+    // Yield to main thread periodically to keep UI responsive
+    processedCount++;
+    if (processedCount % YIELD_INTERVAL === 0) {
+      await new Promise<void>(resolve => setTimeout(resolve, 0));
     }
   }
 
@@ -544,10 +541,10 @@ async function processEntry(
 /**
  * Extract all files and directories from a DataTransfer object
  * Supports both regular files and folders dropped from the OS
- * 
+ *
  * Uses the webkitGetAsEntry() API for folder access, with fallback
  * to regular FileList for browsers that don't support it.
- * 
+ *
  * @param dataTransfer - The DataTransfer object from a drop event
  * @returns Array of DropEntry objects with files and relative paths
  */
@@ -555,7 +552,6 @@ export async function extractDropEntries(
   dataTransfer: DataTransfer
 ): Promise<DropEntry[]> {
   const items = dataTransfer.items;
-  const results: DropEntry[] = [];
 
   // Check if webkitGetAsEntry is supported (for folder access)
   if (items && items.length > 0 && typeof items[0].webkitGetAsEntry === 'function') {
@@ -571,13 +567,11 @@ export async function extractDropEntries(
       }
     }
 
-    // Now process entries asynchronously
-    for (const entry of entries) {
-      const entryResults = await processEntry(entry);
-      results.push(...entryResults);
-    }
+    // Process entries iteratively (non-recursive) to avoid stack overflow
+    return await processEntriesIteratively(entries);
   } else {
     // Fallback: use regular FileList (no folder support)
+    const results: DropEntry[] = [];
     const files = dataTransfer.files;
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
@@ -587,7 +581,6 @@ export async function extractDropEntries(
         isDirectory: false,
       });
     }
+    return results;
   }
-
-  return results;
 }

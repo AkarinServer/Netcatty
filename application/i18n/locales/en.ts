@@ -477,6 +477,7 @@ const en: Messages = {
   'sftp.rename.newName': 'New name',
   'sftp.rename.placeholder': 'Enter new name',
   'sftp.confirm.deleteOne': 'Delete "{name}"?',
+  'sftp.deleteConfirm.single': 'Delete "{name}"?',
   'sftp.deleteConfirm.title': 'Delete {count} item(s)?',
   'sftp.deleteConfirm.desc': 'This action cannot be undone. The following will be deleted:',
   'sftp.error.loadFailed': 'Failed to load directory',
@@ -589,6 +590,7 @@ const en: Messages = {
 
   // SFTP Folder Upload Progress
   'sftp.upload.progress': 'Uploading {current} of {total} files...',
+  'sftp.upload.uploading': 'Uploading...',
   'sftp.upload.currentFile': 'Current: {fileName}',
   'sftp.upload.cancelled': 'Upload cancelled',
   'sftp.upload.cancel': 'Cancel',
