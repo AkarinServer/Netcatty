@@ -1,7 +1,6 @@
 import React from "react";
 import { ArrowUp, ChevronRight, Home, MoreHorizontal, Plus, RefreshCw, Upload } from "lucide-react";
 import { cn } from "../../lib/utils";
-import type { Host } from "../../types";
 import type { Host, SftpFilenameEncoding } from "../../types";
 import { DistroAvatar } from "../DistroAvatar";
 import { Button } from "../ui/button";

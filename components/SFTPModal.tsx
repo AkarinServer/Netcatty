@@ -80,11 +80,18 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
   const { t, resolvedLocale } = useI18n();
   const { sftpAutoSync, sftpShowHiddenFiles } = useSettingsState();
   const isLocalSession = host.protocol === "local";
-  const [filenameEncoding, setFilenameEncoding] = useState<SftpFilenameEncoding>("auto");
+  const [filenameEncoding, setFilenameEncoding] = useState<SftpFilenameEncoding>(
+    host.sftpEncoding ?? "auto"
+  );
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
   const inputRef = useRef<HTMLInputElement>(null);
   const navigatingRef = useRef(false);
   const clearSelection = useCallback(() => setSelectedFiles(new Set()), []);
+
+  // Update filenameEncoding when host changes
+  useEffect(() => {
+    setFilenameEncoding(host.sftpEncoding ?? "auto");
+  }, [host.id, host.sftpEncoding]);
 
   const listSftpWithEncoding = useCallback(
     (sftpId: string, path: string) => listSftp(sftpId, path, filenameEncoding),

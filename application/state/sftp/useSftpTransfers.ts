@@ -291,6 +291,14 @@ export const useSftpTransfers = ({
       );
     };
 
+    // Initialize encoding early to avoid temporal dead zone issues
+    const sourceEncoding: SftpFilenameEncoding = sourcePane.connection?.isLocal
+      ? "auto"
+      : sourcePane.filenameEncoding || "auto";
+    const targetEncoding: SftpFilenameEncoding = targetPane.connection?.isLocal
+      ? "auto"
+      : targetPane.filenameEncoding || "auto";
+
     let actualFileSize = task.totalBytes;
     if (!task.isDirectory && actualFileSize === 0) {
       try {
@@ -336,13 +344,6 @@ export const useSftpTransfers = ({
     const targetSftpId = targetPane.connection?.isLocal
       ? null
       : sftpSessionsRef.current.get(targetPane.connection!.id);
-
-    const sourceEncoding: SftpFilenameEncoding = sourcePane.connection?.isLocal
-      ? "auto"
-      : sourcePane.filenameEncoding || "auto";
-    const targetEncoding: SftpFilenameEncoding = targetPane.connection?.isLocal
-      ? "auto"
-      : targetPane.filenameEncoding || "auto";
 
     if (!sourcePane.connection?.isLocal && !sourceSftpId) {
       const sourceSide = targetSide === "left" ? "right" : "left";
