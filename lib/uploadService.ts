@@ -420,6 +420,13 @@ async function uploadEntries(
 
       if (controller?.isCancelled()) {
         wasCancelled = true;
+        // Mark all created tasks as cancelled before breaking
+        for (const [, bundleTaskId] of bundleTaskIds) {
+          const progress = bundleProgress.get(bundleTaskId);
+          if (progress && progress.completedCount < progress.fileCount) {
+            callbacks?.onTaskCancelled?.(bundleTaskId);
+          }
+        }
         break;
       }
 
@@ -611,7 +618,7 @@ async function uploadEntries(
         }
 
         // Any error stops the entire upload - fail fast approach
-        wasCancelled = true;
+        // Note: We don't set wasCancelled here because this is an error, not a cancellation
         break;
       }
     }

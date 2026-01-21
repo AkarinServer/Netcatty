@@ -162,10 +162,15 @@ export const useSftpModalTransfers = ({
             cancelledTransferIdsRef.current.delete(taskId);
           }
           return { success: result, cancelled: wasCancelled };
-        } catch {
-          // Any error should stop the upload - mark as cancelled to stop the upload loop
-          cancelledTransferIdsRef.current.add(taskId);
-          return { success: false, cancelled: true };
+        } catch (error) {
+          // Check if this was a user-initiated cancellation
+          const wasCancelled = cancelledTransferIdsRef.current.has(taskId);
+          if (wasCancelled) {
+            cancelledTransferIdsRef.current.delete(taskId);
+            return { success: false, cancelled: true };
+          }
+          // Real error - propagate it by re-throwing
+          throw error;
         }
       },
       cancelSftpUpload,
