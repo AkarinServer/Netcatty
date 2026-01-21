@@ -42,7 +42,7 @@ export const XTERM_PERFORMANCE_CONFIG = {
     // Enable WebGL by default for GPU acceleration
     enabled: true,
 
-    // macOS 强制使用 WebGL；仅在非 macOS 平台可选择 Canvas
+    // User can choose Canvas renderer on any platform
     preferCanvas: false,
 
     // Handle WebGL context loss gracefully
@@ -131,26 +131,35 @@ export function getXTermConfig(platform: XTermPlatform = "darwin") {
   return resolveXTermPerformanceConfig({ platform }).options;
 }
 
+export type RendererPreference = "auto" | "webgl" | "canvas";
+
 /**
  * Resolve a platform and hardware aware performance profile.
- * Enables a Mac-specific canvas preference on low-memory devices to avoid WebGL overhead.
+ * When rendererType is 'auto', uses Canvas on low-memory devices to avoid WebGL overhead.
  */
 export function resolveXTermPerformanceConfig({
   platform = "darwin",
   deviceMemoryGb,
-  preferCanvasRenderer,
+  rendererType = "auto",
 }: {
   platform?: XTermPlatform;
   deviceMemoryGb?: number;
-  preferCanvasRenderer?: boolean;
+  rendererType?: RendererPreference;
 } = {}): ResolvedXTermPerformance {
   const baseConfig = XTERM_PERFORMANCE_CONFIG;
 
   const lowMem = isLowMemoryDevice(deviceMemoryGb);
-  const resolvedPreferCanvas =
-    typeof preferCanvasRenderer === "boolean"
-      ? preferCanvasRenderer && platform !== "darwin"
-      : platform !== "darwin" && (baseConfig.webgl.preferCanvas || lowMem);
+
+  // Determine if we should use Canvas renderer
+  let resolvedPreferCanvas: boolean;
+  if (rendererType === "canvas") {
+    resolvedPreferCanvas = true;
+  } else if (rendererType === "webgl") {
+    resolvedPreferCanvas = false;
+  } else {
+    // Auto mode: use Canvas on low-memory devices
+    resolvedPreferCanvas = baseConfig.webgl.preferCanvas || lowMem;
+  }
 
   const scrollbackProfile = lowMem
     ? "lowMemory"
@@ -158,7 +167,7 @@ export function resolveXTermPerformanceConfig({
       ? "macOS"
       : "default";
 
-  const rendererType = resolvedPreferCanvas ? ("canvas" as const) : undefined;
+  const resolvedRendererType = resolvedPreferCanvas ? ("canvas" as const) : undefined;
 
   const baseOptions = {
     scrollback: baseConfig.scrollback[scrollbackProfile],
@@ -174,8 +183,8 @@ export function resolveXTermPerformanceConfig({
     logLevel: baseConfig.logging.logLevel,
   };
 
-  const options = rendererType
-    ? { ...baseOptions, rendererType }
+  const options = resolvedRendererType
+    ? { ...baseOptions, rendererType: resolvedRendererType }
     : baseOptions;
 
   return {

@@ -228,6 +228,12 @@ const en: Messages = {
   'settings.terminal.serverStats.refreshInterval.desc': 'How often to refresh server stats.',
   'settings.terminal.serverStats.seconds': 'seconds',
 
+  // Settings > Terminal > Rendering
+  'settings.terminal.section.rendering': 'Rendering',
+  'settings.terminal.rendering.renderer': 'Renderer',
+  'settings.terminal.rendering.renderer.desc': 'Choose the terminal rendering technology. Auto will use Canvas on low-memory devices. Changes take effect on new terminal sessions.',
+  'settings.terminal.rendering.auto': 'Auto',
+
   // Settings > Shortcuts
   'settings.shortcuts.section.scheme': 'Hotkey Scheme',
   'settings.shortcuts.scheme.label': 'Keyboard shortcuts',

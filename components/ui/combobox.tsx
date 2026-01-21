@@ -42,6 +42,8 @@ export function Combobox({
 }: ComboboxProps) {
     const [open, setOpen] = React.useState(false)
     const [inputValue, setInputValue] = React.useState("")
+    // Track if user is actively searching (typed something after opening)
+    const [isSearching, setIsSearching] = React.useState(false)
     const inputRef = React.useRef<HTMLInputElement>(null)
 
     // Sync input value with external value when not focused
@@ -49,11 +51,13 @@ export function Combobox({
         if (!open) {
             const selected = options.find((opt) => opt.value === value)
             setInputValue(selected?.label || value || "")
+            setIsSearching(false)
         }
     }, [value, options, open])
 
+    // Show all options when dropdown is open but user hasn't started searching
     const filteredOptions = React.useMemo(() => {
-        if (!inputValue.trim()) return options
+        if (!isSearching || !inputValue.trim()) return options
         const lower = inputValue.toLowerCase()
         return options.filter(
             (opt) =>
@@ -61,13 +65,13 @@ export function Combobox({
                 opt.value.toLowerCase().includes(lower) ||
                 opt.sublabel?.toLowerCase().includes(lower)
         )
-    }, [options, inputValue])
+    }, [options, inputValue, isSearching])
 
     const showCreateOption = React.useMemo(() => {
-        if (!allowCreate || !inputValue.trim()) return false
+        if (!allowCreate || !inputValue.trim() || !isSearching) return false
         const lower = inputValue.toLowerCase().trim()
         return !options.some((opt) => opt.value.toLowerCase() === lower || opt.label.toLowerCase() === lower)
-    }, [allowCreate, inputValue, options])
+    }, [allowCreate, inputValue, options, isSearching])
 
     const handleSelect = (optValue: string) => {
         onValueChange?.(optValue)
@@ -87,6 +91,7 @@ export function Combobox({
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         setInputValue(e.target.value)
+        setIsSearching(true)
         if (!open) setOpen(true)
     }
 
