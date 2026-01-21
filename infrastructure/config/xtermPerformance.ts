@@ -42,7 +42,7 @@ export const XTERM_PERFORMANCE_CONFIG = {
     // Enable WebGL by default for GPU acceleration
     enabled: true,
 
-    // macOS 强制使用 WebGL；仅在非 macOS 平台可选择 Canvas
+    // User can choose Canvas renderer on any platform
     preferCanvas: false,
 
     // Handle WebGL context loss gracefully
@@ -149,8 +149,8 @@ export function resolveXTermPerformanceConfig({
   const lowMem = isLowMemoryDevice(deviceMemoryGb);
   const resolvedPreferCanvas =
     typeof preferCanvasRenderer === "boolean"
-      ? preferCanvasRenderer && platform !== "darwin"
-      : platform !== "darwin" && (baseConfig.webgl.preferCanvas || lowMem);
+      ? preferCanvasRenderer
+      : baseConfig.webgl.preferCanvas || lowMem;
 
   const scrollbackProfile = lowMem
     ? "lowMemory"

@@ -113,9 +113,13 @@ export const createXTermRuntime = (ctx: CreateXTermRuntimeContext): XTermRuntime
       ? (navigator as { deviceMemory?: number }).deviceMemory
       : undefined;
 
+  const settings = ctx.terminalSettingsRef.current;
+  const preferCanvasRenderer = settings?.preferCanvasRenderer ?? false;
+
   const performanceConfig = resolveXTermPerformanceConfig({
     platform,
     deviceMemoryGb,
+    preferCanvasRenderer,
   });
 
   const hostFontId = ctx.host.fontFamily || ctx.fontFamilyId || "menlo";
@@ -125,7 +129,6 @@ export const createXTermRuntime = (ctx: CreateXTermRuntimeContext): XTermRuntime
 
   const effectiveFontSize = ctx.host.fontSize || ctx.fontSize;
 
-  const settings = ctx.terminalSettingsRef.current;
   const cursorStyle = settings?.cursorShape ?? "block";
   const cursorBlink = settings?.cursorBlink ?? true;
   const scrollback = settings?.scrollback ?? 10000;

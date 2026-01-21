@@ -935,6 +935,11 @@ const zhCN: Messages = {
   'settings.terminal.serverStats.refreshInterval.desc': '服务器状态刷新的频率。',
   'settings.terminal.serverStats.seconds': '秒',
 
+  // Settings > Terminal > Rendering
+  'settings.terminal.section.rendering': '渲染',
+  'settings.terminal.rendering.renderer': '渲染器',
+  'settings.terminal.rendering.renderer.desc': '选择终端渲染技术。Canvas 在某些系统上可能性能更好。更改将在新终端会话中生效。',
+
   // Settings > Shortcuts
   'settings.shortcuts.section.scheme': '快捷键方案',
   'settings.shortcuts.scheme.label': '键盘快捷键',

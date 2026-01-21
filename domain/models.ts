@@ -389,6 +389,9 @@ export interface TerminalSettings {
   // Server Stats Display (Linux only)
   showServerStats: boolean; // Show CPU/Memory/Disk in terminal statusbar
   serverStatsRefreshInterval: number; // Seconds between stats refresh (default: 30)
+
+  // Rendering
+  preferCanvasRenderer: boolean; // Use Canvas instead of WebGL for terminal rendering
 }
 
 export const DEFAULT_KEYWORD_HIGHLIGHT_RULES: KeywordHighlightRule[] = [
@@ -429,6 +432,7 @@ export const DEFAULT_TERMINAL_SETTINGS: TerminalSettings = {
   keepaliveInterval: 0, // 0 = disabled (use SSH library defaults)
   showServerStats: true, // Show server stats by default
   serverStatsRefreshInterval: 5, // Refresh every 5 seconds
+  preferCanvasRenderer: false, // Use WebGL by default
 };
 
 export interface TerminalTheme {

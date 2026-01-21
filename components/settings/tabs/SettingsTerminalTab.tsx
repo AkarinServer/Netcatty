@@ -646,6 +646,24 @@ export default function SettingsTerminalTab(props: {
           </SettingRow>
         )}
       </div>
+
+      <SectionHeader title={t("settings.terminal.section.rendering")} />
+      <div className="space-y-0 divide-y divide-border rounded-lg border bg-card px-4">
+        <SettingRow
+          label={t("settings.terminal.rendering.renderer")}
+          description={t("settings.terminal.rendering.renderer.desc")}
+        >
+          <Select
+            value={terminalSettings.preferCanvasRenderer ? "canvas" : "webgl"}
+            options={[
+              { value: "webgl", label: "WebGL" },
+              { value: "canvas", label: "Canvas" },
+            ]}
+            onChange={(v) => updateTerminalSetting("preferCanvasRenderer", v === "canvas")}
+            className="w-32"
+          />
+        </SettingRow>
+      </div>
     </SettingsTabContent>
   );
 }
