@@ -17,6 +17,19 @@ function stripAnsi(str) {
 }
 
 /**
+ * Escape HTML special characters to prevent XSS
+ * Must be applied before converting ANSI codes to HTML spans
+ */
+function escapeHtml(str) {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+/**
  * Convert terminal data to HTML with colors preserved
  */
 function terminalDataToHtml(terminalData, hostLabel, timestamp) {
@@ -52,32 +65,48 @@ function terminalDataToHtml(terminalData, hostLabel, timestamp) {
       "4": "text-decoration: underline",
     };
 
-    let result = text;
-    // Replace ANSI codes with span tags
-    result = result.replace(/\x1B\[([0-9;]+)m/g, (match, codes) => {
-      if (codes === "0" || codes === "") {
-        return "</span>";
-      }
-      const styles = codes.split(";").map((c) => colorMap[c]).filter(Boolean);
-      if (styles.length > 0) {
-        return `<span style="${styles.join("; ")}">`;
-      }
-      return "";
-    });
-    // Remove other escape sequences
+    // First, escape HTML in the text content (not the ANSI codes)
+    // We do this by splitting on ANSI sequences, escaping each text part, then rejoining
     // eslint-disable-next-line no-control-regex
-    result = result.replace(/\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])/g, "");
+    const ansiRegex = /(\x1B\[[0-9;]*m|\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~]))/g;
+    const parts = text.split(ansiRegex);
+
+    let result = parts.map((part) => {
+      // Check if this part is an ANSI sequence
+      // eslint-disable-next-line no-control-regex
+      if (/^\x1B/.test(part)) {
+        // It's an ANSI sequence, convert to HTML span or remove
+        const match = part.match(/^\x1B\[([0-9;]*)m$/);
+        if (match) {
+          const codes = match[1];
+          if (codes === "0" || codes === "") {
+            return "</span>";
+          }
+          const styles = codes.split(";").map((c) => colorMap[c]).filter(Boolean);
+          if (styles.length > 0) {
+            return `<span style="${styles.join("; ")}">`;
+          }
+        }
+        // Other ANSI sequences are stripped
+        return "";
+      }
+      // It's regular text, escape HTML
+      return escapeHtml(part);
+    }).join("");
+
     return result;
   };
 
   const htmlContent = ansiToHtml(terminalData);
   const dateStr = new Date(timestamp).toLocaleString();
+  const safeHostLabel = escapeHtml(hostLabel || "Unknown");
+  const safeDateStr = escapeHtml(dateStr);
 
   return `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Session Log - ${hostLabel}</title>
+  <title>Session Log - ${safeHostLabel}</title>
   <style>
     body {
       background: #1e1e1e;
@@ -99,8 +128,8 @@ function terminalDataToHtml(terminalData, hostLabel, timestamp) {
 </head>
 <body>
   <div class="header">
-    Host: ${hostLabel}<br>
-    Date: ${dateStr}
+    Host: ${safeHostLabel}<br>
+    Date: ${safeDateStr}
   </div>
   <div class="content">${htmlContent}</div>
 </body>
