@@ -84,10 +84,15 @@ const updateResolvedEncoding = (sftpId, requestedEncoding, resolvedEncoding) => 
   return finalResolved;
 };
 
+const isAsciiString = (value) =>
+  typeof value === "string" && /^[\x00-\x7F]*$/.test(value);
+
 const encodePath = (input, encoding) => {
   if (input === undefined || input === null) return input;
   if (Buffer.isBuffer(input)) return input;
   if (encoding === "utf-8") return input;
+  // Avoid Buffer paths when ASCII-only; keeps compatibility with unpatched ssh2
+  if (isAsciiString(input)) return input;
   return iconv.encode(input, encoding);
 };
 
@@ -845,12 +850,31 @@ async function listSftp(event, payload) {
     throw new Error("SFTP channel not ready");
   }
 
-  const list = await new Promise((resolve, reject) => {
-    sftp.readdir(encodedPath, (err, items) => {
-      if (err) return reject(err);
-      resolve(items || []);
+  let list;
+  try {
+    list = await new Promise((resolve, reject) => {
+      sftp.readdir(encodedPath, (err, items) => {
+        if (err) return reject(err);
+        resolve(items || []);
+      });
     });
-  });
+  } catch (err) {
+    // Retry with string path when ASCII-only and a Buffer path caused issues
+    if (Buffer.isBuffer(encodedPath) && isAsciiString(basePath)) {
+      console.warn("[SFTP] Retrying readdir with string path after Buffer failure", {
+        basePath,
+        error: err?.message || String(err),
+      });
+      list = await new Promise((resolve, reject) => {
+        sftp.readdir(basePath, (retryErr, items) => {
+          if (retryErr) return reject(retryErr);
+          resolve(items || []);
+        });
+      });
+    } else {
+      throw err;
+    }
+  }
 
   const detectedEncoding =
     requestedEncoding === "auto" ? detectEncodingFromList(list) : requestedEncoding;
