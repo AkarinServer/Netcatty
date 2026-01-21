@@ -44,6 +44,7 @@ const DialogContent = React.forwardRef<
           className
         )}
         style={{ boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 12px 24px -8px rgba(0, 0, 0, 0.15)' }}
+        aria-describedby={undefined}
         {...props}
       >
         {children}
