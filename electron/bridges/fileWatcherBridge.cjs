@@ -9,9 +9,9 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const crypto = require("node:crypto");
-let encodePathForSession = null;
 
-const { encodePathForSession } = require("./sftpBridge.cjs");
+// Lazy-load encodePathForSession to avoid circular dependency issues
+let encodePathForSession = null;
 
 // Map of watchId -> { watcher, localPath, remotePath, sftpId, lastModified, lastSize }
 const activeWatchers = new Map();
@@ -135,17 +135,10 @@ async function startWatching(event, { localPath, remotePath, sftpId, encoding })
       debounceTimers.delete(watchId);
       await handleFileChange(watchId, webContents);
     }, 500); // 500ms debounce
-    
-  if (encodePathForSession === null) {
-    ({ encodePathForSession } = require("./sftpBridge.cjs"));
-  }
-    const resolvedRemotePath = encodePathForSession
-      ? encodePathForSession(sftpId, remotePath)
-      : remotePath;
-    
-    console.log(`[FileWatcher] Syncing ${content.length} bytes to ${resolvedRemotePath}`);
-    await client.put(content, resolvedRemotePath);
-    console.log(`[FileWatcher] Sync complete: ${resolvedRemotePath}`);
+
+    debounceTimers.set(watchId, timer);
+  });
+
   activeWatchers.set(watchId, {
     watcher: null, // fs.watchFile doesn't return a watcher object
     localPath,
@@ -170,7 +163,12 @@ async function handleFileChange(watchId, webContents) {
   if (!watchInfo) return;
   
   const { localPath, remotePath, sftpId, encoding, lastModified: previousModified, lastSize: previousSize } = watchInfo;
-  
+
+  // Lazy-load encodePathForSession to avoid circular dependency
+  if (encodePathForSession === null) {
+    ({ encodePathForSession } = require("./sftpBridge.cjs"));
+  }
+
   // Extract file name once for notifications and logging
   const fileName = path.basename(remotePath);
   
