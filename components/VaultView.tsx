@@ -360,8 +360,9 @@ const VaultViewInner: React.FC<VaultViewProps> = ({
   const handleCopyCredentials = useCallback((host: Host) => {
     const parts: string[] = [];
 
-    // For telnet hosts, use telnet-specific port and credentials
-    const isTelnet = host.protocol === "telnet" || host.telnetEnabled;
+    // Only use telnet-specific port and credentials when protocol is explicitly telnet
+    // Don't treat telnetEnabled as primary - that's just an optional protocol
+    const isTelnet = host.protocol === "telnet";
 
     // Format: address:port username password
     const defaultPort = isTelnet ? 23 : 22;
