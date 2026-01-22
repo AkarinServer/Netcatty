@@ -37,11 +37,16 @@ jobs:
       - name: Install deps
         run: npm ci
 
-      - name: Set version from tag
-        if: startsWith(github.ref, 'refs/tags/v')
+      - name: Set version
         shell: bash
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            # Tag release: use version from tag
+            VERSION="${GITHUB_REF_NAME#v}"
+          else
+            # workflow_dispatch: use short commit ID
+            VERSION="${GITHUB_SHA:0:7}"
+          fi
           echo "Setting version to ${VERSION}"
           npm pkg set version="${VERSION}"
 
