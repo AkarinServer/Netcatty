@@ -1,15 +1,9 @@
 const fs = require('fs');
 const path = require('path');
 
-// Check if refName is a version tag (matches v* pattern used by workflow trigger)
-// This keeps parsing in sync with build.yml which triggers on tags: v*
-function isVersionTag(refName) {
-  return refName && /^v\d/.test(refName);
-}
-
 // Determine version priority:
 // 1. VERSION env variable
-// 2. Any v* tag (v1, v1.2, v1.2.3, etc. - matches build.yml trigger)
+// 2. Valid version tag (v1.2.3 format)
 // 3. Short commit ID (first 7 chars of GITHUB_SHA)
 // 4. package.json version as fallback
 function getVersion() {
@@ -18,8 +12,8 @@ function getVersion() {
   }
 
   const refName = process.env.GITHUB_REF_NAME;
-  // Accept any v* tag to match build.yml behavior
-  if (isVersionTag(refName)) {
+  // Check if refName is a valid version tag (e.g., v1.2.3)
+  if (refName && /^v\d+\.\d+\.\d+/.test(refName)) {
     return refName.replace(/^v/, '');
   }
 
@@ -42,7 +36,7 @@ function getVersion() {
 const version = getVersion();
 const repo = process.env.GITHUB_REPOSITORY || 'binaricat/netcatty';
 // For tag releases, use the tag; for workflow_dispatch, create a tag from version
-const tag = isVersionTag(process.env.GITHUB_REF_NAME)
+const tag = (process.env.GITHUB_REF_NAME && /^v\d+\.\d+\.\d+/.test(process.env.GITHUB_REF_NAME))
   ? process.env.GITHUB_REF_NAME
   : `v${version}`;
 const baseUrl = `https://github.com/${repo}/releases/download/${tag}`;
