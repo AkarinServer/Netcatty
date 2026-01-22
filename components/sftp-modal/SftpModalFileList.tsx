@@ -23,7 +23,6 @@ interface SftpModalFileListProps {
   loading: boolean;
   loadingTextContent: boolean;
   reconnecting: boolean;
-  resolvedLocale: string | undefined;
   columnWidths: { name: number; size: number; modified: number; actions: number };
   sortField: "name" | "size" | "modified";
   sortOrder: "asc" | "desc";
@@ -53,7 +52,7 @@ interface SftpModalFileListProps {
   handleDeleteSelected: () => void;
   loadFiles: (path: string, options?: { force?: boolean }) => void;
   formatBytes: (bytes: number | string) => string;
-  formatDate: (dateStr: string | number | undefined, locale?: string) => string;
+  formatDate: (dateStr: string | number | undefined) => string;
 }
 
 export const SftpModalFileList: React.FC<SftpModalFileListProps> = ({
@@ -66,7 +65,6 @@ export const SftpModalFileList: React.FC<SftpModalFileListProps> = ({
   loading,
   loadingTextContent,
   reconnecting,
-  resolvedLocale,
   columnWidths,
   sortField,
   sortOrder,
@@ -279,7 +277,7 @@ export const SftpModalFileList: React.FC<SftpModalFileListProps> = ({
                         {isNavigableDirectory ? "--" : formatBytes(file.size)}
                       </div>
                       <div className="text-xs text-muted-foreground truncate">
-                        {formatDate(file.lastModified, resolvedLocale)}
+                        {formatDate(file.lastModified)}
                       </div>
                       <div className="flex items-center justify-end gap-1">
                         {isDownloadableFile && (

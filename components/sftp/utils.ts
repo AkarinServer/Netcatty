@@ -48,7 +48,7 @@ export const formatTransferBytes = (bytes: number): string => {
 };
 
 /**
- * Format date as YYYY-MM-DD HH:mm:ss in local timezone
+ * Format date as YYYY-MM-DD hh:mm:ss in local timezone
  */
 export const formatDate = (timestamp: number | undefined): string => {
     if (!timestamp) return '--';

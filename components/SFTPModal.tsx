@@ -77,7 +77,7 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
     downloadSftpToTempAndOpen,
     cancelSftpUpload,
   } = useSftpBackend();
-  const { t, resolvedLocale } = useI18n();
+  const { t } = useI18n();
   const { sftpAutoSync, sftpShowHiddenFiles } = useSettingsState();
   const isLocalSession = host.protocol === "local";
   const [filenameEncoding, setFilenameEncoding] = useState<SftpFilenameEncoding>(
@@ -540,7 +540,6 @@ const SFTPModal: React.FC<SFTPModalProps> = ({
           loading={loading}
           loadingTextContent={loadingTextContent}
           reconnecting={reconnecting}
-          resolvedLocale={resolvedLocale}
           columnWidths={columnWidths}
           sortField={sortField}
           sortOrder={sortOrder}

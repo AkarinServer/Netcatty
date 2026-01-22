@@ -7,9 +7,10 @@ export const formatBytes = (bytes: number | string): string => {
   return `${size.toFixed(i === 0 ? 0 : 1)} ${units[i]}`;
 };
 
-export const formatDate = (dateStr: string | number | undefined, locale?: string): string => {
+export const formatDate = (dateStr: string | number | undefined): string => {
   if (!dateStr) return "--";
   const date = typeof dateStr === "number" ? new Date(dateStr) : new Date(dateStr);
   if (isNaN(date.getTime())) return String(dateStr);
-  return date.toLocaleString(locale || undefined);
+  const pad = (value: number) => value.toString().padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
 };
