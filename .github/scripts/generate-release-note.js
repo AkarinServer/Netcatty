@@ -1,8 +1,11 @@
 const fs = require('fs');
 const path = require('path');
 
-// Determine version: prefer VERSION env, then check if GITHUB_REF_NAME is a valid version tag,
-// otherwise fall back to package.json version to match electron-builder artifacts
+// Determine version priority:
+// 1. VERSION env variable
+// 2. Valid version tag (v1.2.3 format)
+// 3. Short commit ID (first 7 chars of GITHUB_SHA)
+// 4. package.json version as fallback
 function getVersion() {
   if (process.env.VERSION) {
     return process.env.VERSION;
@@ -14,7 +17,13 @@ function getVersion() {
     return refName.replace(/^v/, '');
   }
 
-  // Fall back to package.json version (matches electron-builder artifacts)
+  // Use short commit ID
+  const sha = process.env.GITHUB_SHA;
+  if (sha) {
+    return sha.substring(0, 7);
+  }
+
+  // Fall back to package.json version
   try {
     const pkgPath = path.join(__dirname, '..', '..', 'package.json');
     const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
