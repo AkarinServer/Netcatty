@@ -816,7 +816,7 @@ const HostDetailsPanel: React.FC<HostDetailsPanelProps> = ({
                   {t("hostDetails.password.save")}
                 </span>
                 <Switch
-                  checked={form.savePassword !== false}
+                  checked={form.savePassword ?? true}
                   onCheckedChange={(val) => update("savePassword" as keyof Host, val)}
                 />
               </div>
