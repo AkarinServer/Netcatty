@@ -409,6 +409,7 @@ const zhCN: Messages = {
   'hostDetails.section.mosh': 'Mosh',
   'hostDetails.username.placeholder': '用户名',
   'hostDetails.password.placeholder': '密码',
+  'hostDetails.password.save': '保存密码',
   'hostDetails.identity.suggestions': '身份',
   'hostDetails.identity.missing': '身份不存在',
   'hostDetails.credential.keyCertificate': '密钥 / 证书',

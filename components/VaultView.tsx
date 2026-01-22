@@ -2,6 +2,7 @@ import {
   Activity,
   BookMarked,
   ChevronDown,
+  Copy,
   Edit2,
   FileCode,
   FolderPlus,
@@ -300,6 +301,19 @@ const VaultViewInner: React.FC<VaultViewProps> = ({
     setEditingHost(host);
     setIsHostPanelOpen(true);
   }, []);
+
+  const handleDuplicateHost = useCallback((host: Host) => {
+    // Create a copy of the host with a new ID and modified label
+    const duplicatedHost: Host = {
+      ...host,
+      id: crypto.randomUUID(),
+      label: `${host.label} (${t('action.copy')})`,
+      createdAt: Date.now(),
+    };
+    // Open the edit panel with the duplicated host for modification
+    setEditingHost(duplicatedHost);
+    setIsHostPanelOpen(true);
+  }, [t]);
 
   const readTextFile = useCallback(async (file: File): Promise<string> => {
     const buf = await file.arrayBuffer();
@@ -1219,18 +1233,23 @@ const VaultViewInner: React.FC<VaultViewProps> = ({
                               <ContextMenuItem
                                 onClick={() => handleHostConnect(host)}
                               >
-                                <Plug className="mr-2 h-4 w-4" /> Connect
+                                <Plug className="mr-2 h-4 w-4" /> {t('vault.hosts.connect')}
                               </ContextMenuItem>
                               <ContextMenuItem
                                 onClick={() => handleEditHost(host)}
                               >
-                                <Edit2 className="mr-2 h-4 w-4" /> Edit
+                                <Edit2 className="mr-2 h-4 w-4" /> {t('action.edit')}
+                              </ContextMenuItem>
+                              <ContextMenuItem
+                                onClick={() => handleDuplicateHost(host)}
+                              >
+                                <Copy className="mr-2 h-4 w-4" /> {t('action.duplicate')}
                               </ContextMenuItem>
                               <ContextMenuItem
                                 className="text-destructive"
                                 onClick={() => onDeleteHost(host.id)}
                               >
-                                <Trash2 className="mr-2 h-4 w-4" /> Delete
+                                <Trash2 className="mr-2 h-4 w-4" /> {t('action.delete')}
                               </ContextMenuItem>
                             </ContextMenuContent>
                           </ContextMenu>

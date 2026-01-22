@@ -250,6 +250,8 @@ const HostDetailsPanel: React.FC<HostDetailsPanelProps> = ({
       group: groupInputValue.trim() || form.group,
       tags: form.tags || [],
       port: form.port || 22,
+      // Clear password if savePassword is explicitly set to false
+      password: form.savePassword === false ? undefined : form.password,
     };
     onSave(cleaned);
   };
@@ -805,6 +807,19 @@ const HostDetailsPanel: React.FC<HostDetailsPanelProps> = ({
                 onChange={(e) => update("password", e.target.value)}
                 className="h-10"
               />
+            )}
+
+            {/* Save Password toggle - shown when password is entered */}
+            {!selectedIdentity && !form.identityId && form.password && (
+              <div className="flex items-center justify-between py-1">
+                <span className="text-xs text-muted-foreground">
+                  {t("hostDetails.password.save")}
+                </span>
+                <Switch
+                  checked={form.savePassword !== false}
+                  onCheckedChange={(val) => update("savePassword" as keyof Host, val)}
+                />
+              </div>
             )}
 
             {/* Selected credential display */}

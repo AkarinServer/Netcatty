@@ -65,6 +65,7 @@ export interface Host {
   identityFileId?: string; // Reference to SSHKey
   protocol?: 'ssh' | 'telnet' | 'local' | 'serial'; // Default/primary protocol
   password?: string;
+  savePassword?: boolean; // Whether to save the password (default: true)
   authMethod?: 'password' | 'key' | 'certificate';
   agentForwarding?: boolean;
   createdAt?: number; // Timestamp when host was created

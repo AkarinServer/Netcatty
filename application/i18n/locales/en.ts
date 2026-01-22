@@ -662,6 +662,7 @@ const en: Messages = {
   'hostDetails.section.mosh': 'Mosh',
   'hostDetails.username.placeholder': 'Username',
   'hostDetails.password.placeholder': 'Password',
+  'hostDetails.password.save': 'Save password',
   'hostDetails.identity.suggestions': 'Identities',
   'hostDetails.identity.missing': 'Identity not found',
   'hostDetails.credential.keyCertificate': 'Key, Certificate',
