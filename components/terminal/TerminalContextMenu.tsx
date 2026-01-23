@@ -61,6 +61,8 @@ export const TerminalContextMenu: React.FC<TerminalContextMenuProps> = ({
   const splitVShortcut = isMac ? '⌘E' : 'Ctrl+Shift+E';
   const clearShortcut = isMac ? '⌘K' : 'Ctrl+L';
 
+  const showContextMenu = rightClickBehavior === 'context-menu';
+
   const handleRightClick = useCallback(
     (e: React.MouseEvent) => {
       if (rightClickBehavior === 'paste') {
@@ -76,71 +78,72 @@ export const TerminalContextMenu: React.FC<TerminalContextMenuProps> = ({
     [rightClickBehavior, onPaste, onSelectWord],
   );
 
-  if (rightClickBehavior !== 'context-menu') {
-    return (
-      <div onContextMenu={handleRightClick} className="contents">
-        {children}
-      </div>
-    );
-  }
-
+  // Always use ContextMenu wrapper to maintain consistent React tree structure
+  // This prevents terminal from unmounting when rightClickBehavior changes
   return (
     <ContextMenu>
-      <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
-      <ContextMenuContent className="w-56">
-        <ContextMenuItem onClick={onCopy} disabled={!hasSelection}>
-          <Copy size={14} className="mr-2" />
-          {t('terminal.menu.copy')}
-          <ContextMenuShortcut>{copyShortcut}</ContextMenuShortcut>
-        </ContextMenuItem>
-        <ContextMenuItem onClick={onPaste}>
-          <ClipboardPaste size={14} className="mr-2" />
-          {t('terminal.menu.paste')}
-          <ContextMenuShortcut>{pasteShortcut}</ContextMenuShortcut>
-        </ContextMenuItem>
-        <ContextMenuItem onClick={onSelectAll}>
-          <TerminalIcon size={14} className="mr-2" />
-          {t('terminal.menu.selectAll')}
-          <ContextMenuShortcut>{selectAllShortcut}</ContextMenuShortcut>
-        </ContextMenuItem>
+      <ContextMenuTrigger
+        asChild
+        disabled={!showContextMenu}
+        onContextMenu={!showContextMenu ? handleRightClick : undefined}
+      >
+        {children}
+      </ContextMenuTrigger>
+      {showContextMenu && (
+        <ContextMenuContent className="w-56">
+          <ContextMenuItem onClick={onCopy} disabled={!hasSelection}>
+            <Copy size={14} className="mr-2" />
+            {t('terminal.menu.copy')}
+            <ContextMenuShortcut>{copyShortcut}</ContextMenuShortcut>
+          </ContextMenuItem>
+          <ContextMenuItem onClick={onPaste}>
+            <ClipboardPaste size={14} className="mr-2" />
+            {t('terminal.menu.paste')}
+            <ContextMenuShortcut>{pasteShortcut}</ContextMenuShortcut>
+          </ContextMenuItem>
+          <ContextMenuItem onClick={onSelectAll}>
+            <TerminalIcon size={14} className="mr-2" />
+            {t('terminal.menu.selectAll')}
+            <ContextMenuShortcut>{selectAllShortcut}</ContextMenuShortcut>
+          </ContextMenuItem>
 
-        <ContextMenuSeparator />
+          <ContextMenuSeparator />
 
-        <ContextMenuItem onClick={onSplitVertical}>
-          <SplitSquareHorizontal size={14} className="mr-2" />
-          {t('terminal.menu.splitHorizontal')}
-          <ContextMenuShortcut>{splitVShortcut}</ContextMenuShortcut>
-        </ContextMenuItem>
-        <ContextMenuItem onClick={onSplitHorizontal}>
-          <SplitSquareVertical size={14} className="mr-2" />
-          {t('terminal.menu.splitVertical')}
-          <ContextMenuShortcut>{splitHShortcut}</ContextMenuShortcut>
-        </ContextMenuItem>
+          <ContextMenuItem onClick={onSplitVertical}>
+            <SplitSquareHorizontal size={14} className="mr-2" />
+            {t('terminal.menu.splitHorizontal')}
+            <ContextMenuShortcut>{splitVShortcut}</ContextMenuShortcut>
+          </ContextMenuItem>
+          <ContextMenuItem onClick={onSplitHorizontal}>
+            <SplitSquareVertical size={14} className="mr-2" />
+            {t('terminal.menu.splitVertical')}
+            <ContextMenuShortcut>{splitHShortcut}</ContextMenuShortcut>
+          </ContextMenuItem>
 
-        <ContextMenuSeparator />
+          <ContextMenuSeparator />
 
-        <ContextMenuItem onClick={onClear}>
-          <Trash2 size={14} className="mr-2" />
-          {t('terminal.menu.clearBuffer')}
-          <ContextMenuShortcut>{clearShortcut}</ContextMenuShortcut>
-        </ContextMenuItem>
+          <ContextMenuItem onClick={onClear}>
+            <Trash2 size={14} className="mr-2" />
+            {t('terminal.menu.clearBuffer')}
+            <ContextMenuShortcut>{clearShortcut}</ContextMenuShortcut>
+          </ContextMenuItem>
 
-        {onClose && (
-          <>
-            <ContextMenuSeparator />
-            <ContextMenuItem
-              onClick={onClose}
-              className="text-destructive focus:text-destructive"
-            >
-              <Trash2 size={14} className="mr-2" />
-              {t('terminal.menu.closeTerminal')}
-            </ContextMenuItem>
-          </>
-        )}
-      </ContextMenuContent>
+          {onClose && (
+            <>
+              <ContextMenuSeparator />
+              <ContextMenuItem
+                onClick={onClose}
+                className="text-destructive focus:text-destructive"
+              >
+                <Trash2 size={14} className="mr-2" />
+                {t('terminal.menu.closeTerminal')}
+              </ContextMenuItem>
+            </>
+          )}
+        </ContextMenuContent>
+      )}
     </ContextMenu>
   );
 };
 
 export default TerminalContextMenu;
-
