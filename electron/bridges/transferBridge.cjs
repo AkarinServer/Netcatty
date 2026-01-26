@@ -136,11 +136,18 @@ async function downloadWithStreams(remotePath, localPath, client, fileSize, tran
 
     readStream.on('error', (err) => cleanup(err));
     writeStream.on('error', (err) => cleanup(err));
+    // Handle normal completion
     writeStream.on('finish', () => {
       if (transfer.cancelled) {
         cleanup(new Error('Transfer cancelled'));
       } else {
         cleanup(null);
+      }
+    });
+    // Handle stream destruction (destroy() emits 'close' but not 'finish')
+    writeStream.on('close', () => {
+      if (transfer.cancelled) {
+        cleanup(new Error('Transfer cancelled'));
       }
     });
 
@@ -280,11 +287,18 @@ async function startTransfer(event, payload) {
 
         readStream.on('error', cleanup);
         writeStream.on('error', cleanup);
+        // Handle normal completion
         writeStream.on('finish', () => {
           if (transfer.cancelled) {
             cleanup(new Error('Transfer cancelled'));
           } else {
             cleanup(null);
+          }
+        });
+        // Handle stream destruction (destroy() emits 'close' but not 'finish')
+        writeStream.on('close', () => {
+          if (transfer.cancelled) {
+            cleanup(new Error('Transfer cancelled'));
           }
         });
 
