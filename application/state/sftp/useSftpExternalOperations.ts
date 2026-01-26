@@ -344,6 +344,25 @@ export const useSftpExternalOperations = (
           }
         : undefined,
       cancelSftpUpload: bridge?.cancelSftpUpload,
+      // Stream transfer for large files (avoids loading into memory)
+      startStreamTransfer: bridge?.startStreamTransfer
+        ? async (options, onProgress, onComplete, onError) => {
+            const b = netcattyBridge.get();
+            if (!b?.startStreamTransfer) {
+              return { transferId: options.transferId, error: 'Stream transfer not available' };
+            }
+            try {
+              const result = await b.startStreamTransfer(options, onProgress, onComplete, onError);
+              return result;
+            } catch (error) {
+              return {
+                transferId: options.transferId,
+                error: error instanceof Error ? error.message : String(error),
+              };
+            }
+          }
+        : undefined,
+      cancelTransfer: bridge?.cancelTransfer,
     };
   }, []);
 

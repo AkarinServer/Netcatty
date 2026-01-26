@@ -49,6 +49,22 @@ interface UseSftpModalTransfersParams {
   mkdirLocal: (path: string) => Promise<void>;
   mkdirSftp: (sftpId: string, path: string) => Promise<void>;
   cancelSftpUpload?: (taskId: string) => Promise<unknown>;
+  startStreamTransfer?: (
+    options: {
+      transferId: string;
+      sourcePath: string;
+      targetPath: string;
+      sourceType: 'local' | 'sftp';
+      targetType: 'local' | 'sftp';
+      sourceSftpId?: string;
+      targetSftpId?: string;
+      totalBytes?: number;
+    },
+    onProgress?: (transferred: number, total: number, speed: number) => void,
+    onComplete?: () => void,
+    onError?: (error: string) => void
+  ) => Promise<{ transferId: string; totalBytes?: number; error?: string }>;
+  cancelTransfer?: (transferId: string) => Promise<void>;
   setLoading: (loading: boolean) => void;
   t: (key: string, params?: Record<string, unknown>) => string;
 }
@@ -81,6 +97,8 @@ export const useSftpModalTransfers = ({
   mkdirLocal,
   mkdirSftp,
   cancelSftpUpload,
+  startStreamTransfer,
+  cancelTransfer,
   setLoading,
   t,
 }: UseSftpModalTransfersParams): UseSftpModalTransfersResult => {
@@ -174,8 +192,35 @@ export const useSftpModalTransfers = ({
         }
       },
       cancelSftpUpload,
+      startStreamTransfer: startStreamTransfer ? async (
+        options,
+        onProgress,
+        onComplete,
+        onError
+      ) => {
+        try {
+          const result = await startStreamTransfer(options, onProgress, onComplete, onError);
+          const wasCancelled = cancelledTransferIdsRef.current.has(options.transferId);
+          if (wasCancelled) {
+            cancelledTransferIdsRef.current.delete(options.transferId);
+          }
+          // Handle case where result might be undefined (bridge not available)
+          if (!result) {
+            return { transferId: options.transferId, error: 'Stream transfer not available' };
+          }
+          return { ...result, cancelled: wasCancelled };
+        } catch (error) {
+          const wasCancelled = cancelledTransferIdsRef.current.has(options.transferId);
+          if (wasCancelled) {
+            cancelledTransferIdsRef.current.delete(options.transferId);
+            return { transferId: options.transferId, cancelled: true };
+          }
+          return { transferId: options.transferId, error: error instanceof Error ? error.message : String(error) };
+        }
+      } : undefined,
+      cancelTransfer,
     };
-  }, [writeLocalFile, mkdirLocal, mkdirSftp, writeSftpBinary, writeSftpBinaryWithProgress, cancelSftpUpload]);
+  }, [writeLocalFile, mkdirLocal, mkdirSftp, writeSftpBinary, writeSftpBinaryWithProgress, cancelSftpUpload, startStreamTransfer, cancelTransfer]);
 
   // Create upload callbacks
   const createUploadCallbacks = useCallback((): UploadCallbacks => {
@@ -290,6 +335,11 @@ export const useSftpModalTransfers = ({
 
   const handleUploadMultiple = useCallback(
     async (fileList: FileList) => {
+      console.log('[useSftpModalTransfers] handleUploadMultiple called', {
+        length: fileList.length,
+        currentPath,
+        isLocalSession
+      });
       if (fileList.length === 0) return;
 
       setUploading(true);
@@ -392,14 +442,85 @@ export const useSftpModalTransfers = ({
     [currentPath, createUploadBridge, createUploadCallbacks, ensureSftp, isLocalSession, joinPath, loadFiles, t],
   );
 
+  // Handle upload from File array (used by file input after copying files)
+  const handleUploadFromFiles = useCallback(
+    async (files: File[]) => {
+      console.log('[useSftpModalTransfers] handleUploadFromFiles called', {
+        length: files.length,
+        currentPath,
+        isLocalSession
+      });
+      if (files.length === 0) return;
+
+      setUploading(true);
+
+      // Get SFTP ID for remote sessions
+      let sftpId: string | null = null;
+      if (!isLocalSession) {
+        sftpId = await ensureSftp();
+        cachedSftpIdRef.current = sftpId;
+      }
+
+      // Create controller for cancellation
+      const controller = new UploadController();
+      uploadControllerRef.current = controller;
+
+      const callbacks = createUploadCallbacks();
+
+      try {
+        await uploadFromFileList(
+          files,
+          {
+            targetPath: currentPath,
+            sftpId,
+            isLocal: isLocalSession,
+            bridge: createUploadBridge,
+            joinPath,
+            callbacks,
+          },
+          controller
+        );
+
+        await loadFiles(currentPath, { force: true });
+
+        // Auto-clear completed tasks after 3 seconds
+        setTimeout(() => {
+          setUploadTasks(prev => prev.filter(t => t.status !== "completed"));
+        }, 3000);
+      } catch (error) {
+        toast.error(
+          error instanceof Error ? error.message : t("sftp.error.uploadFailed"),
+          "SFTP"
+        );
+      } finally {
+        setUploading(false);
+        uploadControllerRef.current = null;
+        cachedSftpIdRef.current = null;
+      }
+    },
+    [currentPath, createUploadBridge, createUploadCallbacks, ensureSftp, isLocalSession, joinPath, loadFiles, t],
+  );
+
   const handleFileSelect = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
+      console.log('[useSftpModalTransfers] handleFileSelect called', {
+        files: e.target.files,
+        length: e.target.files?.length
+      });
       if (e.target.files && e.target.files.length > 0) {
-        void handleUploadMultiple(e.target.files);
+        console.log('[useSftpModalTransfers] Starting upload for', e.target.files.length, 'files');
+        // Copy the files before clearing the input, because clearing the input
+        // will also clear the FileList reference
+        const files = Array.from(e.target.files);
+        // Clear input first to allow selecting the same file again
+        e.target.value = "";
+        // Now start the upload with the copied files
+        void handleUploadFromFiles(files);
+      } else {
+        e.target.value = "";
       }
-      e.target.value = "";
     },
-    [handleUploadMultiple],
+    [handleUploadFromFiles],
   );
 
   const handleDrag = useCallback((e: React.DragEvent) => {
@@ -425,14 +546,19 @@ export const useSftpModalTransfers = ({
   );
 
   const cancelUpload = useCallback(async () => {
+    console.log('[useSftpModalTransfers] cancelUpload called');
     const controller = uploadControllerRef.current;
     if (controller) {
       // Mark all active transfer IDs as cancelled before calling cancel
       const activeIds = controller.getActiveTransferIds();
+      console.log('[useSftpModalTransfers] Active transfer IDs:', activeIds);
       for (const id of activeIds) {
         cancelledTransferIdsRef.current.add(id);
       }
       await controller.cancel();
+      console.log('[useSftpModalTransfers] controller.cancel() completed');
+    } else {
+      console.log('[useSftpModalTransfers] No controller found');
     }
 
     // Always clear all uploading/pending tasks immediately, even without controller

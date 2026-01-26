@@ -24,6 +24,127 @@ function init(deps) {
 }
 
 /**
+ * Upload a local file to SFTP using streams (supports cancellation)
+ */
+async function uploadWithStreams(localPath, remotePath, client, fileSize, transfer, sendProgress) {
+  return new Promise((resolve, reject) => {
+    const readStream = fs.createReadStream(localPath);
+
+    // Get the underlying sftp object from ssh2-sftp-client
+    const sftp = client.sftp;
+    if (!sftp) {
+      reject(new Error("SFTP client not ready"));
+      return;
+    }
+
+    const writeStream = sftp.createWriteStream(remotePath);
+    let transferred = 0;
+    let finished = false;
+
+    // Store streams for cancellation
+    transfer.readStream = readStream;
+    transfer.writeStream = writeStream;
+
+    const cleanup = (err) => {
+      if (finished) return;
+      finished = true;
+
+      // Remove listeners to prevent memory leaks
+      readStream.removeAllListeners();
+      writeStream.removeAllListeners();
+
+      if (err) {
+        // Destroy streams on error
+        try { readStream.destroy(); } catch {}
+        try { writeStream.destroy(); } catch {}
+        reject(err);
+      } else {
+        resolve();
+      }
+    };
+
+    readStream.on('data', (chunk) => {
+      if (transfer.cancelled) {
+        cleanup(new Error('Transfer cancelled'));
+        return;
+      }
+      transferred += chunk.length;
+      sendProgress(transferred, fileSize);
+    });
+
+    readStream.on('error', (err) => cleanup(err));
+    writeStream.on('error', (err) => cleanup(err));
+    writeStream.on('close', () => {
+      if (!transfer.cancelled) {
+        cleanup(null);
+      }
+    });
+
+    readStream.pipe(writeStream);
+  });
+}
+
+/**
+ * Download from SFTP to local file using streams (supports cancellation)
+ */
+async function downloadWithStreams(remotePath, localPath, client, fileSize, transfer, sendProgress) {
+  return new Promise((resolve, reject) => {
+    // Get the underlying sftp object from ssh2-sftp-client
+    const sftp = client.sftp;
+    if (!sftp) {
+      reject(new Error("SFTP client not ready"));
+      return;
+    }
+
+    const readStream = sftp.createReadStream(remotePath);
+    const writeStream = fs.createWriteStream(localPath);
+    let transferred = 0;
+    let finished = false;
+
+    // Store streams for cancellation
+    transfer.readStream = readStream;
+    transfer.writeStream = writeStream;
+
+    const cleanup = (err) => {
+      if (finished) return;
+      finished = true;
+
+      // Remove listeners to prevent memory leaks
+      readStream.removeAllListeners();
+      writeStream.removeAllListeners();
+
+      if (err) {
+        // Destroy streams on error
+        try { readStream.destroy(); } catch {}
+        try { writeStream.destroy(); } catch {}
+        reject(err);
+      } else {
+        resolve();
+      }
+    };
+
+    readStream.on('data', (chunk) => {
+      if (transfer.cancelled) {
+        cleanup(new Error('Transfer cancelled'));
+        return;
+      }
+      transferred += chunk.length;
+      sendProgress(transferred, fileSize);
+    });
+
+    readStream.on('error', (err) => cleanup(err));
+    writeStream.on('error', (err) => cleanup(err));
+    writeStream.on('finish', () => {
+      if (!transfer.cancelled) {
+        cleanup(null);
+      }
+    });
+
+    readStream.pipe(writeStream);
+  });
+}
+
+/**
  * Start a file transfer
  */
 async function startTransfer(event, payload) {
@@ -40,17 +161,18 @@ async function startTransfer(event, payload) {
     targetEncoding,
   } = payload;
   const sender = event.sender;
-  
+
   // Register transfer for cancellation
-  activeTransfers.set(transferId, { cancelled: false });
-  
+  const transfer = { cancelled: false, readStream: null, writeStream: null };
+  activeTransfers.set(transferId, transfer);
+
   let lastTime = Date.now();
   let lastTransferred = 0;
   let speed = 0;
-  
+
   const sendProgress = (transferred, total) => {
-    if (activeTransfers.get(transferId)?.cancelled) return;
-    
+    if (transfer.cancelled) return;
+
     const now = Date.now();
     const elapsed = now - lastTime;
     if (elapsed >= 100) {
@@ -58,25 +180,23 @@ async function startTransfer(event, payload) {
       lastTime = now;
       lastTransferred = transferred;
     }
-    
+
     sender.send("netcatty:transfer:progress", { transferId, transferred, speed, totalBytes: total });
   };
-  
+
   const sendComplete = () => {
     activeTransfers.delete(transferId);
     sender.send("netcatty:transfer:complete", { transferId });
   };
-  
+
   const sendError = (error) => {
     activeTransfers.delete(transferId);
     sender.send("netcatty:transfer:error", { transferId, error: error.message || String(error) });
   };
-  
-  const isCancelled = () => activeTransfers.get(transferId)?.cancelled;
-  
+
   try {
     let fileSize = totalBytes || 0;
-    
+
     // Get file size if not provided
     if (!fileSize) {
       if (sourceType === 'local') {
@@ -90,123 +210,115 @@ async function startTransfer(event, payload) {
         fileSize = stat.size;
       }
     }
-    
+
     // Send initial progress
     sendProgress(0, fileSize);
-    
+
     // Handle different transfer scenarios
     if (sourceType === 'local' && targetType === 'sftp') {
-      // Upload: Local -> SFTP
+      // Upload: Local -> SFTP using streams (supports cancellation)
       const client = sftpClients.get(targetSftpId);
       if (!client) throw new Error("Target SFTP session not found");
-      
+
       const dir = path.dirname(targetPath).replace(/\\/g, '/');
       try { await ensureRemoteDirForSession(targetSftpId, dir, targetEncoding); } catch {}
-      
+
       const encodedTargetPath = encodePathForSession(targetSftpId, targetPath, targetEncoding);
-      await client.fastPut(sourcePath, encodedTargetPath, {
-        step: (totalTransferred, chunk, total) => {
-          if (isCancelled()) {
-            throw new Error('Transfer cancelled');
-          }
-          sendProgress(totalTransferred, total);
-        }
-      });
-      
+      await uploadWithStreams(sourcePath, encodedTargetPath, client, fileSize, transfer, sendProgress);
+
     } else if (sourceType === 'sftp' && targetType === 'local') {
-      // Download: SFTP -> Local
+      // Download: SFTP -> Local using streams (supports cancellation)
       const client = sftpClients.get(sourceSftpId);
       if (!client) throw new Error("Source SFTP session not found");
-      
+
       const dir = path.dirname(targetPath);
       await fs.promises.mkdir(dir, { recursive: true });
-      
+
       const encodedSourcePath = encodePathForSession(sourceSftpId, sourcePath, sourceEncoding);
-      await client.fastGet(encodedSourcePath, targetPath, {
-        step: (totalTransferred, chunk, total) => {
-          if (isCancelled()) {
-            throw new Error('Transfer cancelled');
-          }
-          sendProgress(totalTransferred, total);
-        }
-      });
-      
+      await downloadWithStreams(encodedSourcePath, targetPath, client, fileSize, transfer, sendProgress);
+
     } else if (sourceType === 'local' && targetType === 'local') {
       // Local copy: use streams
       const dir = path.dirname(targetPath);
       await fs.promises.mkdir(dir, { recursive: true });
-      
+
       await new Promise((resolve, reject) => {
         const readStream = fs.createReadStream(sourcePath);
         const writeStream = fs.createWriteStream(targetPath);
         let transferred = 0;
-        
-        const transfer = activeTransfers.get(transferId);
-        if (transfer) {
-          transfer.readStream = readStream;
-          transfer.writeStream = writeStream;
-        }
-        
+        let finished = false;
+
+        transfer.readStream = readStream;
+        transfer.writeStream = writeStream;
+
+        const cleanup = (err) => {
+          if (finished) return;
+          finished = true;
+          readStream.removeAllListeners();
+          writeStream.removeAllListeners();
+          if (err) {
+            try { readStream.destroy(); } catch {}
+            try { writeStream.destroy(); } catch {}
+            reject(err);
+          } else {
+            resolve();
+          }
+        };
+
         readStream.on('data', (chunk) => {
-          if (isCancelled()) {
-            readStream.destroy();
-            writeStream.destroy();
-            reject(new Error('Transfer cancelled'));
+          if (transfer.cancelled) {
+            cleanup(new Error('Transfer cancelled'));
             return;
           }
           transferred += chunk.length;
           sendProgress(transferred, fileSize);
         });
-        
-        readStream.on('error', reject);
-        writeStream.on('error', reject);
-        writeStream.on('finish', resolve);
-        
+
+        readStream.on('error', cleanup);
+        writeStream.on('error', cleanup);
+        writeStream.on('finish', () => {
+          if (!transfer.cancelled) {
+            cleanup(null);
+          }
+        });
+
         readStream.pipe(writeStream);
       });
-      
+
     } else if (sourceType === 'sftp' && targetType === 'sftp') {
-      // SFTP to SFTP: download to temp then upload
+      // SFTP to SFTP: download to temp then upload using streams
       const tempPath = path.join(os.tmpdir(), `netcatty-transfer-${transferId}`);
-      
+
       const sourceClient = sftpClients.get(sourceSftpId);
       const targetClient = sftpClients.get(targetSftpId);
       if (!sourceClient) throw new Error("Source SFTP session not found");
       if (!targetClient) throw new Error("Target SFTP session not found");
-      
-      // Download phase (0-50%)
+
+      // Download phase (0-50%) - wrap progress to show 0-50%
       const encodedSourcePath = encodePathForSession(sourceSftpId, sourcePath, sourceEncoding);
-      await sourceClient.fastGet(encodedSourcePath, tempPath, {
-        step: (totalTransferred, chunk, total) => {
-          if (isCancelled()) {
-            throw new Error('Transfer cancelled');
-          }
-          sendProgress(Math.floor(totalTransferred / 2), fileSize);
-        }
-      });
-      
-      if (isCancelled()) {
+      const downloadProgress = (transferred, total) => {
+        sendProgress(Math.floor(transferred / 2), fileSize);
+      };
+      await downloadWithStreams(encodedSourcePath, tempPath, sourceClient, fileSize, transfer, downloadProgress);
+
+      if (transfer.cancelled) {
         try { await fs.promises.unlink(tempPath); } catch {}
         throw new Error('Transfer cancelled');
       }
-      
-      // Upload phase (50-100%)
+
+      // Upload phase (50-100%) - wrap progress to show 50-100%
       const dir = path.dirname(targetPath).replace(/\\/g, '/');
       try { await ensureRemoteDirForSession(targetSftpId, dir, targetEncoding); } catch {}
-      
+
       const encodedTargetPath = encodePathForSession(targetSftpId, targetPath, targetEncoding);
-      await targetClient.fastPut(tempPath, encodedTargetPath, {
-        step: (totalTransferred, chunk, total) => {
-          if (isCancelled()) {
-            throw new Error('Transfer cancelled');
-          }
-          sendProgress(Math.floor(fileSize / 2) + Math.floor(totalTransferred / 2), fileSize);
-        }
-      });
-      
+      const uploadProgress = (transferred, total) => {
+        sendProgress(Math.floor(fileSize / 2) + Math.floor(transferred / 2), fileSize);
+      };
+      await uploadWithStreams(tempPath, encodedTargetPath, targetClient, fileSize, transfer, uploadProgress);
+
       // Cleanup temp file
       try { await fs.promises.unlink(tempPath); } catch {}
-      
+
     } else {
       throw new Error("Invalid transfer configuration");
     }
@@ -232,16 +344,24 @@ async function startTransfer(event, payload) {
  */
 async function cancelTransfer(event, payload) {
   const { transferId } = payload;
+  console.log('[transferBridge] cancelTransfer called for:', transferId);
   const transfer = activeTransfers.get(transferId);
+  console.log('[transferBridge] Found transfer:', !!transfer, 'activeTransfers keys:', Array.from(activeTransfers.keys()));
   if (transfer) {
     transfer.cancelled = true;
+    console.log('[transferBridge] Set cancelled=true for transfer:', transferId);
+
+    // Destroy streams to immediately stop the transfer
     if (transfer.readStream) {
-      try { transfer.readStream.destroy(); } catch {}
+      console.log('[transferBridge] Destroying read stream');
+      try { transfer.readStream.destroy(); } catch (e) { console.log('[transferBridge] Error destroying readStream:', e); }
     }
     if (transfer.writeStream) {
-      try { transfer.writeStream.destroy(); } catch {}
+      console.log('[transferBridge] Destroying write stream');
+      try { transfer.writeStream.destroy(); } catch (e) { console.log('[transferBridge] Error destroying writeStream:', e); }
     }
-    activeTransfers.delete(transferId);
+
+    console.log('[transferBridge] Transfer marked for cancellation');
   }
   return { success: true };
 }

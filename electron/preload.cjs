@@ -1,4 +1,4 @@
-const { ipcRenderer, contextBridge } = require("electron");
+const { ipcRenderer, contextBridge, webUtils } = require("electron");
 
 const dataListeners = new Map();
 const exitListeners = new Map();
@@ -626,6 +626,15 @@ const api = {
     ipcRenderer.invoke("netcatty:sessionLogs:autoSave", payload),
   openSessionLogsDir: (directory) =>
     ipcRenderer.invoke("netcatty:sessionLogs:openDir", { directory }),
+
+  // Get file path from File object (for drag-and-drop)
+  getPathForFile: (file) => {
+    try {
+      return webUtils.getPathForFile(file);
+    } catch {
+      return undefined;
+    }
+  },
 };
 
 // Merge with existing netcatty (if any) to avoid stale objects on hot reload

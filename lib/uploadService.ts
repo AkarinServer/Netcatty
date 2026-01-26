@@ -6,7 +6,7 @@
  * cancellation support, and works for both local and remote (SFTP) uploads.
  */
 
-import { extractDropEntries, DropEntry } from "./sftpFileUtils";
+import { extractDropEntries, DropEntry, getPathForFile } from "./sftpFileUtils";
 
 // ============================================================================
 // Types
@@ -72,6 +72,23 @@ export interface UploadBridge {
     onError?: (error: string) => void
   ) => Promise<{ success: boolean; cancelled?: boolean } | undefined>;
   cancelSftpUpload?: (taskId: string) => Promise<unknown>;
+  /** Stream transfer using local file path (avoids loading file into memory) */
+  startStreamTransfer?: (
+    options: {
+      transferId: string;
+      sourcePath: string;
+      targetPath: string;
+      sourceType: 'local' | 'sftp';
+      targetType: 'local' | 'sftp';
+      sourceSftpId?: string;
+      targetSftpId?: string;
+      totalBytes?: number;
+    },
+    onProgress?: (transferred: number, total: number, speed: number) => void,
+    onComplete?: () => void,
+    onError?: (error: string) => void
+  ) => Promise<{ transferId: string; totalBytes?: number; error?: string; cancelled?: boolean }>;
+  cancelTransfer?: (transferId: string) => Promise<void>;
 }
 
 export interface UploadConfig {
@@ -150,17 +167,24 @@ export class UploadController {
    */
   async cancel(): Promise<void> {
     this.cancelled = true;
-
-    if (!this.bridge?.cancelSftpUpload) {
-      return;
-    }
+    console.log('[UploadController] Cancelling uploads, active IDs:', Array.from(this.activeFileTransferIds));
 
     // Cancel all active file uploads
     const activeIds = Array.from(this.activeFileTransferIds);
     for (const transferId of activeIds) {
       try {
-        await this.bridge.cancelSftpUpload(transferId);
-      } catch {
+        // Try cancelTransfer first (for stream transfers)
+        if (this.bridge?.cancelTransfer) {
+          console.log('[UploadController] Calling cancelTransfer for:', transferId);
+          await this.bridge.cancelTransfer(transferId);
+        }
+        // Also try cancelSftpUpload (for legacy uploads)
+        if (this.bridge?.cancelSftpUpload) {
+          console.log('[UploadController] Calling cancelSftpUpload for:', transferId);
+          await this.bridge.cancelSftpUpload(transferId);
+        }
+      } catch (e) {
+        console.log('[UploadController] Cancel error:', e);
         // Ignore cancel errors
       }
     }
@@ -168,8 +192,16 @@ export class UploadController {
     // Also cancel current one if not in the set
     if (this.currentTransferId && !activeIds.includes(this.currentTransferId)) {
       try {
-        await this.bridge.cancelSftpUpload(this.currentTransferId);
-      } catch {
+        if (this.bridge?.cancelTransfer) {
+          console.log('[UploadController] Calling cancelTransfer for current:', this.currentTransferId);
+          await this.bridge.cancelTransfer(this.currentTransferId);
+        }
+        if (this.bridge?.cancelSftpUpload) {
+          console.log('[UploadController] Calling cancelSftpUpload for current:', this.currentTransferId);
+          await this.bridge.cancelSftpUpload(this.currentTransferId);
+        }
+      } catch (e) {
+        console.log('[UploadController] Cancel current error:', e);
         // Ignore cancel errors
       }
     }
@@ -279,14 +311,16 @@ export async function uploadFromDataTransfer(
 }
 
 /**
- * Upload a FileList with bundled folder support
+ * Upload a FileList or File array with bundled folder support
  */
 export async function uploadFromFileList(
-  fileList: FileList,
+  fileList: FileList | File[],
   config: UploadConfig,
   controller?: UploadController
 ): Promise<UploadResult[]> {
+  console.log('[uploadFromFileList] Called with', fileList.length, 'files');
   const { targetPath, sftpId, isLocal, bridge, joinPath, callbacks } = config;
+  console.log('[uploadFromFileList] Config:', { targetPath, sftpId, isLocal });
 
   if (controller) {
     controller.reset();
@@ -294,16 +328,29 @@ export async function uploadFromFileList(
   }
 
   // Convert FileList to DropEntry array (simple files, no folders)
-  const entries: DropEntry[] = Array.from(fileList).map(file => ({
-    file,
-    relativePath: file.name,
-    isDirectory: false,
-  }));
+  // Use getPathForFile to get the local file path for stream transfer
+  const entries: DropEntry[] = Array.from(fileList).map(file => {
+    const localPath = getPathForFile(file);
+    console.log('[uploadFromFileList] File:', { name: file.name, size: file.size, localPath });
+    if (localPath) {
+      // Set the path property on the file for stream transfer
+      (file as File & { path?: string }).path = localPath;
+    }
+    return {
+      file,
+      relativePath: file.name,
+      isDirectory: false,
+    };
+  });
+
+  console.log('[uploadFromFileList] Created', entries.length, 'entries');
 
   if (entries.length === 0) {
+    console.log('[uploadFromFileList] No entries, returning empty');
     return [];
   }
 
+  console.log('[uploadFromFileList] Calling uploadEntries');
   return uploadEntries(entries, targetPath, sftpId, isLocal, bridge, joinPath, callbacks, controller);
 }
 
@@ -470,96 +517,196 @@ async function uploadEntries(
             }
           }
 
-          const arrayBuffer = await entry.file.arrayBuffer();
+          // Check if file has a local path (Electron provides file.path for dropped files)
+          const localFilePath = (entry.file as File & { path?: string }).path;
 
-          if (isLocal) {
-            if (!bridge.writeLocalFile) {
-              throw new Error("writeLocalFile not available");
-            }
-            await bridge.writeLocalFile(entryTargetPath, arrayBuffer);
-          } else if (sftpId) {
-            if (bridge.writeSftpBinaryWithProgress) {
-              let pendingProgressUpdate: { transferred: number; total: number; speed: number } | null = null;
-              let rafScheduled = false;
+          console.log('[UploadService] Processing file:', {
+            relativePath: entry.relativePath,
+            localFilePath,
+            hasStreamTransfer: !!bridge.startStreamTransfer,
+            sftpId,
+            isLocal,
+            fileSize: fileTotalBytes,
+          });
 
-              const onProgress = (transferred: number, total: number, speed: number) => {
-                if (controller?.isCancelled()) return;
+          // Use stream transfer if available and we have a local file path (avoids loading file into memory)
+          if (localFilePath && bridge.startStreamTransfer && sftpId && !isLocal) {
+            console.log('[UploadService] Using stream transfer for:', localFilePath);
+            let pendingProgressUpdate: { transferred: number; total: number; speed: number } | null = null;
+            let rafScheduled = false;
 
-                pendingProgressUpdate = { transferred, total, speed };
+            const onProgress = (transferred: number, total: number, speed: number) => {
+              if (controller?.isCancelled()) return;
 
-                if (!rafScheduled) {
-                  rafScheduled = true;
-                  requestAnimationFrame(() => {
-                    rafScheduled = false;
-                    const update = pendingProgressUpdate;
-                    pendingProgressUpdate = null;
+              pendingProgressUpdate = { transferred, total, speed };
 
-                    if (update && !controller?.isCancelled() && callbacks?.onTaskProgress) {
-                      if (bundleTaskId) {
-                        const progress = bundleProgress.get(bundleTaskId);
-                        if (progress) {
-                          const newTransferred = progress.completedFilesBytes + update.transferred;
-                          progress.transferredBytes = newTransferred;
-                          progress.currentSpeed = update.speed;
-                          callbacks.onTaskProgress(bundleTaskId, {
-                            transferred: newTransferred,
-                            total: progress.totalBytes,
-                            speed: update.speed,
-                            percent: progress.totalBytes > 0 ? (newTransferred / progress.totalBytes) * 100 : 0,
-                          });
-                        }
-                      } else if (standaloneTransferId) {
-                        callbacks.onTaskProgress(standaloneTransferId, {
-                          transferred: update.transferred,
-                          total: update.total,
+              if (!rafScheduled) {
+                rafScheduled = true;
+                requestAnimationFrame(() => {
+                  rafScheduled = false;
+                  const update = pendingProgressUpdate;
+                  pendingProgressUpdate = null;
+
+                  if (update && !controller?.isCancelled() && callbacks?.onTaskProgress) {
+                    if (bundleTaskId) {
+                      const progress = bundleProgress.get(bundleTaskId);
+                      if (progress) {
+                        const newTransferred = progress.completedFilesBytes + update.transferred;
+                        progress.transferredBytes = newTransferred;
+                        progress.currentSpeed = update.speed;
+                        callbacks.onTaskProgress(bundleTaskId, {
+                          transferred: newTransferred,
+                          total: progress.totalBytes,
                           speed: update.speed,
-                          percent: update.total > 0 ? (update.transferred / update.total) * 100 : 0,
+                          percent: progress.totalBytes > 0 ? (newTransferred / progress.totalBytes) * 100 : 0,
                         });
                       }
+                    } else if (standaloneTransferId) {
+                      callbacks.onTaskProgress(standaloneTransferId, {
+                        transferred: update.transferred,
+                        total: update.total,
+                        speed: update.speed,
+                        percent: update.total > 0 ? (update.transferred / update.total) * 100 : 0,
+                      });
                     }
-                  });
-                }
-              };
-
-              // Use unique file transfer ID for backend cancellation tracking
-              const fileTransferId = crypto.randomUUID();
-              controller?.addActiveTransfer(fileTransferId);
-
-              let result;
-              try {
-                result = await bridge.writeSftpBinaryWithProgress(
-                  sftpId,
-                  entryTargetPath,
-                  arrayBuffer,
-                  fileTransferId,
-                  onProgress,
-                  undefined,
-                  undefined
-                );
-              } finally {
-                controller?.removeActiveTransfer(fileTransferId);
+                  }
+                });
               }
+            };
 
-              if (result?.cancelled) {
-                wasCancelled = true;
-                const taskId = bundleTaskId || standaloneTransferId;
-                if (taskId) {
-                  callbacks?.onTaskCancelled?.(taskId);
-                }
-                break;
-              }
+            const fileTransferId = crypto.randomUUID();
+            controller?.addActiveTransfer(fileTransferId);
 
-              if (!result || result.success === false) {
-                if (bridge.writeSftpBinary) {
-                  await bridge.writeSftpBinary(sftpId, entryTargetPath, arrayBuffer);
-                } else {
-                  throw new Error("Upload failed and no fallback method available");
-                }
+            let streamResult: { transferId: string; totalBytes?: number; error?: string; cancelled?: boolean } | undefined;
+            try {
+              streamResult = await bridge.startStreamTransfer(
+                {
+                  transferId: fileTransferId,
+                  sourcePath: localFilePath,
+                  targetPath: entryTargetPath,
+                  sourceType: 'local',
+                  targetType: 'sftp',
+                  targetSftpId: sftpId,
+                  totalBytes: fileTotalBytes,
+                },
+                onProgress,
+                undefined,
+                undefined
+              );
+            } finally {
+              controller?.removeActiveTransfer(fileTransferId);
+            }
+
+            if (streamResult?.cancelled || streamResult?.error?.includes('cancelled')) {
+              wasCancelled = true;
+              const taskId = bundleTaskId || standaloneTransferId;
+              if (taskId) {
+                callbacks?.onTaskCancelled?.(taskId);
               }
-            } else if (bridge.writeSftpBinary) {
-              await bridge.writeSftpBinary(sftpId, entryTargetPath, arrayBuffer);
-            } else {
-              throw new Error("No SFTP write method available");
+              break;
+            }
+
+            if (streamResult?.error) {
+              throw new Error(streamResult.error);
+            }
+          } else {
+            // Fallback: load file into memory (for small files or when stream transfer is not available)
+            console.log('[UploadService] FALLBACK: Loading file into memory:', {
+              relativePath: entry.relativePath,
+              fileSize: fileTotalBytes,
+              reason: !localFilePath ? 'no local path' : !bridge.startStreamTransfer ? 'no stream transfer' : 'other',
+            });
+            const arrayBuffer = await entry.file.arrayBuffer();
+
+            if (isLocal) {
+              if (!bridge.writeLocalFile) {
+                throw new Error("writeLocalFile not available");
+              }
+              await bridge.writeLocalFile(entryTargetPath, arrayBuffer);
+            } else if (sftpId) {
+              if (bridge.writeSftpBinaryWithProgress) {
+                let pendingProgressUpdate: { transferred: number; total: number; speed: number } | null = null;
+                let rafScheduled = false;
+
+                const onProgress = (transferred: number, total: number, speed: number) => {
+                  if (controller?.isCancelled()) return;
+
+                  pendingProgressUpdate = { transferred, total, speed };
+
+                  if (!rafScheduled) {
+                    rafScheduled = true;
+                    requestAnimationFrame(() => {
+                      rafScheduled = false;
+                      const update = pendingProgressUpdate;
+                      pendingProgressUpdate = null;
+
+                      if (update && !controller?.isCancelled() && callbacks?.onTaskProgress) {
+                        if (bundleTaskId) {
+                          const progress = bundleProgress.get(bundleTaskId);
+                          if (progress) {
+                            const newTransferred = progress.completedFilesBytes + update.transferred;
+                            progress.transferredBytes = newTransferred;
+                            progress.currentSpeed = update.speed;
+                            callbacks.onTaskProgress(bundleTaskId, {
+                              transferred: newTransferred,
+                              total: progress.totalBytes,
+                              speed: update.speed,
+                              percent: progress.totalBytes > 0 ? (newTransferred / progress.totalBytes) * 100 : 0,
+                            });
+                          }
+                        } else if (standaloneTransferId) {
+                          callbacks.onTaskProgress(standaloneTransferId, {
+                            transferred: update.transferred,
+                            total: update.total,
+                            speed: update.speed,
+                            percent: update.total > 0 ? (update.transferred / update.total) * 100 : 0,
+                          });
+                        }
+                      }
+                    });
+                  }
+                };
+
+                // Use unique file transfer ID for backend cancellation tracking
+                const fileTransferId = crypto.randomUUID();
+                controller?.addActiveTransfer(fileTransferId);
+
+                let result;
+                try {
+                  result = await bridge.writeSftpBinaryWithProgress(
+                    sftpId,
+                    entryTargetPath,
+                    arrayBuffer,
+                    fileTransferId,
+                    onProgress,
+                    undefined,
+                    undefined
+                  );
+                } finally {
+                  controller?.removeActiveTransfer(fileTransferId);
+                }
+
+                if (result?.cancelled) {
+                  wasCancelled = true;
+                  const taskId = bundleTaskId || standaloneTransferId;
+                  if (taskId) {
+                    callbacks?.onTaskCancelled?.(taskId);
+                  }
+                  break;
+                }
+
+                if (!result || result.success === false) {
+                  if (bridge.writeSftpBinary) {
+                    await bridge.writeSftpBinary(sftpId, entryTargetPath, arrayBuffer);
+                  } else {
+                    throw new Error("Upload failed and no fallback method available");
+                  }
+                }
+              } else if (bridge.writeSftpBinary) {
+                await bridge.writeSftpBinary(sftpId, entryTargetPath, arrayBuffer);
+              } else {
+                throw new Error("No SFTP write method available");
+              }
             }
           }
 
