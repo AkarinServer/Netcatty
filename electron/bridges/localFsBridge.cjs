@@ -6,19 +6,23 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const os = require("node:os");
-const { execSync } = require("node:child_process");
+const { exec } = require("node:child_process");
+const { promisify } = require("node:util");
+
+const execAsync = promisify(exec);
 
 /**
  * Check if a file is hidden on Windows using the attrib command
  * Returns true if the file has the hidden attribute set
+ * Uses async exec to avoid blocking the main process
  */
-function isWindowsHiddenFile(filePath) {
+async function isWindowsHiddenFile(filePath) {
   if (process.platform !== "win32") return false;
   try {
-    const output = execSync(`attrib "${filePath}"`, { encoding: "utf8" });
+    const { stdout } = await execAsync(`attrib "${filePath}"`);
     // attrib output format: "     H  R  filename" where H = hidden, R = read-only, etc.
     // The attributes appear in the first ~10 characters before the path
-    const attrPart = output.substring(0, output.indexOf(filePath)).toUpperCase();
+    const attrPart = stdout.substring(0, stdout.indexOf(filePath)).toUpperCase();
     return attrPart.includes("H");
   } catch (err) {
     console.warn(`Could not check hidden attribute for ${filePath}:`, err.message);
@@ -67,7 +71,7 @@ async function listLocalDir(event, payload) {
         }
         
         // Check for Windows hidden attribute
-        const hidden = isWindows ? isWindowsHiddenFile(fullPath) : false;
+        const hidden = isWindows ? await isWindowsHiddenFile(fullPath) : false;
         
         result[i] = {
           name: entry.name,
@@ -86,7 +90,7 @@ async function listLocalDir(event, payload) {
             const lstat = await fs.promises.lstat(fullPath);
             if (lstat.isSymbolicLink()) {
               // Broken symlink
-              const hidden = isWindows ? isWindowsHiddenFile(fullPath) : false;
+              const hidden = isWindows ? await isWindowsHiddenFile(fullPath) : false;
               result[i] = {
                 name: brokenEntry.name,
                 type: "symlink",
