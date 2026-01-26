@@ -547,6 +547,31 @@ export const useSessionState = () => {
     });
   }, [setActiveTabId]);
 
+  // Copy a session - creates a new session with the same host connection
+  const copySession = useCallback((sessionId: string) => {
+    setSessions(prevSessions => {
+      const session = prevSessions.find(s => s.id === sessionId);
+      if (!session) return prevSessions;
+
+      // Create a new session with the same connection info
+      const newSession: TerminalSession = {
+        id: crypto.randomUUID(),
+        hostId: session.hostId,
+        hostLabel: session.hostLabel,
+        hostname: session.hostname,
+        username: session.username,
+        status: 'connecting',
+        protocol: session.protocol,
+        port: session.port,
+        moshEnabled: session.moshEnabled,
+        serialConfig: session.serialConfig,
+      };
+
+      setActiveTabId(newSession.id);
+      return [...prevSessions, newSession];
+    });
+  }, [setActiveTabId]);
+
   // Toggle broadcast mode for a workspace
   const toggleBroadcast = useCallback((workspaceId: string) => {
     setBroadcastWorkspaceIds(prev => {
@@ -662,5 +687,7 @@ export const useSessionState = () => {
     logViews,
     openLogView,
     closeLogView,
+    // Copy session
+    copySession,
   };
 };

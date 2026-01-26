@@ -1110,6 +1110,7 @@ const en: Messages = {
   'tabs.closeLogViewAria': 'Close log view',
   'tabs.logPrefix': 'Log:',
   'tabs.logLocal': 'Local',
+  'tabs.copyTab': 'Copy Tab',
   'keychain.edit.labelRequired': 'Label *',
   'keychain.edit.keyLabelPlaceholder': 'Key label',
   'keychain.edit.privateKeyRequired': 'Private key *',
