@@ -560,16 +560,97 @@ async function startSSHSession(event, options) {
       // Use dynamic authHandler if we have multiple auth options
       if (authMethods.length > 1) {
         let authIndex = 0;
+        // Track methods that have been attempted (to avoid re-trying on failure)
+        // This prevents reusing the same key when server requires multiple publickey auth steps
+        // and also prevents re-attempting failed methods
+        const attemptedMethodIds = new Set();
+        // Track the first successful method for caching (not the last one in multi-step flows)
+        let firstSuccessfulMethod = null;
+        // Track if we've gone through a partialSuccess flow (multi-step auth)
+        let hadPartialSuccess = false;
+
         connectOpts.authHandler = (methodsLeft, partialSuccess, callback) => {
-          log("authHandler called", { methodsLeft, partialSuccess, authIndex });
+          log("authHandler called", { methodsLeft, partialSuccess, authIndex, attemptedMethodIds: Array.from(attemptedMethodIds) });
 
           // methodsLeft can be null on first call (before server responds with available methods)
           // Include "agent" for SSH agent-based auth (used with agentForwarding)
           const availableMethods = methodsLeft || ["publickey", "password", "keyboard-interactive", "agent"];
 
+          // Handle partialSuccess case (e.g., password succeeded but server requires additional auth like MFA)
+          // When partialSuccess is true, we should try the remaining methods the server is asking for
+          if (partialSuccess && methodsLeft && methodsLeft.length > 0) {
+            hadPartialSuccess = true;
+            // Record the first successful method (the one that triggered partialSuccess)
+            if (lastTriedMethod && !firstSuccessfulMethod) {
+              firstSuccessfulMethod = lastTriedMethod;
+              log("Recorded first successful method for caching", { method: firstSuccessfulMethod });
+            }
+            // Mark the last tried method as attempted (it succeeded, so we shouldn't retry it)
+            if (lastTriedMethod) {
+              attemptedMethodIds.add(lastTriedMethod);
+              log("Marked method as attempted (partial success)", { method: lastTriedMethod });
+            }
+
+            log("Partial success - server requires additional auth", { methodsLeft, attemptedMethodIds: Array.from(attemptedMethodIds) });
+
+            // Find a method from our list that matches what the server wants
+            // Skip methods that have already been attempted
+            for (const serverMethod of methodsLeft) {
+              // Map server method names to our method types
+              const matchingMethod = authMethods.find(m => {
+                // Skip already attempted methods
+                if (attemptedMethodIds.has(m.id)) return false;
+                if (serverMethod === "keyboard-interactive" && m.type === "keyboard-interactive") return true;
+                if (serverMethod === "password" && m.type === "password") return true;
+                if (serverMethod === "publickey" && (m.type === "publickey" || m.type === "agent")) return true;
+                return false;
+              });
+
+              if (matchingMethod) {
+                log("Found matching method for partial success", { serverMethod, matchingMethod: matchingMethod.id });
+                // Mark as attempted BEFORE returning to prevent re-use on failure
+                attemptedMethodIds.add(matchingMethod.id);
+                lastTriedMethod = matchingMethod.id;
+
+                if (matchingMethod.type === "keyboard-interactive") {
+                  log("Trying keyboard-interactive auth (partial success)", { id: matchingMethod.id });
+                  return callback("keyboard-interactive");
+                } else if (matchingMethod.type === "password") {
+                  log("Trying password auth (partial success)", { id: matchingMethod.id });
+                  return callback({
+                    type: "password",
+                    username: connectOpts.username,
+                    password: connectOpts.password,
+                  });
+                } else if (matchingMethod.type === "agent") {
+                  const agentType = typeof connectOpts.agent === "string" ? "path" : "NetcattyAgent";
+                  log("Trying agent auth (partial success)", { id: matchingMethod.id, agentType });
+                  return callback("agent");
+                } else if (matchingMethod.type === "publickey") {
+                  log("Trying publickey auth (partial success)", { id: matchingMethod.id });
+                  return callback({
+                    type: "publickey",
+                    username: connectOpts.username,
+                    key: matchingMethod.key,
+                    passphrase: matchingMethod.passphrase,
+                  });
+                }
+              }
+            }
+            // No matching method found for partial success
+            log("No matching method found for partial success requirements", { methodsLeft });
+            return callback(false);
+          }
+
           while (authIndex < authMethods.length) {
             const method = authMethods[authIndex];
             authIndex++;
+
+            // Skip methods that have already been attempted (e.g., during partial success handling)
+            if (attemptedMethodIds.has(method.id)) {
+              log("Skipping already attempted method", { method: method.id });
+              continue;
+            }
 
             // Check if this method is still available on server
             // Note: "agent" uses "publickey" as the underlying method type
@@ -581,6 +662,8 @@ async function startSSHSession(event, options) {
               continue;
             }
 
+            // Mark as attempted BEFORE returning
+            attemptedMethodIds.add(method.id);
             lastTriedMethod = method.id;
 
             if (method.type === "agent") {
@@ -617,8 +700,16 @@ async function startSSHSession(event, options) {
           return callback(false);
         };
 
-        // Store lastTriedMethod reference for success callback
-        connectOpts._lastTriedMethodRef = () => lastTriedMethod;
+        // Store method reference for success callback
+        // For multi-step auth (partialSuccess), cache the first successful method, not the last
+        // This ensures next connection starts with the correct first factor
+        connectOpts._lastTriedMethodRef = () => {
+          if (hadPartialSuccess && firstSuccessfulMethod) {
+            log("Using first successful method for cache (multi-step auth)", { firstSuccessfulMethod });
+            return firstSuccessfulMethod;
+          }
+          return lastTriedMethod;
+        };
       }
     }
 
