@@ -242,6 +242,7 @@ function App({ settings }: { settings: SettingsState }) {
     logViews,
     openLogView,
     closeLogView,
+    copySession,
   } = useSessionState();
 
   // isMacClient is used for window controls styling
@@ -864,6 +865,7 @@ function App({ settings }: { settings: SettingsState }) {
         isMacClient={isMacClient}
         onCloseSession={closeSession}
         onRenameSession={startSessionRename}
+        onCopySession={copySession}
         onRenameWorkspace={startWorkspaceRename}
         onCloseWorkspace={closeWorkspace}
         onCloseLogView={closeLogView}

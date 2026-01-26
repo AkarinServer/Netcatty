@@ -25,6 +25,7 @@ interface TopTabsProps {
   isMacClient: boolean;
   onCloseSession: (sessionId: string, e?: React.MouseEvent) => void;
   onRenameSession: (sessionId: string) => void;
+  onCopySession: (sessionId: string) => void;
   onRenameWorkspace: (workspaceId: string) => void;
   onCloseWorkspace: (workspaceId: string) => void;
   onCloseLogView: (logViewId: string) => void;
@@ -121,6 +122,7 @@ const TopTabsInner: React.FC<TopTabsProps> = ({
   isMacClient,
   onCloseSession,
   onRenameSession,
+  onCopySession,
   onRenameWorkspace,
   onCloseWorkspace,
   onCloseLogView,
@@ -409,6 +411,9 @@ const TopTabsInner: React.FC<TopTabsProps> = ({
             <ContextMenuContent>
               <ContextMenuItem onClick={() => onRenameSession(session.id)}>
                 {t('common.rename')}
+              </ContextMenuItem>
+              <ContextMenuItem onClick={() => onCopySession(session.id)}>
+                {t('tabs.copyTab')}
               </ContextMenuItem>
               <ContextMenuItem className="text-destructive" onClick={() => onCloseSession(session.id)}>
                 {t('common.close')}

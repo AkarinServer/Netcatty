@@ -1099,6 +1099,7 @@ const zhCN: Messages = {
   'tabs.closeLogViewAria': '关闭日志视图',
   'tabs.logPrefix': '日志：',
   'tabs.logLocal': '本地',
+  'tabs.copyTab': '复制标签页',
   'keychain.edit.labelRequired': 'Label *',
   'keychain.edit.keyLabelPlaceholder': '密钥 Label',
   'keychain.edit.privateKeyRequired': '私钥 *',
