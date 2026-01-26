@@ -512,7 +512,12 @@ async function startSSHSession(event, options) {
       // Build dynamic auth handler for fallback support
       const authMethods = [];
 
-      // First try user-configured key if available
+      // First try agent if configured (agentForwarding or SSH_AUTH_SOCK)
+      if (connectOpts.agent) {
+        authMethods.push({ type: "agent", id: "agent" });
+      }
+
+      // Then try user-configured key if available
       if (connectOpts.privateKey) {
         authMethods.push({ type: "publickey", key: connectOpts.privateKey, passphrase: connectOpts.passphrase, id: "publickey-user" });
       }
@@ -554,23 +559,30 @@ async function startSSHSession(event, options) {
           log("authHandler called", { methodsLeft, partialSuccess, authIndex });
 
           // methodsLeft can be null on first call (before server responds with available methods)
-          const availableMethods = methodsLeft || ["publickey", "password", "keyboard-interactive"];
+          // Include "agent" for SSH agent-based auth (used with agentForwarding)
+          const availableMethods = methodsLeft || ["publickey", "password", "keyboard-interactive", "agent"];
 
           while (authIndex < authMethods.length) {
             const method = authMethods[authIndex];
             authIndex++;
 
             // Check if this method is still available on server
+            // Note: "agent" uses "publickey" as the underlying method type
             const methodName = method.type === "password" ? "password" :
-                method.type === "publickey" ? "publickey" : "keyboard-interactive";
-            if (!availableMethods.includes(methodName)) {
+                method.type === "publickey" ? "publickey" :
+                method.type === "agent" ? "publickey" : "keyboard-interactive";
+            if (!availableMethods.includes(methodName) && !availableMethods.includes(method.type)) {
               log("Auth method not available on server, skipping", { method: method.id });
               continue;
             }
 
             lastTriedMethod = method.id;
 
-            if (method.type === "publickey") {
+            if (method.type === "agent") {
+              log("Trying agent auth", { id: method.id, agent: connectOpts.agent });
+              // Return "agent" string to use SSH agent for authentication
+              return callback("agent");
+            } else if (method.type === "publickey") {
               log("Trying publickey auth", { id: method.id, isDefault: method.isDefault || false });
               return callback({
                 type: "publickey",
