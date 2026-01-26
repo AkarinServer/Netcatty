@@ -581,7 +581,9 @@ async function startSSHSession(event, options) {
             lastTriedMethod = method.id;
 
             if (method.type === "agent") {
-              log("Trying agent auth", { id: method.id, agent: connectOpts.agent });
+              // Only log safe identifier, not the full agent object which may contain private keys
+              const agentType = typeof connectOpts.agent === "string" ? "path" : "NetcattyAgent";
+              log("Trying agent auth", { id: method.id, agentType });
               // Return "agent" string to use SSH agent for authentication
               return callback("agent");
             } else if (method.type === "publickey") {
