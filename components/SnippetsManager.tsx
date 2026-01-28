@@ -415,6 +415,18 @@ const SnippetsManager: React.FC<SnippetsManagerProps> = ({
       setSelectedPackage(newPath + selectedPackage.substring(renamingPackagePath.length));
     }
 
+    // Update editingSnippet.package if it's in the renamed package (fixes stale state when editing)
+    if (editingSnippet.package) {
+      if (editingSnippet.package === renamingPackagePath) {
+        setEditingSnippet(prev => ({ ...prev, package: newPath }));
+      } else if (editingSnippet.package.startsWith(renamingPackagePath + '/')) {
+        setEditingSnippet(prev => ({
+          ...prev,
+          package: newPath + prev.package!.substring(renamingPackagePath.length)
+        }));
+      }
+    }
+
     setIsRenameDialogOpen(false);
   };
 
