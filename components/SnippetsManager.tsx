@@ -67,6 +67,12 @@ const SnippetsManager: React.FC<SnippetsManagerProps> = ({
   const [newPackageName, setNewPackageName] = useState('');
   const [isPackageDialogOpen, setIsPackageDialogOpen] = useState(false);
 
+  // Rename package state
+  const [isRenameDialogOpen, setIsRenameDialogOpen] = useState(false);
+  const [renamingPackagePath, setRenamingPackagePath] = useState<string | null>(null);
+  const [renamePackageName, setRenamePackageName] = useState('');
+  const [renameError, setRenameError] = useState('');
+
   // Search, sort, and view mode state
   const [search, setSearch] = useState('');
   const [viewMode, setViewMode] = useStoredViewMode(
@@ -308,10 +314,10 @@ const SnippetsManager: React.FC<SnippetsManagerProps> = ({
     const isAbsolute = source.startsWith('/');
     const newPath = target ? `${target}/${name}` : (isAbsolute ? `/${name}` : name);
     if (newPath === source || newPath.startsWith(source + '/')) return;
-    
+
     // Check if target path already exists
     if (packages.includes(newPath)) return;
-    
+
     const updatedPackages = packages.map((p) => {
       if (p === source) return newPath;
       // Use more precise replacement to avoid substring issues
@@ -320,7 +326,7 @@ const SnippetsManager: React.FC<SnippetsManagerProps> = ({
       }
       return p;
     });
-    
+
     const updatedSnippets = snippets.map((s) => {
       if (!s.package) return s;
       if (s.package === source) return { ...s, package: newPath };
@@ -330,10 +336,98 @@ const SnippetsManager: React.FC<SnippetsManagerProps> = ({
       }
       return s;
     });
-    
+
     onPackagesChange(Array.from(new Set(updatedPackages)));
     updatedSnippets.forEach(onSave);
     if (selectedPackage === source) setSelectedPackage(newPath);
+  };
+
+  const openRenameDialog = (path: string) => {
+    const name = path.split('/').pop() || '';
+    setRenamingPackagePath(path);
+    setRenamePackageName(name);
+    setRenameError('');
+    setIsRenameDialogOpen(true);
+  };
+
+  const renamePackage = () => {
+    if (!renamingPackagePath) return;
+
+    const newName = renamePackageName.trim();
+
+    // Validate: empty name
+    if (!newName) {
+      setRenameError(t('snippets.renameDialog.error.empty'));
+      return;
+    }
+
+    // Validate: same rules as createPackage - only allow letters, numbers, hyphens, underscores
+    // Since we're renaming a single segment (no slashes allowed), use the segment-level pattern
+    if (!/^[\w-]+$/.test(newName)) {
+      setRenameError(t('snippets.renameDialog.error.invalidChars'));
+      return;
+    }
+
+    // Build new path
+    const parts = renamingPackagePath.split('/');
+    parts[parts.length - 1] = newName;
+    const newPath = parts.join('/');
+
+    // Validate: same name
+    if (newPath === renamingPackagePath) {
+      setIsRenameDialogOpen(false);
+      return;
+    }
+
+    // Validate: duplicate (case-insensitive)
+    const existingPackage = packages.find(p => p.toLowerCase() === newPath.toLowerCase());
+    if (existingPackage) {
+      setRenameError(t('snippets.renameDialog.error.duplicate'));
+      return;
+    }
+
+    // Update all packages with this path or nested under it
+    const updatedPackages = packages.map((p) => {
+      if (p === renamingPackagePath) return newPath;
+      if (p.startsWith(renamingPackagePath + '/')) {
+        return newPath + p.substring(renamingPackagePath.length);
+      }
+      return p;
+    });
+
+    // Update all snippets with this package or nested under it
+    const updatedSnippets = snippets.map((s) => {
+      if (!s.package) return s;
+      if (s.package === renamingPackagePath) return { ...s, package: newPath };
+      if (s.package.startsWith(renamingPackagePath + '/')) {
+        return { ...s, package: newPath + s.package.substring(renamingPackagePath.length) };
+      }
+      return s;
+    });
+
+    onPackagesChange(Array.from(new Set(updatedPackages)));
+    updatedSnippets.forEach(onSave);
+
+    // Update selected package if it was renamed
+    if (selectedPackage === renamingPackagePath) {
+      setSelectedPackage(newPath);
+    } else if (selectedPackage?.startsWith(renamingPackagePath + '/')) {
+      setSelectedPackage(newPath + selectedPackage.substring(renamingPackagePath.length));
+    }
+
+    // Update editingSnippet.package if it's in the renamed package (fixes stale state when editing)
+    if (editingSnippet.package) {
+      if (editingSnippet.package === renamingPackagePath) {
+        setEditingSnippet(prev => ({ ...prev, package: newPath }));
+      } else if (editingSnippet.package.startsWith(renamingPackagePath + '/')) {
+        setEditingSnippet(prev => ({
+          ...prev,
+          package: newPath + prev.package!.substring(renamingPackagePath.length)
+        }));
+      }
+    }
+
+    setIsRenameDialogOpen(false);
   };
 
   const moveSnippet = (id: string, pkg: string | null) => {
@@ -753,6 +847,7 @@ const SnippetsManager: React.FC<SnippetsManagerProps> = ({
                     </ContextMenuTrigger>
                     <ContextMenuContent>
                       <ContextMenuItem onClick={() => setSelectedPackage(pkg.path)}>{t('action.open')}</ContextMenuItem>
+                      <ContextMenuItem onClick={() => openRenameDialog(pkg.path)}>{t('common.rename')}</ContextMenuItem>
                       <ContextMenuItem className="text-destructive" onClick={() => deletePackage(pkg.path)}>{t('action.delete')}</ContextMenuItem>
                     </ContextMenuContent>
                   </ContextMenu>
@@ -868,6 +963,40 @@ const SnippetsManager: React.FC<SnippetsManagerProps> = ({
                 {t('common.cancel')}
               </Button>
               <Button onClick={createPackage}>{t('common.create')}</Button>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* Rename Package Dialog */}
+      {isRenameDialogOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <Card className="w-full max-w-sm p-4 space-y-4">
+            <div>
+              <p className="text-sm font-semibold">{t('snippets.renameDialog.title')}</p>
+              <p className="text-xs text-muted-foreground">{t('snippets.renameDialog.currentPath', { path: renamingPackagePath })}</p>
+            </div>
+            <div className="space-y-2">
+              <Label>{t('field.name')}</Label>
+              <Input
+                autoFocus
+                placeholder={t('snippets.renameDialog.placeholder')}
+                value={renamePackageName}
+                onChange={(e) => {
+                  setRenamePackageName(e.target.value);
+                  setRenameError('');
+                }}
+                onKeyDown={(e) => e.key === 'Enter' && renamePackage()}
+              />
+              {renameError && (
+                <p className="text-[11px] text-destructive">{renameError}</p>
+              )}
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="ghost" onClick={() => setIsRenameDialogOpen(false)}>
+                {t('common.cancel')}
+              </Button>
+              <Button onClick={renamePackage}>{t('common.rename')}</Button>
             </div>
           </Card>
         </div>

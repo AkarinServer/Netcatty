@@ -1156,6 +1156,14 @@ const zhCN: Messages = {
   'snippets.packageDialog.placeholder': '例如：ops/maintenance',
   'snippets.packageDialog.hint': '使用 "/" 创建嵌套代码包。',
 
+  // Snippets Rename Dialog
+  'snippets.renameDialog.title': '重命名代码包',
+  'snippets.renameDialog.currentPath': '当前路径：{path}',
+  'snippets.renameDialog.placeholder': '输入新名称',
+  'snippets.renameDialog.error.empty': '代码包名称不能为空',
+  'snippets.renameDialog.error.duplicate': '已存在同名的代码包',
+  'snippets.renameDialog.error.invalidChars': '代码包名称只能包含字母、数字、连字符和下划线',
+
   // Serial Port
   'serial.button': '串口',
   'serial.modal.title': '连接串口',

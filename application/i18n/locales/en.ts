@@ -1167,6 +1167,14 @@ const en: Messages = {
   'snippets.packageDialog.placeholder': 'e.g. ops/maintenance',
   'snippets.packageDialog.hint': 'Use "/" to create nested packages.',
 
+  // Snippets Rename Dialog
+  'snippets.renameDialog.title': 'Rename Package',
+  'snippets.renameDialog.currentPath': 'Current path: {path}',
+  'snippets.renameDialog.placeholder': 'Enter new name',
+  'snippets.renameDialog.error.empty': 'Package name cannot be empty',
+  'snippets.renameDialog.error.duplicate': 'A package with this name already exists',
+  'snippets.renameDialog.error.invalidChars': 'Package name can only contain letters, numbers, hyphens, and underscores',
+
   // Serial Port
   'serial.button': 'Serial',
   'serial.modal.title': 'Connect to Serial Port',
