@@ -144,23 +144,60 @@ const SnippetsManager: React.FC<SnippetsManagerProps> = ({
 
   const displayedPackages = useMemo(() => {
     if (!selectedPackage) {
-      const roots = packages
+      // Separate absolute paths (starting with /) from relative paths
+      const absolutePaths = packages.filter(p => p.startsWith('/'));
+      const relativePaths = packages.filter(p => !p.startsWith('/'));
+      
+      const results: { name: string; path: string; count: number }[] = [];
+      
+      // Process relative paths (traditional behavior)
+      const relativeRoots = relativePaths
         .map((p) => p.split('/')[0])
-        .filter(Boolean);
-      return Array.from(new Set(roots)).map((name) => {
-        const path = name;
-        const count = snippets.filter((s) => (s.package || '') === path).length;
-        return { name, path, count };
+        .filter((name): name is string => Boolean(name) && name.length > 0);
+      
+      Array.from(new Set(relativeRoots)).forEach((name: string) => {
+        const path: string = name;
+        const count = snippets.filter((s) => {
+          const pkg = s.package || '';
+          return pkg === path || pkg.startsWith(path + '/');
+        }).length;
+        results.push({ name, path, count });
       });
+      
+      // Process absolute paths - show them as separate roots with "/" prefix
+      const absoluteRoots = absolutePaths
+        .map((p) => {
+          const cleanPath = p.substring(1); // Remove leading slash
+          const firstSegment = cleanPath.split('/')[0];
+          return firstSegment;
+        })
+        .filter((name): name is string => Boolean(name) && name.length > 0);
+      
+      Array.from(new Set(absoluteRoots)).forEach((name: string) => {
+        const path: string = `/${name}`;
+        const displayName: string = `/${name}`; // Show with leading slash to distinguish
+        const count = snippets.filter((s) => {
+          const pkg = s.package || '';
+          return pkg === path || pkg.startsWith(path + '/');
+        }).length;
+        results.push({ name: displayName, path, count });
+      });
+      
+      return results;
     }
+    
     const prefix = selectedPackage + '/';
     const children = packages
       .filter((p) => p.startsWith(prefix))
       .map((p) => p.replace(prefix, '').split('/')[0])
-      .filter(Boolean);
+      .filter((name): name is string => Boolean(name) && name.length > 0);
     return Array.from(new Set(children)).map((name) => {
       const path = `${selectedPackage}/${name}`;
-      const count = snippets.filter((s) => (s.package || '') === path).length;
+      // Count snippets in this package AND all nested packages
+      const count = snippets.filter((s) => {
+        const pkg = s.package || '';
+        return pkg === path || pkg.startsWith(path + '/');
+      }).length;
       return { name, path, count };
     });
   }, [packages, selectedPackage, snippets]);
@@ -191,28 +228,76 @@ const SnippetsManager: React.FC<SnippetsManagerProps> = ({
 
   const breadcrumb = useMemo(() => {
     if (!selectedPackage) return [];
+    const isAbsolute = selectedPackage.startsWith('/');
     const parts = selectedPackage.split('/').filter(Boolean);
-    return parts.map((name, idx) => ({ name, path: parts.slice(0, idx + 1).join('/') }));
+    return parts.map((name, idx) => {
+      const pathSegments = parts.slice(0, idx + 1);
+      const path = isAbsolute ? `/${pathSegments.join('/')}` : pathSegments.join('/');
+      return { name, path };
+    });
   }, [selectedPackage]);
 
   const createPackage = () => {
     const name = newPackageName.trim();
     if (!name) return;
-    const full = selectedPackage ? `${selectedPackage}/${name}` : name;
-    if (!packages.includes(full)) onPackagesChange([...packages, full]);
+    
+    // Allow leading slash and validate the rest - allow hyphens anywhere in package names
+    if (!/^\/?([\w-]+(\/[\w-]+)*)\/?$/.test(name)) {
+      // Could add toast notification here for invalid characters
+      return;
+    }
+    
+    // Normalize path construction to avoid double slashes
+    let full: string;
+    if (selectedPackage) {
+      // Strip leading slash from name when we're inside a package to avoid double slashes
+      const normalizedName = name.startsWith('/') ? name.substring(1) : name;
+      full = `${selectedPackage}/${normalizedName}`;
+    } else {
+      // At root level, preserve the leading slash if user intended it
+      full = name;
+    }
+
+    // Strip trailing slash to ensure consistent path handling
+    if (full.endsWith('/')) {
+      full = full.slice(0, -1);
+    }
+    
+    // Check for duplicate package names (case-insensitive)
+    const existingPackage = packages.find(p => p.toLowerCase() === full.toLowerCase());
+    if (existingPackage) {
+      // Could add toast notification here for duplicate package
+      return;
+    }
+    
+    onPackagesChange([...packages, full]);
     setNewPackageName('');
     setIsPackageDialogOpen(false);
   };
 
   const deletePackage = (path: string) => {
+    // Remove the package and all its children
     const keep = packages.filter((p) => !(p === path || p.startsWith(path + '/')));
+    
+    // Move all snippets from deleted packages to root
     const updatedSnippets = snippets.map((s) => {
       if (!s.package) return s;
-      if (s.package === path || s.package.startsWith(path + '/')) return { ...s, package: '' };
+      if (s.package === path || s.package.startsWith(path + '/')) {
+        return { ...s, package: '' };
+      }
       return s;
     });
+    
+    // Update packages first, then save snippets
     onPackagesChange(keep);
-    updatedSnippets.forEach(onSave);
+    
+    // Only save snippets that were actually modified
+    const modifiedSnippets = updatedSnippets.filter((s, index) => 
+      s.package !== snippets[index].package
+    );
+    modifiedSnippets.forEach(onSave);
+    
+    // Reset selected package if it was deleted
     if (selectedPackage && (selectedPackage === path || selectedPackage.startsWith(path + '/'))) {
       setSelectedPackage(null);
     }
@@ -220,19 +305,32 @@ const SnippetsManager: React.FC<SnippetsManagerProps> = ({
 
   const movePackage = (source: string, target: string | null) => {
     const name = source.split('/').pop() || '';
-    const newPath = target ? `${target}/${name}` : name;
+    const isAbsolute = source.startsWith('/');
+    const newPath = target ? `${target}/${name}` : (isAbsolute ? `/${name}` : name);
     if (newPath === source || newPath.startsWith(source + '/')) return;
+    
+    // Check if target path already exists
+    if (packages.includes(newPath)) return;
+    
     const updatedPackages = packages.map((p) => {
       if (p === source) return newPath;
-      if (p.startsWith(source + '/')) return p.replace(source, newPath);
+      // Use more precise replacement to avoid substring issues
+      if (p.startsWith(source + '/')) {
+        return newPath + p.substring(source.length);
+      }
       return p;
     });
+    
     const updatedSnippets = snippets.map((s) => {
       if (!s.package) return s;
       if (s.package === source) return { ...s, package: newPath };
-      if (s.package.startsWith(source + '/')) return { ...s, package: s.package.replace(source, newPath) };
+      // Use more precise replacement to avoid substring issues
+      if (s.package.startsWith(source + '/')) {
+        return { ...s, package: newPath + s.package.substring(source.length) };
+      }
       return s;
     });
+    
     onPackagesChange(Array.from(new Set(updatedPackages)));
     updatedSnippets.forEach(onSave);
     if (selectedPackage === source) setSelectedPackage(newPath);
@@ -246,11 +344,36 @@ const SnippetsManager: React.FC<SnippetsManagerProps> = ({
 
   // Package options for Combobox
   const packageOptions: ComboboxOption[] = useMemo(() => {
-    return packages.map(p => ({
-      value: p,
-      label: p.includes('/') ? p.split('/').pop()! : p,
-      sublabel: p.includes('/') ? p : undefined,
-    }));
+    // Generate all possible parent paths for each package
+    const allPaths = new Set<string>();
+    
+    packages.forEach(pkg => {
+      // Add the full package path
+      allPaths.add(pkg);
+      
+      // Add all parent paths
+      const parts = pkg.split('/').filter(Boolean);
+      const isAbsolute = pkg.startsWith('/');
+      
+      for (let i = 1; i < parts.length; i++) {
+        const parentPath = (isAbsolute ? '/' : '') + parts.slice(0, i).join('/');
+        allPaths.add(parentPath);
+      }
+    });
+    
+    return Array.from(allPaths)
+      .sort((a, b) => {
+        // Sort by depth first (shorter paths first), then alphabetically
+        const depthA = (a.match(/\//g) || []).length;
+        const depthB = (b.match(/\//g) || []).length;
+        if (depthA !== depthB) return depthA - depthB;
+        return a.localeCompare(b);
+      })
+      .map(p => ({
+        value: p,
+        label: p.includes('/') ? p.split('/').pop()! : p,
+        sublabel: p.includes('/') ? p : undefined,
+      }));
   }, [packages]);
 
   // Shell history lazy loading
@@ -354,7 +477,13 @@ const SnippetsManager: React.FC<SnippetsManagerProps> = ({
               <Combobox
                 options={packageOptions}
                 value={editingSnippet.package || selectedPackage || ''}
-                onValueChange={(val) => setEditingSnippet({ ...editingSnippet, package: val })}
+                onValueChange={(val) => {
+                  setEditingSnippet({ ...editingSnippet, package: val });
+                  // If selecting an implicit parent path, persist it to packages
+                  if (val && !packages.includes(val)) {
+                    onPackagesChange([...packages, val]);
+                  }
+                }}
                 placeholder={t('snippets.field.packagePlaceholder')}
                 allowCreate={true}
                 onCreateNew={(val) => {
@@ -729,6 +858,8 @@ const SnippetsManager: React.FC<SnippetsManagerProps> = ({
                 value={newPackageName}
                 onChange={(e) => setNewPackageName(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && createPackage()}
+                pattern="^/?([\w-]+(/[\w-]+)*)?/?$"
+                title="Package names can contain letters, numbers, hyphens, underscores, and forward slashes. Can optionally start with /"
               />
               <p className="text-[11px] text-muted-foreground">{t('snippets.packageDialog.hint')}</p>
             </div>
