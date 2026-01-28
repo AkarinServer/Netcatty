@@ -471,7 +471,13 @@ const SnippetsManager: React.FC<SnippetsManagerProps> = ({
               <Combobox
                 options={packageOptions}
                 value={editingSnippet.package || selectedPackage || ''}
-                onValueChange={(val) => setEditingSnippet({ ...editingSnippet, package: val })}
+                onValueChange={(val) => {
+                  setEditingSnippet({ ...editingSnippet, package: val });
+                  // If selecting an implicit parent path, persist it to packages
+                  if (val && !packages.includes(val)) {
+                    onPackagesChange([...packages, val]);
+                  }
+                }}
                 placeholder={t('snippets.field.packagePlaceholder')}
                 allowCreate={true}
                 onCreateNew={(val) => {
