@@ -236,8 +236,8 @@ const SnippetsManager: React.FC<SnippetsManagerProps> = ({
     const name = newPackageName.trim();
     if (!name) return;
     
-    // Allow leading slash and validate the rest - no special characters except letters, numbers, hyphens, underscores, and slashes
-    if (!/^\/?\w+([\w/-]*\w+)*\/?$/.test(name)) {
+    // Allow leading slash and validate the rest - allow hyphens anywhere in package names
+    if (!/^\/?([\w-]+(\/[\w-]+)*)\/?$/.test(name)) {
       // Could add toast notification here for invalid characters
       return;
     }
@@ -832,7 +832,7 @@ const SnippetsManager: React.FC<SnippetsManagerProps> = ({
                 value={newPackageName}
                 onChange={(e) => setNewPackageName(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && createPackage()}
-                pattern="^/?[\w-]+([/\w-]*[\w-]+)*/?$"
+                pattern="^/?([\w-]+(/[\w-]+)*)?/?$"
                 title="Package names can contain letters, numbers, hyphens, underscores, and forward slashes. Can optionally start with /"
               />
               <p className="text-[11px] text-muted-foreground">{t('snippets.packageDialog.hint')}</p>
