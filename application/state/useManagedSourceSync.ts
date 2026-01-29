@@ -114,7 +114,8 @@ export const useManagedSourceSync = ({
           prev.port !== curr.port ||
           prev.username !== curr.username ||
           prev.label !== curr.label ||
-          prev.group !== curr.group;
+          prev.group !== curr.group ||
+          prev.protocol !== curr.protocol;
         if (hasChanged) {
           changedSourceIds.add(source.id);
           break;

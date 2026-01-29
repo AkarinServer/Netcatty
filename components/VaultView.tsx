@@ -494,6 +494,22 @@ const VaultViewInner: React.FC<VaultViewProps> = ({
         const fileBaseName = file.name.replace(/\.[^/.]+$/, "");
         const managedGroupName = `${fileBaseName} - Managed`;
 
+        // Check if this file is already managed
+        const bridge = (window as unknown as { netcatty?: { getPathForFile?: (file: File) => string | undefined } }).netcatty;
+        const filePath = bridge?.getPathForFile?.(file) || file.name;
+
+        if (isManaged) {
+          const existingSource = managedSources.find(s => s.filePath === filePath);
+          if (existingSource) {
+            toast({
+              title: t("vault.import.sshConfig.alreadyManaged"),
+              description: t("vault.import.sshConfig.alreadyManagedDesc", { group: existingSource.groupName }),
+              variant: "destructive",
+            });
+            return;
+          }
+        }
+
         const makeKey = (h: Host) =>
           `${(h.protocol ?? "ssh").toLowerCase()}|${h.hostname.toLowerCase()}|${h.port}|${(h.username ?? "").toLowerCase()}`;
 
@@ -504,8 +520,6 @@ const VaultViewInner: React.FC<VaultViewProps> = ({
 
         if (isManaged && newHosts.length > 0) {
           const sourceId = crypto.randomUUID();
-          const bridge = (window as unknown as { netcatty?: { getPathForFile?: (file: File) => string | undefined } }).netcatty;
-          const filePath = bridge?.getPathForFile?.(file) || file.name;
           console.log('[Import] File path resolved:', filePath);
           const newSource: ManagedSource = {
             id: sourceId,
@@ -1044,16 +1058,23 @@ const VaultViewInner: React.FC<VaultViewProps> = ({
 
   const moveHostToGroup = (hostId: string, groupPath: string | null) => {
     const targetGroup = groupPath || "";
-    const targetManagedSource = managedSources.find(s => 
+    const targetManagedSource = managedSources.find(s =>
       targetGroup === s.groupName || targetGroup.startsWith(s.groupName + "/")
     );
-    
+
     onUpdateHosts(
       hosts.map((h) => {
         if (h.id !== hostId) return h;
-        
-        return { 
-          ...h, 
+
+        // Sanitize label if moving to a managed group (SSH config requires no spaces in Host alias)
+        let label = h.label;
+        if (targetManagedSource && label) {
+          label = label.replace(/\s/g, '');
+        }
+
+        return {
+          ...h,
+          label,
           group: targetGroup,
           managedSourceId: targetManagedSource?.id,
         };

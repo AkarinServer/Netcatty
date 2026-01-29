@@ -382,6 +382,7 @@ const en: Messages = {
   'vault.import.sshConfig.managedGroup': 'ssh config',
   'vault.import.sshConfig.managedSuccess': 'Imported {count} hosts. File is now managed.',
   'vault.import.sshConfig.alreadyManaged': 'This file is already being managed.',
+  'vault.import.sshConfig.alreadyManagedDesc': 'This file is already managed under group "{group}". Remove the existing managed source first if you want to re-import.',
 
   // Known Hosts
   'knownHosts.search.placeholder': 'Search known hosts...',

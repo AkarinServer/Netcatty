@@ -251,6 +251,7 @@ const zhCN: Messages = {
   'vault.import.sshConfig.managedGroup': 'ssh config',
   'vault.import.sshConfig.managedSuccess': '已导入 {count} 个主机，文件已托管。',
   'vault.import.sshConfig.alreadyManaged': '该文件已被托管。',
+  'vault.import.sshConfig.alreadyManagedDesc': '该文件已在分组 "{group}" 下托管。如需重新导入，请先移除现有的托管源。',
 
   // Known Hosts
   'knownHosts.search.placeholder': '搜索已知主机...',
