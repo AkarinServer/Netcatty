@@ -494,7 +494,17 @@ const VaultViewInner: React.FC<VaultViewProps> = ({
 
         const isManaged = format === "ssh_config" && options?.managed === true;
         const fileBaseName = file.name.replace(/\.[^/.]+$/, "");
-        const managedGroupName = `${fileBaseName} - Managed`;
+
+        // Generate unique managed group name (check for conflicts with existing sources)
+        let managedGroupName = `${fileBaseName} - Managed`;
+        if (isManaged) {
+          const existingGroupNames = new Set(managedSources.map(s => s.groupName));
+          let suffix = 1;
+          while (existingGroupNames.has(managedGroupName)) {
+            managedGroupName = `${fileBaseName} - Managed (${suffix})`;
+            suffix++;
+          }
+        }
 
         // Check if this file is already managed
         const bridge = (window as unknown as { netcatty?: { getPathForFile?: (file: File) => string | undefined } }).netcatty;

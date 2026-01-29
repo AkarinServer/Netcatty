@@ -564,12 +564,15 @@ const HostDetailsPanel: React.FC<HostDetailsPanelProps> = ({
             value={form.label}
             onChange={(e) => {
               let value = e.target.value;
-              // Check if current or target group belongs to a managed source
-              const currentGroup = groupInputValue.trim() || form.group || "";
-              const isManaged = form.managedSourceId || managedSources.some(s =>
-                currentGroup === s.groupName || currentGroup.startsWith(s.groupName + "/")
+              // Only strip spaces if the TARGET group belongs to a managed source
+              // (don't use form.managedSourceId as it reflects old state before group change)
+              const targetGroup = groupInputValue.trim() || form.group || "";
+              const willBeManaged = managedSources.some(s =>
+                targetGroup === s.groupName || targetGroup.startsWith(s.groupName + "/")
               );
-              if (isManaged) {
+              // Also check protocol - only SSH hosts can be managed
+              const canBeManaged = !form.protocol || form.protocol === "ssh";
+              if (willBeManaged && canBeManaged) {
                 value = value.replace(/\s/g, '');
               }
               update("label", value);
