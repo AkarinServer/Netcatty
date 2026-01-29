@@ -1003,18 +1003,20 @@ const VaultViewInner: React.FC<VaultViewProps> = ({
       (g) => !(g === path || g.startsWith(path + "/")),
     );
 
-    const isManagedGroup = managedGroupPaths.has(path);
-    if (isManagedGroup) {
-      const source = managedSources.find(s => s.groupName === path);
-      if (source) {
-        const updatedSources = managedSources.filter(s => s.id !== source.id);
-        onUpdateManagedSources(updatedSources);
-      }
+    // Remove all managed sources under the deleted path (exact match or subgroups)
+    const sourcesToRemove = managedSources.filter(s =>
+      s.groupName === path || s.groupName.startsWith(path + "/")
+    );
+    if (sourcesToRemove.length > 0) {
+      const updatedSources = managedSources.filter(s =>
+        s.groupName !== path && !s.groupName.startsWith(path + "/")
+      );
+      onUpdateManagedSources(updatedSources);
     }
 
-    // Check if this is a subgroup under a managed group
+    // Check if this is a subgroup under a managed group (that won't be deleted)
     const parentManagedSource = managedSources.find(s =>
-      path.startsWith(s.groupName + "/")
+      path.startsWith(s.groupName + "/") && s.groupName !== path && !path.startsWith(path + "/")
     );
 
     let keepHosts: Host[];
