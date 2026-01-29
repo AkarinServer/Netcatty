@@ -86,7 +86,8 @@ export const useManagedSourceSync = ({
         // Read existing file content to preserve non-managed parts
         const existingContent = await readExistingFileContent(source.filePath);
 
-        const managedContent = serializeHostsToSshConfig(managedHosts);
+        // Pass all hosts for ProxyJump resolution (jump hosts may be outside this managed source)
+        const managedContent = serializeHostsToSshConfig(managedHosts, hosts);
         console.log(`[ManagedSourceSync] Serialized content (${managedContent.length} chars):`, managedContent.substring(0, 200));
 
         // Merge with existing content, preserving non-managed parts
@@ -104,7 +105,7 @@ export const useManagedSourceSync = ({
         return false;
       }
     },
-    [readExistingFileContent, mergeWithExistingContent],
+    [readExistingFileContent, mergeWithExistingContent, hosts],
   );
 
   const syncManagedSource = useCallback(
