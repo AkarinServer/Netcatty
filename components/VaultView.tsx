@@ -2449,7 +2449,8 @@ const vaultViewAreEqual = (
     prev.knownHosts === next.knownHosts &&
     prev.shellHistory === next.shellHistory &&
     prev.connectionLogs === next.connectionLogs &&
-    prev.sessions === next.sessions;
+    prev.sessions === next.sessions &&
+    prev.managedSources === next.managedSources;
 
   return isEqual;
 };
