@@ -169,6 +169,21 @@ export const useManagedSourceSync = ({
 
     const changedSourceIds = new Set<string>();
 
+    // Build maps for all hosts (for jump host lookup)
+    const prevHostMap = new Map<string, Host>(prevHosts.map((h) => [h.id, h]));
+    const currHostMap = new Map<string, Host>(hosts.map((h) => [h.id, h]));
+
+    // Helper to check if a host's SSH-relevant fields changed
+    const hostChanged = (prevHost: Host | undefined, currHost: Host | undefined): boolean => {
+      if (!prevHost || !currHost) return prevHost !== currHost;
+      return (
+        prevHost.hostname !== currHost.hostname ||
+        prevHost.port !== currHost.port ||
+        prevHost.username !== currHost.username ||
+        prevHost.label !== currHost.label
+      );
+    };
+
     for (const source of managedSources) {
       const prevManaged = prevHosts.filter((h) => h.managedSourceId === source.id);
       const currManaged = hosts.filter((h) => h.managedSourceId === source.id);
@@ -180,11 +195,13 @@ export const useManagedSourceSync = ({
         continue;
       }
 
-      const prevMap = new Map<string, Host>(prevManaged.map((h) => [h.id, h]));
+      const prevManagedMap = new Map<string, Host>(prevManaged.map((h) => [h.id, h]));
+      let sourceChanged = false;
+
       for (const curr of currManaged) {
-        const prev = prevMap.get(curr.id);
+        const prev = prevManagedMap.get(curr.id);
         if (!prev) {
-          changedSourceIds.add(source.id);
+          sourceChanged = true;
           break;
         }
         // Compare hostChain arrays for ProxyJump changes
@@ -203,9 +220,24 @@ export const useManagedSourceSync = ({
           prev.protocol !== curr.protocol ||
           chainChanged;
         if (hasChanged) {
-          changedSourceIds.add(source.id);
+          sourceChanged = true;
           break;
         }
+
+        // Check if any referenced jump hosts changed (even if outside this managed source)
+        for (const jumpHostId of currChain) {
+          const prevJumpHost = prevHostMap.get(jumpHostId);
+          const currJumpHost = currHostMap.get(jumpHostId);
+          if (hostChanged(prevJumpHost, currJumpHost)) {
+            sourceChanged = true;
+            break;
+          }
+        }
+        if (sourceChanged) break;
+      }
+
+      if (sourceChanged) {
+        changedSourceIds.add(source.id);
       }
     }
 
