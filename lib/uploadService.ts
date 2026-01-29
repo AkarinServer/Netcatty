@@ -327,18 +327,26 @@ export async function uploadFromFileList(
     controller.setBridge(bridge);
   }
 
-  // Convert FileList to DropEntry array (simple files, no folders)
-  // Use getPathForFile to get the local file path for stream transfer
+  // Convert FileList to DropEntry array
+  // Use webkitRelativePath for folder uploads, fallback to file.name for regular file uploads
   const entries: DropEntry[] = Array.from(fileList).map(file => {
     const localPath = getPathForFile(file);
-    console.log('[uploadFromFileList] File:', { name: file.name, size: file.size, localPath });
+    // Use webkitRelativePath if available (folder upload), otherwise use file.name (regular file upload)
+    const relativePath = (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name;
+    console.log('[uploadFromFileList] File:', { 
+      name: file.name, 
+      size: file.size, 
+      localPath, 
+      webkitRelativePath: (file as File & { webkitRelativePath?: string }).webkitRelativePath,
+      relativePath 
+    });
     if (localPath) {
       // Set the path property on the file for stream transfer
       (file as File & { path?: string }).path = localPath;
     }
     return {
       file,
-      relativePath: file.name,
+      relativePath,
       isDirectory: false,
     };
   });

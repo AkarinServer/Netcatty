@@ -2,6 +2,15 @@ import type { RemoteFile, SftpFilenameEncoding } from "./types";
 import type { S3Config, SMBConfig, SyncedFile, WebDAVConfig } from "./domain/sync";
 
 declare global {
+  // Extend HTMLInputElement to support webkitdirectory attribute
+  namespace JSX {
+    interface IntrinsicElements {
+      input: React.DetailedHTMLProps<React.InputHTMLAttributes<HTMLInputElement> & {
+        webkitdirectory?: string;
+      }, HTMLInputElement>;
+    }
+  }
+
   // Proxy configuration for SSH connections
   interface NetcattyProxyConfig {
     type: 'http' | 'socks5';

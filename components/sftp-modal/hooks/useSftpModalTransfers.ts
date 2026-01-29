@@ -77,6 +77,7 @@ interface UseSftpModalTransfersResult {
   handleUploadMultiple: (fileList: FileList) => Promise<void>;
   handleUploadFromDrop: (dataTransfer: DataTransfer) => Promise<void>;
   handleFileSelect: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  handleFolderSelect: (e: React.ChangeEvent<HTMLInputElement>) => void;
   handleDrag: (e: React.DragEvent) => void;
   handleDrop: (e: React.DragEvent) => void;
   cancelUpload: () => Promise<void>;
@@ -508,11 +509,33 @@ export const useSftpModalTransfers = ({
         length: e.target.files?.length
       });
       if (e.target.files && e.target.files.length > 0) {
-        console.log('[useSftpModalTransfers] Starting upload for', e.target.files.length, 'files');
+        console.log('[useSftpModalTransfers] Starting file upload for', e.target.files.length, 'files');
         // Copy the files before clearing the input, because clearing the input
         // will also clear the FileList reference
         const files = Array.from(e.target.files);
-        // Clear input first to allow selecting the same file again
+        // Clear input first to allow selecting the same files again
+        e.target.value = "";
+        // Now start the upload with the copied files
+        void handleUploadFromFiles(files);
+      } else {
+        e.target.value = "";
+      }
+    },
+    [handleUploadFromFiles],
+  );
+
+  const handleFolderSelect = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      console.log('[useSftpModalTransfers] handleFolderSelect called', {
+        files: e.target.files,
+        length: e.target.files?.length
+      });
+      if (e.target.files && e.target.files.length > 0) {
+        console.log('[useSftpModalTransfers] Starting folder upload for', e.target.files.length, 'files');
+        // Copy the files before clearing the input, because clearing the input
+        // will also clear the FileList reference
+        const files = Array.from(e.target.files);
+        // Clear input first to allow selecting the same folder again
         e.target.value = "";
         // Now start the upload with the copied files
         void handleUploadFromFiles(files);
@@ -594,6 +617,7 @@ export const useSftpModalTransfers = ({
     handleUploadMultiple,
     handleUploadFromDrop,
     handleFileSelect,
+    handleFolderSelect,
     handleDrag,
     handleDrop,
     cancelUpload,

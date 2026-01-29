@@ -307,6 +307,7 @@ const zhCN: Messages = {
   'sftp.emptyDirectory': '空目录',
   'sftp.upload': '上传',
   'sftp.uploadFiles': '上传文件',
+  'sftp.uploadFolder': '上传文件夹',
   'sftp.dragDropToUpload': '拖拽文件到这里上传',
   'sftp.retry': '重试',
   'sftp.context.open': '打开',

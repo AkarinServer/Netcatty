@@ -1,5 +1,5 @@
 import React from "react";
-import { ArrowUp, ChevronRight, Home, MoreHorizontal, Plus, RefreshCw, Upload } from "lucide-react";
+import { ArrowUp, ChevronRight, FolderUp, Home, MoreHorizontal, Plus, RefreshCw, Upload } from "lucide-react";
 import { cn } from "../../lib/utils";
 import type { Host, SftpFilenameEncoding } from "../../types";
 import { DistroAvatar } from "../DistroAvatar";
@@ -40,12 +40,15 @@ interface SftpModalHeaderProps {
   onBreadcrumbSelect: (index: number) => void;
   onRootSelect: () => void;
   inputRef: React.RefObject<HTMLInputElement>;
+  folderInputRef: React.RefObject<HTMLInputElement>;
   pathInputRef: React.RefObject<HTMLInputElement>;
   uploading: boolean;
   onTriggerUpload: () => void;
+  onTriggerFolderUpload: () => void;
   onCreateFolder: () => void;
   onCreateFile: () => void;
   onFileSelect: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onFolderSelect: (e: React.ChangeEvent<HTMLInputElement>) => void;
 }
 
 export const SftpModalHeader: React.FC<SftpModalHeaderProps> = ({
@@ -75,12 +78,15 @@ export const SftpModalHeader: React.FC<SftpModalHeaderProps> = ({
   onBreadcrumbSelect,
   onRootSelect,
   inputRef,
+  folderInputRef,
   pathInputRef,
   uploading,
   onTriggerUpload,
+  onTriggerFolderUpload,
   onCreateFolder,
   onCreateFile,
   onFileSelect,
+  onFolderSelect,
 }) => (
   <>
     <DialogHeader className="px-4 py-3 border-b border-border/60 flex-shrink-0">
@@ -228,6 +234,15 @@ export const SftpModalHeader: React.FC<SftpModalHeaderProps> = ({
           variant="outline"
           size="sm"
           className="h-7"
+          onClick={onTriggerFolderUpload}
+          disabled={uploading}
+        >
+          <FolderUp size={14} className="mr-1.5" /> {t("sftp.uploadFolder")}
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-7"
           onClick={onCreateFolder}
         >
           <Plus size={14} className="mr-1.5" /> {t("sftp.newFolder")}
@@ -245,6 +260,14 @@ export const SftpModalHeader: React.FC<SftpModalHeaderProps> = ({
           className="hidden"
           ref={inputRef}
           onChange={onFileSelect}
+          multiple
+        />
+        <input
+          type="file"
+          className="hidden"
+          ref={folderInputRef}
+          onChange={onFolderSelect}
+          webkitdirectory=""
           multiple
         />
       </div>

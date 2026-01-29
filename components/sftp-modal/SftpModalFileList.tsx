@@ -31,6 +31,7 @@ interface SftpModalFileListProps {
   visibleRows: VisibleRow[];
   fileListRef: React.RefObject<HTMLDivElement>;
   inputRef: React.RefObject<HTMLInputElement>;
+  folderInputRef: React.RefObject<HTMLInputElement>;
   handleSort: (field: "name" | "size" | "modified") => void;
   handleResizeStart: (field: string, e: React.MouseEvent) => void;
   handleFileListScroll: (e: React.UIEvent<HTMLDivElement>) => void;
@@ -73,6 +74,7 @@ export const SftpModalFileList: React.FC<SftpModalFileListProps> = ({
   visibleRows,
   fileListRef,
   inputRef,
+  folderInputRef,
   handleSort,
   handleResizeStart,
   handleFileListScroll,
@@ -397,6 +399,9 @@ export const SftpModalFileList: React.FC<SftpModalFileListProps> = ({
           </ContextMenuItem>
           <ContextMenuItem onClick={() => inputRef.current?.click()}>
             <Upload className="h-4 w-4 mr-2" /> {t("sftp.uploadFiles")}
+          </ContextMenuItem>
+          <ContextMenuItem onClick={() => folderInputRef.current?.click()}>
+            <Upload className="h-4 w-4 mr-2" /> {t("sftp.uploadFolder")}
           </ContextMenuItem>
           <ContextMenuItem onClick={() => loadFiles(currentPath, { force: true })}>
             <RefreshCw className="h-4 w-4 mr-2" /> {t("sftp.context.refresh")}

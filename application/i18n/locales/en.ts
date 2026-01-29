@@ -454,6 +454,7 @@ const en: Messages = {
   'sftp.emptyDirectory': 'Empty directory',
   'sftp.upload': 'Upload',
   'sftp.uploadFiles': 'Upload files',
+  'sftp.uploadFolder': 'Upload folder',
   'sftp.dragDropToUpload': 'Drag and drop files here to upload',
   'sftp.retry': 'Retry',
   'sftp.context.open': 'Open',
