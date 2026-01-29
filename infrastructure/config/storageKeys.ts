@@ -52,3 +52,6 @@ export const STORAGE_KEY_SESSION_LOGS_FORMAT = 'netcatty_session_logs_format_v1'
 
 // Archived legacy key records that are no longer supported by the app (e.g. biometric/WebAuthn/FIDO2 experiments).
 export const STORAGE_KEY_LEGACY_KEYS = 'netcatty_legacy_keys_v1';
+
+// Managed Sources - external files that manage groups of hosts (e.g., ~/.ssh/config)
+export const STORAGE_KEY_MANAGED_SOURCES = 'netcatty_managed_sources_v1';

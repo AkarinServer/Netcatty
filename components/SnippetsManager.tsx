@@ -5,6 +5,7 @@ import { useStoredViewMode } from '../application/state/useStoredViewMode';
 import { STORAGE_KEY_VAULT_SNIPPETS_VIEW_MODE } from '../infrastructure/config/storageKeys';
 import { cn } from '../lib/utils';
 import { Host, ShellHistoryEntry, Snippet, SSHKey } from '../types';
+import { ManagedSource } from '../domain/models';
 import { DistroAvatar } from './DistroAvatar';
 import SelectHostPanel from './SelectHostPanel';
 import { AsidePanel, AsidePanelContent } from './ui/aside-panel';
@@ -30,6 +31,7 @@ interface SnippetsManagerProps {
   onRunSnippet?: (snippet: Snippet, targetHosts: Host[]) => void;
   // Props for inline host creation
   availableKeys?: SSHKey[];
+  managedSources?: ManagedSource[];
   onSaveHost?: (host: Host) => void;
   onCreateGroup?: (groupPath: string) => void;
 }
@@ -49,6 +51,7 @@ const SnippetsManager: React.FC<SnippetsManagerProps> = ({
   onPackagesChange,
   onRunSnippet,
   availableKeys = [],
+  managedSources = [],
   onSaveHost,
   onCreateGroup,
 }) => {
@@ -527,6 +530,7 @@ const SnippetsManager: React.FC<SnippetsManagerProps> = ({
           onBack={handleTargetPickerBack}
           onContinue={handleTargetPickerBack}
           availableKeys={availableKeys}
+          managedSources={managedSources}
           onSaveHost={onSaveHost}
           onCreateGroup={onCreateGroup}
           title={t('snippets.targets.add')}

@@ -16,6 +16,7 @@ interface GroupTreeItemProps {
   onEditGroup: (path: string) => void;
   onNewHost: (path: string) => void;
   onNewSubfolder: (path: string) => void;
+  isManagedGroup?: (path: string) => boolean;
 }
 
 export const GroupTreeItem: React.FC<GroupTreeItemProps> = ({

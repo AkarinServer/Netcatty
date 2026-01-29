@@ -15,6 +15,7 @@ import { useI18n } from "../application/i18n/I18nProvider";
 import { usePortForwardingState } from "../application/state/usePortForwardingState";
 import {
   Host,
+  ManagedSource,
   PortForwardingRule,
   PortForwardingType,
   SSHKey,
@@ -64,6 +65,7 @@ interface PortForwardingProps {
   keys: SSHKey[];
   identities?: import('../domain/models').Identity[];
   customGroups: string[];
+  managedSources?: ManagedSource[];
   onNewHost?: () => void;
   onSaveHost?: (host: Host) => void;
   onCreateGroup?: (groupPath: string) => void;
@@ -74,6 +76,7 @@ const PortForwarding: React.FC<PortForwardingProps> = ({
   keys,
   identities = [],
   customGroups: _customGroups,
+  managedSources = [],
   onNewHost: _onNewHost,
   onSaveHost,
   onCreateGroup: _onCreateGroup,
@@ -844,6 +847,7 @@ const PortForwarding: React.FC<PortForwardingProps> = ({
           onContinue={() => setShowHostSelector(false)}
           availableKeys={keys}
           identities={identities}
+          managedSources={managedSources}
           onSaveHost={onSaveHost}
           onCreateGroup={_onCreateGroup}
         />

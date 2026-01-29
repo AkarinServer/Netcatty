@@ -1,6 +1,7 @@
 import React, { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { activeTabStore, useActiveTabId, useIsSftpActive, useIsTerminalLayerVisible, useIsVaultActive } from './application/state/activeTabStore';
 import { useAutoSync } from './application/state/useAutoSync';
+import { useManagedSourceSync } from './application/state/useManagedSourceSync';
 import { usePortForwardingAutoStart } from './application/state/usePortForwardingAutoStart';
 import { useSessionState } from './application/state/useSessionState';
 import { useSettingsState } from './application/state/useSettingsState';
@@ -187,6 +188,7 @@ function App({ settings }: { settings: SettingsState }) {
     knownHosts,
     shellHistory,
     connectionLogs,
+    managedSources,
     updateHosts,
     updateKeys,
     updateIdentities,
@@ -194,6 +196,7 @@ function App({ settings }: { settings: SettingsState }) {
     updateSnippetPackages,
     updateCustomGroups,
     updateKnownHosts,
+    updateManagedSources,
     addShellHistoryEntry,
     addConnectionLog,
     updateConnectionLog,
@@ -269,6 +272,12 @@ function App({ settings }: { settings: SettingsState }) {
         customGroups: payload.customGroups,
       }));
     },
+  });
+
+  const { clearAndRemoveSource, clearAndRemoveSources, unmanageSource } = useManagedSourceSync({
+    hosts,
+    managedSources,
+    onUpdateManagedSources: updateManagedSources,
   });
 
   const handleSyncNowManual = useCallback(() => {
@@ -963,6 +972,7 @@ function App({ settings }: { settings: SettingsState }) {
             knownHosts={knownHosts}
             shellHistory={shellHistory}
             connectionLogs={connectionLogs}
+            managedSources={managedSources}
             sessions={sessions}
             onOpenSettings={handleOpenSettings}
             onOpenQuickSwitcher={handleOpenQuickSwitcher}
@@ -977,6 +987,10 @@ function App({ settings }: { settings: SettingsState }) {
             onUpdateSnippetPackages={updateSnippetPackages}
             onUpdateCustomGroups={updateCustomGroups}
             onUpdateKnownHosts={updateKnownHosts}
+            onUpdateManagedSources={updateManagedSources}
+            onClearAndRemoveManagedSource={clearAndRemoveSource}
+            onClearAndRemoveManagedSources={clearAndRemoveSources}
+            onUnmanageSource={unmanageSource}
             onConvertKnownHost={convertKnownHostToHost}
             onToggleConnectionLogSaved={toggleConnectionLogSaved}
             onDeleteConnectionLog={deleteConnectionLog}

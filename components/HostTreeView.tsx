@@ -1,4 +1,4 @@
-import { ChevronRight, Folder, FolderOpen, Monitor, Server, Expand, Minimize2 } from 'lucide-react';
+import { ChevronRight, FileSymlink, Folder, FolderOpen, Monitor, Server, Expand, Minimize2 } from 'lucide-react';
 import React, { useMemo } from 'react';
 import { useI18n } from '../application/i18n/I18nProvider';
 import { useTreeExpandedState } from '../application/state/useTreeExpandedState';
@@ -14,7 +14,7 @@ import { Button } from './ui/button';
 interface HostTreeViewProps {
   groupTree: GroupNode[];
   hosts: Host[];
-  sortMode?: 'az' | 'za' | 'newest' | 'oldest';
+  sortMode?: 'az' | 'za' | 'newest' | 'oldest' | 'group';
   expandedPaths?: Set<string>;
   onTogglePath?: (path: string) => void;
   onExpandAll?: (paths: string[]) => void;
@@ -30,12 +30,14 @@ interface HostTreeViewProps {
   onDeleteGroup: (groupPath: string) => void;
   moveHostToGroup: (hostId: string, groupPath: string | null) => void;
   moveGroup: (sourcePath: string, targetPath: string) => void;
+  managedGroupPaths?: Set<string>;
+  onUnmanageGroup?: (groupPath: string) => void;
 }
 
 interface TreeNodeProps {
   node: GroupNode;
   depth: number;
-  sortMode: 'az' | 'za' | 'newest' | 'oldest';
+  sortMode: 'az' | 'za' | 'newest' | 'oldest' | 'group';
   expandedPaths: Set<string>;
   onToggle: (path: string) => void;
   onConnect: (host: Host) => void;
@@ -49,6 +51,8 @@ interface TreeNodeProps {
   onDeleteGroup: (groupPath: string) => void;
   moveHostToGroup: (hostId: string, groupPath: string | null) => void;
   moveGroup: (sourcePath: string, targetPath: string) => void;
+  managedGroupPaths?: Set<string>;
+  onUnmanageGroup?: (groupPath: string) => void;
 }
 
 const TreeNode: React.FC<TreeNodeProps> = ({
@@ -68,11 +72,14 @@ const TreeNode: React.FC<TreeNodeProps> = ({
   onDeleteGroup,
   moveHostToGroup,
   moveGroup,
+  managedGroupPaths,
+  onUnmanageGroup,
 }) => {
   const { t } = useI18n();
   const isExpanded = expandedPaths.has(node.path);
   const hasChildren = node.children && Object.keys(node.children).length > 0;
   const paddingLeft = `${depth * 20 + 12}px`;
+  const isManaged = managedGroupPaths?.has(node.path) ?? false;
 
   const childNodes = useMemo(() => {
     if (!node.children) return [];
@@ -147,6 +154,12 @@ const TreeNode: React.FC<TreeNodeProps> = ({
                   {isExpanded ? <FolderOpen size={18} /> : <Folder size={18} />}
                 </div>
                 <span className="truncate flex-1 font-semibold">{node.name}</span>
+                {isManaged && (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded bg-primary/15 text-primary shrink-0 mr-1.5">
+                    <FileSymlink size={10} />
+                    Managed
+                  </span>
+                )}
                 {(node.hosts.length > 0 || hasChildren) && (
                   <span className="text-xs opacity-70 bg-background/50 px-2 py-0.5 rounded-full border border-border">
                     {node.hosts.length}
@@ -171,6 +184,11 @@ const TreeNode: React.FC<TreeNodeProps> = ({
             >
               <FolderOpen className="mr-2 h-4 w-4" /> {t("vault.groups.delete")}
             </ContextMenuItem>
+            {isManaged && onUnmanageGroup && (
+              <ContextMenuItem onClick={() => onUnmanageGroup(node.path)}>
+                <FileSymlink className="mr-2 h-4 w-4" /> {t("vault.managedSource.unmanage")}
+              </ContextMenuItem>
+            )}
           </ContextMenuContent>
         </ContextMenu>
 
@@ -195,6 +213,8 @@ const TreeNode: React.FC<TreeNodeProps> = ({
               onDeleteGroup={onDeleteGroup}
               moveHostToGroup={moveHostToGroup}
               moveGroup={moveGroup}
+              managedGroupPaths={managedGroupPaths}
+              onUnmanageGroup={onUnmanageGroup}
             />
           ))}
           
@@ -329,6 +349,8 @@ export const HostTreeView: React.FC<HostTreeViewProps> = ({
   onDeleteGroup,
   moveHostToGroup,
   moveGroup,
+  managedGroupPaths,
+  onUnmanageGroup,
 }) => {
   const { t } = useI18n();
   
@@ -447,6 +469,8 @@ export const HostTreeView: React.FC<HostTreeViewProps> = ({
           onDeleteGroup={onDeleteGroup}
           moveHostToGroup={moveHostToGroup}
           moveGroup={moveGroup}
+          managedGroupPaths={managedGroupPaths}
+          onUnmanageGroup={onUnmanageGroup}
         />
       ))}
 

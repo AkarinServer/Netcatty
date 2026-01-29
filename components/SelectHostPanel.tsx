@@ -11,6 +11,7 @@ import React, { useMemo, useState } from "react";
 import { cn } from "../lib/utils";
 import { useI18n } from "../application/i18n/I18nProvider";
 import { Host, SSHKey } from "../types";
+import { ManagedSource } from "../domain/models";
 import { DistroAvatar } from "./DistroAvatar";
 import HostDetailsPanel from "./HostDetailsPanel";
 import { Button } from "./ui/button";
@@ -31,6 +32,7 @@ interface SelectHostPanelProps {
   // Props for inline host creation
   availableKeys?: SSHKey[];
   identities?: import('../domain/models').Identity[];
+  managedSources?: ManagedSource[];
   onSaveHost?: (host: Host) => void;
   onCreateGroup?: (groupPath: string) => void;
   title?: string;
@@ -49,6 +51,7 @@ const SelectHostPanel: React.FC<SelectHostPanelProps> = ({
   onNewHost,
   availableKeys = [],
   identities = [],
+  managedSources = [],
   onSaveHost,
   onCreateGroup,
   title,
@@ -407,6 +410,7 @@ const SelectHostPanel: React.FC<SelectHostPanelProps> = ({
           availableKeys={availableKeys}
           identities={identities}
           groups={customGroups}
+          managedSources={managedSources}
           allHosts={hosts}
           onSave={(host) => {
             onSaveHost(host);

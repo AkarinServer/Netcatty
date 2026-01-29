@@ -23,6 +23,7 @@ import { STORAGE_KEY_VAULT_KEYS_VIEW_MODE } from "../infrastructure/config/stora
 import { logger } from "../lib/logger";
 import { cn } from "../lib/utils";
 import { Host, Identity, KeyType, SSHKey } from "../types";
+import { ManagedSource } from "../domain/models";
 import { useKeychainBackend } from "../application/state/useKeychainBackend";
 import SelectHostPanel from "./SelectHostPanel";
 import {
@@ -68,6 +69,7 @@ interface KeychainManagerProps {
   identities?: Identity[];
   hosts?: Host[];
   customGroups?: string[];
+  managedSources?: ManagedSource[];
   onSave: (key: SSHKey) => void;
   onUpdate: (key: SSHKey) => void;
   onDelete: (id: string) => void;
@@ -83,6 +85,7 @@ const KeychainManager: React.FC<KeychainManagerProps> = ({
   identities = [],
   hosts = [],
   customGroups = [],
+  managedSources = [],
   onSave,
   onUpdate,
   onDelete,
@@ -1282,6 +1285,7 @@ echo $3 >> "$FILE"`);
               onBack={() => setShowHostSelector(false)}
               onContinue={() => setShowHostSelector(false)}
               availableKeys={keys}
+              managedSources={managedSources}
               onSaveHost={onSaveHost}
               onCreateGroup={onCreateGroup}
             />

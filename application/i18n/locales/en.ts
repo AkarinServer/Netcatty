@@ -39,6 +39,7 @@ const en: Messages = {
   'sort.za': 'Z-a',
   'sort.newest': 'Newest to oldest',
   'sort.oldest': 'Oldest to newest',
+  'sort.group': 'By group',
   'field.label': 'Label',
   'field.type': 'Type',
   'auth.keyType': 'Type {type}',
@@ -315,12 +316,18 @@ const en: Messages = {
   'vault.groups.renameDialog.desc': 'Rename an existing group.',
   'vault.groups.deleteDialogTitle': 'Delete Group',
   'vault.groups.deleteDialog.desc': 'This will permanently delete the group and move all hosts to the root level.',
+  'vault.groups.deleteDialog.managedDesc': 'This is a managed SSH config group. Deleting it will also delete all hosts and unlink from the source file.',
+  'vault.groups.deleteDialog.deleteHosts': 'Also delete all hosts in this group',
+  'vault.groups.ungrouped': 'Ungrouped',
   'vault.groups.field.name': 'Group Name',
   'vault.groups.placeholder.example': 'e.g. Production',
   'vault.groups.parentLabel': 'Parent',
   'vault.groups.pathLabel': 'Path',
   'vault.groups.errors.required': 'Group name is required.',
   'vault.groups.errors.invalidChars': "Group name cannot include '/' or '\\\\'.",
+
+  'vault.managedSource.unmanage': 'Unmanage',
+  'vault.managedSource.unmanageSuccess': 'Successfully unmanaged group',
 
   'vault.hosts.header.entries': '{count} entries',
   'vault.hosts.header.live': '{count} live',
@@ -344,6 +351,12 @@ const en: Messages = {
   'vault.hosts.copyCredentials': 'Copy Credentials',
   'vault.hosts.copyCredentials.toast.success': 'Credentials copied to clipboard',
   'vault.hosts.copyCredentials.toast.noPassword': 'No password saved for this host',
+  'vault.hosts.multiSelect': 'Multi-select',
+  'vault.hosts.selected': '{count} selected',
+  'vault.hosts.selectAll': 'Select All',
+  'vault.hosts.deselectAll': 'Deselect All',
+  'vault.hosts.deleteSelected': 'Delete ({count})',
+  'vault.hosts.deleteMultiple.success': 'Deleted {count} hosts',
 
   // Vault import
   'vault.import.title': 'Add data to your vault',
@@ -360,6 +373,18 @@ const en: Messages = {
   'vault.import.toast.summary':
     'Imported {count} hosts (skipped {skipped}, duplicates {duplicates}).',
   'vault.import.toast.firstIssue': 'First issue: {issue}',
+  'vault.import.sshConfig.chooseMode': 'Choose how to import your SSH config file.',
+  'vault.import.sshConfig.modeQuestion': 'How would you like to import?',
+  'vault.import.sshConfig.importOnly': 'Import Only',
+  'vault.import.sshConfig.importOnlyDesc': 'One-time import. Changes won\'t sync back to the file.',
+  'vault.import.sshConfig.managed': 'Managed Sync',
+  'vault.import.sshConfig.managedDesc': 'Keep in sync. Changes will be saved back to the file.',
+  'vault.import.sshConfig.managedGroup': 'ssh config',
+  'vault.import.sshConfig.managedSuccess': 'Imported {count} hosts. File is now managed.',
+  'vault.import.sshConfig.alreadyManaged': 'This file is already being managed.',
+  'vault.import.sshConfig.alreadyManagedDesc': 'This file is already managed under group "{group}". Remove the existing managed source first if you want to re-import.',
+  'vault.import.sshConfig.noFilePath': 'Cannot manage this file.',
+  'vault.import.sshConfig.noFilePathDesc': 'Unable to determine the file path. Managed sync requires access to the file system.',
 
   // Known Hosts
   'knownHosts.search.placeholder': 'Search known hosts...',

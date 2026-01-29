@@ -29,7 +29,7 @@ import { useApplicationBackend } from "../application/state/useApplicationBacken
 import { TERMINAL_THEMES } from "../infrastructure/config/terminalThemes";
 import { MIN_FONT_SIZE, MAX_FONT_SIZE } from "../infrastructure/config/fonts";
 import { cn } from "../lib/utils";
-import { EnvVar, Host, Identity, ProxyConfig, SSHKey } from "../types";
+import { EnvVar, Host, Identity, ManagedSource, ProxyConfig, SSHKey } from "../types";
 import { DistroAvatar } from "./DistroAvatar";
 import ThemeSelectPanel from "./ThemeSelectPanel";
 import {
@@ -71,6 +71,7 @@ interface HostDetailsPanelProps {
   availableKeys: SSHKey[];
   identities: Identity[];
   groups: string[];
+  managedSources?: ManagedSource[];
   allTags?: string[]; // All available tags for autocomplete
   allHosts?: Host[]; // All hosts for chain selection
   defaultGroup?: string | null; // Default group for new hosts (from current navigation)
@@ -85,6 +86,7 @@ const HostDetailsPanel: React.FC<HostDetailsPanelProps> = ({
   availableKeys,
   identities,
   groups,
+  managedSources = [],
   allTags = [],
   allHosts = [],
   defaultGroup,
@@ -254,15 +256,49 @@ const HostDetailsPanel: React.FC<HostDetailsPanelProps> = ({
   const handleSubmit = () => {
     if (!form.hostname) return;
     // If label is empty, use hostname as label
-    const finalLabel = form.label?.trim() || form.hostname;
+    let finalLabel = form.label?.trim() || form.hostname;
+    const finalGroup = groupInputValue.trim() || form.group || "";
+
+    // Find the most specific (deepest) managed source that matches the group path
+    // This handles nested managed groups correctly by preferring exact matches
+    // and longer paths over shorter prefix matches
+    const targetManagedSource = managedSources
+      .filter(s => finalGroup === s.groupName || finalGroup.startsWith(s.groupName + "/"))
+      .sort((a, b) => b.groupName.length - a.groupName.length)[0];
+
+    // Only SSH hosts can be managed (SSH config only supports SSH protocol)
+    const canBeManaged = !form.protocol || form.protocol === "ssh";
+
+    // Strip spaces from label only if host can be managed and is in a managed group
+    // (SSH config requires no spaces in Host alias)
+    if (targetManagedSource && canBeManaged) {
+      finalLabel = finalLabel.replace(/\s/g, '');
+    }
+
+    // Determine managedSourceId:
+    // - Only SSH hosts can be managed (SSH config only supports SSH protocol)
+    // - If we found a matching managed source, use its id
+    // - If managedSources was not provided (empty array) and host already has managedSourceId, preserve it
+    // - Otherwise, clear it (host is not in a managed group)
+    let finalManagedSourceId: string | undefined;
+    if (targetManagedSource && canBeManaged) {
+      finalManagedSourceId = targetManagedSource.id;
+    } else if (managedSources.length === 0 && form.managedSourceId && canBeManaged) {
+      // managedSources not provided, preserve existing value
+      finalManagedSourceId = form.managedSourceId;
+    } else {
+      finalManagedSourceId = undefined;
+    }
+
     const cleaned: Host = {
       ...form,
       label: finalLabel,
-      group: groupInputValue.trim() || form.group,
+      group: finalGroup,
       tags: form.tags || [],
       port: form.port || 22,
       // Clear password if savePassword is explicitly set to false
       password: form.savePassword === false ? undefined : form.password,
+      managedSourceId: finalManagedSourceId,
     };
     onSave(cleaned);
   };
@@ -520,32 +556,6 @@ const HostDetailsPanel: React.FC<HostDetailsPanelProps> = ({
       }
     >
       <AsidePanelContent>
-        <Card className="p-3 space-y-2 bg-card border-border/80">
-          <div className="flex items-center gap-2">
-            <MapPin size={14} className="text-muted-foreground" />
-            <p className="text-xs font-semibold">
-              {t("hostDetails.section.address")}
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <DistroAvatar
-              host={form as Host}
-              fallback={
-                form.label?.slice(0, 2).toUpperCase() ||
-                form.hostname?.slice(0, 2).toUpperCase() ||
-                "H"
-              }
-              className="h-10 w-10"
-            />
-            <Input
-              placeholder={t("hostDetails.hostname.placeholder")}
-              value={form.hostname}
-              onChange={(e) => update("hostname", e.target.value)}
-              className="h-10 flex-1"
-            />
-          </div>
-        </Card>
-
         <Card className="p-3 space-y-3 bg-card border-border/80">
           <div className="flex items-center gap-2">
             <Settings2 size={14} className="text-muted-foreground" />
@@ -556,7 +566,21 @@ const HostDetailsPanel: React.FC<HostDetailsPanelProps> = ({
           <Input
             placeholder={t("hostDetails.label.placeholder")}
             value={form.label}
-            onChange={(e) => update("label", e.target.value)}
+            onChange={(e) => {
+              let value = e.target.value;
+              // Only strip spaces if the TARGET group belongs to a managed source
+              // (don't use form.managedSourceId as it reflects old state before group change)
+              const targetGroup = groupInputValue.trim() || form.group || "";
+              const willBeManaged = managedSources.some(s =>
+                targetGroup === s.groupName || targetGroup.startsWith(s.groupName + "/")
+              );
+              // Also check protocol - only SSH hosts can be managed
+              const canBeManaged = !form.protocol || form.protocol === "ssh";
+              if (willBeManaged && canBeManaged) {
+                value = value.replace(/\s/g, '');
+              }
+              update("label", value);
+            }}
             className="h-10"
           />
 
@@ -598,6 +622,32 @@ const HostDetailsPanel: React.FC<HostDetailsPanelProps> = ({
               onCreateNew={(val) => onCreateTag?.(val)}
               createText="Create Tag"
               triggerClassName="flex-1 min-h-10"
+            />
+          </div>
+        </Card>
+
+        <Card className="p-3 space-y-2 bg-card border-border/80">
+          <div className="flex items-center gap-2">
+            <MapPin size={14} className="text-muted-foreground" />
+            <p className="text-xs font-semibold">
+              {t("hostDetails.section.address")}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <DistroAvatar
+              host={form as Host}
+              fallback={
+                form.label?.slice(0, 2).toUpperCase() ||
+                form.hostname?.slice(0, 2).toUpperCase() ||
+                "H"
+              }
+              className="h-10 w-10"
+            />
+            <Input
+              placeholder={t("hostDetails.hostname.placeholder")}
+              value={form.hostname}
+              onChange={(e) => update("hostname", e.target.value)}
+              className="h-10 flex-1"
             />
           </div>
         </Card>

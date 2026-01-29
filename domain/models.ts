@@ -94,6 +94,8 @@ export interface Host {
   // SFTP specific configuration
   sftpSudo?: boolean; // Use sudo for SFTP operations (requires password)
   sftpEncoding?: SftpFilenameEncoding; // Filename encoding for SFTP operations
+  // Managed source: if this host is managed by an external file (e.g., ~/.ssh/config)
+  managedSourceId?: string; // Reference to ManagedSource.id
 }
 
 export type KeyType = 'RSA' | 'ECDSA' | 'ED25519';
@@ -653,4 +655,16 @@ export interface SessionLogsSettings {
   enabled: boolean; // Whether auto-save is enabled
   directory: string; // Base directory for logs
   format: SessionLogFormat; // Log file format
+}
+
+// Managed Source - external file that manages a group of hosts (e.g., ~/.ssh/config)
+export type ManagedSourceType = 'ssh_config';
+
+export interface ManagedSource {
+  id: string;
+  type: ManagedSourceType;
+  filePath: string;
+  groupName: string;
+  lastSyncedAt: number;
+  lastFileHash?: string;
 }

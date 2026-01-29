@@ -6,6 +6,7 @@ import {
   Identity,
   KeyCategory,
   KnownHost,
+  ManagedSource,
   ShellHistoryEntry,
   Snippet,
   SSHKey,
@@ -22,6 +23,7 @@ import {
   STORAGE_KEY_KEYS,
   STORAGE_KEY_KNOWN_HOSTS,
   STORAGE_KEY_LEGACY_KEYS,
+  STORAGE_KEY_MANAGED_SOURCES,
   STORAGE_KEY_SHELL_HISTORY,
   STORAGE_KEY_SNIPPET_PACKAGES,
   STORAGE_KEY_SNIPPETS,
@@ -95,6 +97,7 @@ export const useVaultState = () => {
   const [knownHosts, setKnownHosts] = useState<KnownHost[]>([]);
   const [shellHistory, setShellHistory] = useState<ShellHistoryEntry[]>([]);
   const [connectionLogs, setConnectionLogs] = useState<ConnectionLog[]>([]);
+  const [managedSources, setManagedSources] = useState<ManagedSource[]>([]);
 
   const updateHosts = useCallback((data: Host[]) => {
     const cleaned = data.map(sanitizeHost);
@@ -132,6 +135,11 @@ export const useVaultState = () => {
     localStorageAdapter.write(STORAGE_KEY_KNOWN_HOSTS, data);
   }, []);
 
+  const updateManagedSources = useCallback((data: ManagedSource[]) => {
+    setManagedSources(data);
+    localStorageAdapter.write(STORAGE_KEY_MANAGED_SOURCES, data);
+  }, []);
+
   const clearVaultData = useCallback(() => {
     updateHosts([]);
     updateKeys([]);
@@ -140,6 +148,7 @@ export const useVaultState = () => {
     updateSnippetPackages([]);
     updateCustomGroups([]);
     updateKnownHosts([]);
+    updateManagedSources([]);
     localStorageAdapter.remove(STORAGE_KEY_LEGACY_KEYS);
   }, [
     updateHosts,
@@ -149,6 +158,7 @@ export const useVaultState = () => {
     updateSnippetPackages,
     updateCustomGroups,
     updateKnownHosts,
+    updateManagedSources,
   ]);
 
   const addShellHistoryEntry = useCallback(
@@ -339,6 +349,12 @@ export const useVaultState = () => {
       STORAGE_KEY_CONNECTION_LOGS,
     );
     if (savedConnectionLogs) setConnectionLogs(savedConnectionLogs);
+
+    // Load managed sources
+    const savedManagedSources = localStorageAdapter.read<ManagedSource[]>(
+      STORAGE_KEY_MANAGED_SOURCES,
+    );
+    if (savedManagedSources) setManagedSources(savedManagedSources);
   }, [updateHosts, updateSnippets]);
 
   useEffect(() => {
@@ -407,6 +423,12 @@ export const useVaultState = () => {
       if (key === STORAGE_KEY_CONNECTION_LOGS) {
         const next = safeParse<ConnectionLog[]>(event.newValue) ?? [];
         setConnectionLogs(next);
+        return;
+      }
+
+      if (key === STORAGE_KEY_MANAGED_SOURCES) {
+        const next = safeParse<ManagedSource[]>(event.newValue) ?? [];
+        setManagedSources(next);
       }
     };
 
@@ -474,6 +496,7 @@ export const useVaultState = () => {
     knownHosts,
     shellHistory,
     connectionLogs,
+    managedSources,
     updateHosts,
     updateKeys,
     updateIdentities,
@@ -481,6 +504,7 @@ export const useVaultState = () => {
     updateSnippetPackages,
     updateCustomGroups,
     updateKnownHosts,
+    updateManagedSources,
     addShellHistoryEntry,
     clearShellHistory,
     addConnectionLog,
