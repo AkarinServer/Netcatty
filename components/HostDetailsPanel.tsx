@@ -43,6 +43,7 @@ import { Switch } from "./ui/switch";
 import { Card } from "./ui/card";
 import { Combobox, ComboboxOption, MultiCombobox } from "./ui/combobox";
 import { Input } from "./ui/input";
+import { Textarea } from "./ui/textarea";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 import { ScrollArea } from "./ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
@@ -1334,11 +1335,12 @@ const HostDetailsPanel: React.FC<HostDetailsPanelProps> = ({
             <TerminalSquare size={14} className="text-muted-foreground" />
             <p className="text-xs font-semibold">{t("hostDetails.startupCommand")}</p>
           </div>
-          <Input
+          <Textarea
             placeholder={t("hostDetails.startupCommand.placeholder")}
             value={form.startupCommand || ""}
             onChange={(e) => update("startupCommand", e.target.value)}
-            className="h-9"
+            className="min-h-[80px] font-mono text-sm"
+            rows={3}
           />
           <p className="text-xs text-muted-foreground">
             {t("hostDetails.startupCommand.help")}
