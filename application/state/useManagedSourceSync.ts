@@ -187,13 +187,21 @@ export const useManagedSourceSync = ({
           changedSourceIds.add(source.id);
           break;
         }
+        // Compare hostChain arrays for ProxyJump changes
+        const prevChain = prev.hostChain?.hostIds || [];
+        const currChain = curr.hostChain?.hostIds || [];
+        const chainChanged =
+          prevChain.length !== currChain.length ||
+          prevChain.some((id, i) => id !== currChain[i]);
+
         const hasChanged =
           prev.hostname !== curr.hostname ||
           prev.port !== curr.port ||
           prev.username !== curr.username ||
           prev.label !== curr.label ||
           prev.group !== curr.group ||
-          prev.protocol !== curr.protocol;
+          prev.protocol !== curr.protocol ||
+          chainChanged;
         if (hasChanged) {
           changedSourceIds.add(source.id);
           break;
