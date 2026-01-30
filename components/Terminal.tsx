@@ -223,6 +223,10 @@ const TerminalComponent: React.FC<TerminalProps> = ({
     handleCloseSearch,
   } = terminalSearch;
 
+  // Check if this is a local or serial connection (doesn't need connection dialog during connecting)
+  const isLocalConnection = host.protocol === "local";
+  const isSerialConnection = host.protocol === "serial";
+
   // Server stats (CPU, Memory, Disk) for Linux servers
   const { stats: serverStats } = useServerStats({
     sessionId,
@@ -450,8 +454,11 @@ const TerminalComponent: React.FC<TerminalProps> = ({
   useEffect(() => {
     if (status !== "connecting" || auth.needsAuth) return;
 
+    // Local terminal and serial connections don't need timeout/progress UI
+    if (isLocalConnection || isSerialConnection) return;
+
     // Only show SSH-specific scripted logs for SSH connections
-    const isSSH = host.protocol !== "serial" && host.protocol !== "local" && host.protocol !== "telnet" && host.hostname !== "localhost";
+    const isSSH = host.protocol !== "telnet";
 
     let stepTimer: ReturnType<typeof setInterval> | undefined;
     if (isSSH) {
@@ -1295,7 +1302,10 @@ const TerminalComponent: React.FC<TerminalProps> = ({
             </div>
           )}
 
-          {status !== "connected" && !needsHostKeyVerification && (
+          {/* Connection dialog: skip for local/serial during connecting phase, but show on error */}
+          {status !== "connected" && !needsHostKeyVerification && !(
+            (isLocalConnection || isSerialConnection) && status === "connecting"
+          ) && (
             <TerminalConnectionDialog
               host={host}
               status={status}
