@@ -20,6 +20,23 @@ interface UseSftpViewFileOpsParams {
     systemApp?: SystemAppInfo,
   ) => void;
   t: (key: string, vars?: Record<string, string | number>) => string;
+  showSaveDialog?: (defaultPath: string, filters?: Array<{ name: string; extensions: string[] }>) => Promise<string | null>;
+  startStreamTransfer?: (
+    options: {
+      transferId: string;
+      sourcePath: string;
+      targetPath: string;
+      sourceType: 'local' | 'sftp';
+      targetType: 'local' | 'sftp';
+      sourceSftpId?: string;
+      targetSftpId?: string;
+      totalBytes?: number;
+    },
+    onProgress?: (transferred: number, total: number, speed: number) => void,
+    onComplete?: () => void,
+    onError?: (error: string) => void
+  ) => Promise<{ transferId: string; totalBytes?: number; error?: string }>;
+  getSftpIdForConnection?: (connectionId: string) => string | undefined;
 }
 
 interface UseSftpViewFileOpsResult {
@@ -88,6 +105,9 @@ export const useSftpViewFileOps = ({
   getOpenerForFileRef,
   setOpenerForExtension,
   t,
+  showSaveDialog,
+  startStreamTransfer,
+  getSftpIdForConnection,
 }: UseSftpViewFileOpsParams): UseSftpViewFileOpsResult => {
   const [permissionsState, setPermissionsState] = useState<{
     file: SftpFileEntry;
@@ -328,19 +348,82 @@ export const useSftpViewFileOps = ({
       const fullPath = sftpRef.current.joinPath(pane.connection.currentPath, file.name);
 
       try {
-        const content = await sftpRef.current.readBinaryFile(side, fullPath);
+        // For local files, use blob download
+        if (pane.connection.isLocal) {
+          const content = await sftpRef.current.readBinaryFile(side, fullPath);
 
-        const blob = new Blob([content], { type: "application/octet-stream" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = file.name;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
+          const blob = new Blob([content], { type: "application/octet-stream" });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = file.name;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
 
-        toast.success(`${t("sftp.context.download")}: ${file.name}`, "SFTP");
+          toast.success(`${t("sftp.context.download")}: ${file.name}`, "SFTP");
+          return;
+        }
+
+        // For remote SFTP files, use streaming download with save dialog
+        if (!showSaveDialog || !startStreamTransfer || !getSftpIdForConnection) {
+          toast.error(t("sftp.error.downloadFailed"), "SFTP");
+          return;
+        }
+
+        const sftpId = getSftpIdForConnection(pane.connection.id);
+        if (!sftpId) {
+          throw new Error("SFTP session not found");
+        }
+
+        // Show save dialog to get target path
+        const targetPath = await showSaveDialog(file.name);
+        if (!targetPath) {
+          // User cancelled
+          return;
+        }
+
+        const transferId = `download-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+        // Track if error was already handled by callback
+        let errorHandled = false;
+
+        const result = await startStreamTransfer(
+          {
+            transferId,
+            sourcePath: fullPath,
+            targetPath,
+            sourceType: 'sftp',
+            targetType: 'local',
+            sourceSftpId: sftpId,
+          },
+          undefined, // onProgress - SftpView uses its own transfer queue UI
+          () => {
+            toast.success(`${t("sftp.context.download")}: ${file.name}`, "SFTP");
+          },
+          (error) => {
+            errorHandled = true;
+            // Check if this is a cancellation - don't show error toast for cancellations
+            if (!error.includes('cancelled') && !error.includes('canceled')) {
+              toast.error(error, "SFTP");
+            }
+          }
+        );
+
+        // Check if bridge doesn't support streaming (returns undefined)
+        if (result === undefined) {
+          toast.error(t("sftp.error.downloadFailed"), "SFTP");
+          return;
+        }
+
+        // Handle error from result only if onError callback wasn't called
+        if (result?.error && !errorHandled) {
+          const isCancelError = result.error.includes('cancelled') || result.error.includes('canceled');
+          if (!isCancelError) {
+            toast.error(result.error, "SFTP");
+          }
+        }
       } catch (e) {
         logger.error("[SftpView] Failed to download file:", e);
         toast.error(
@@ -349,7 +432,7 @@ export const useSftpViewFileOps = ({
         );
       }
     },
-    [sftpRef, t],
+    [sftpRef, t, showSaveDialog, startStreamTransfer, getSftpIdForConnection],
   );
 
   const onDownloadFileLeft = useCallback(
