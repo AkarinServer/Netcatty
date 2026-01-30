@@ -181,11 +181,11 @@ async function extractRemoteArchive(sftpId, archivePath, targetDir, archiveSize)
   // Calculate timeout based on archive size
   // Base: 60 seconds minimum
   // Add 30 seconds per 10MB of archive size
-  // This accounts for slower servers and larger archives
+  // Maximum: 10 minutes to prevent excessively long waits
   const baseTimeout = 60000; // 60 seconds minimum
+  const maxTimeout = 600000; // 10 minutes maximum
   const sizeBasedTimeout = archiveSize ? Math.ceil(archiveSize / (10 * 1024 * 1024)) * 30000 : 0;
-  const extractionTimeout = Math.max(baseTimeout, baseTimeout + sizeBasedTimeout);
-  console.log(`[CompressUpload] Extraction timeout: ${extractionTimeout / 1000}s (archive size: ${archiveSize ? (archiveSize / 1024 / 1024).toFixed(2) + 'MB' : 'unknown'})`);
+  const extractionTimeout = Math.min(maxTimeout, Math.max(baseTimeout, baseTimeout + sizeBasedTimeout));
 
   return new Promise((resolve, reject) => {
     // Create target directory, extract, then always clean up the archive
@@ -195,11 +195,9 @@ async function extractRemoteArchive(sftpId, archivePath, targetDir, archiveSize)
     const escapedTargetDir = escapeShellArg(targetDir);
     const escapedArchivePath = escapeShellArg(archivePath);
     const command = `mkdir -p ${escapedTargetDir} && cd ${escapedTargetDir} && tar -xzf ${escapedArchivePath} --exclude='._*' --exclude='.DS_Store' && rm -f ${escapedArchivePath} || (rm -f ${escapedArchivePath}; exit 1)`;
-    console.log('[CompressUpload] Executing remote extraction command:', command);
-    
+
     sshClient.exec(command, (err, stream) => {
       if (err) {
-        console.error('[CompressUpload] Failed to execute extraction command:', err);
         reject(new Error(`Failed to execute extraction command: ${err.message}`));
         return;
       }
@@ -219,17 +217,13 @@ async function extractRemoteArchive(sftpId, archivePath, targetDir, archiveSize)
       stream.on('close', (code) => {
         if (resolved) return;
         resolved = true;
-        
-        console.log('[CompressUpload] Remote extraction completed with code:', code);
-        if (stdout) console.log('[CompressUpload] stdout:', stdout);
-        if (stderr) console.log('[CompressUpload] stderr:', stderr);
-        
+
         clearTimeout(timeout);
-        
+
         // The command uses `;` and `||` so cleanup should always run
         // We only care about the tar extraction success (first part of command)
         // The rm commands are just cleanup and their failure doesn't matter
-        
+
         // For most cases, code 0 means success
         // If code is not 0, check if it's just cleanup failure
         if (code === 0) {
@@ -240,10 +234,7 @@ async function extractRemoteArchive(sftpId, archivePath, targetDir, archiveSize)
           if (stderr.includes('tar:') || stderr.includes('gzip:') || stderr.includes('Cannot open:') || stderr.includes('not found in archive')) {
             reject(new Error(`Remote extraction failed: ${stderr || 'Tar extraction error'}`));
           } else {
-            // Likely just cleanup failure, check if extraction actually succeeded
-            // We can verify by checking if the extraction created files
-            console.warn('[CompressUpload] Extraction may have succeeded but cleanup failed:', stderr);
-            // For now, consider it successful if no tar-specific errors
+            // Likely just cleanup failure - consider it successful if no tar-specific errors
             resolve();
           }
         }
@@ -252,8 +243,7 @@ async function extractRemoteArchive(sftpId, archivePath, targetDir, archiveSize)
       stream.on('error', (err) => {
         if (resolved) return;
         resolved = true;
-        
-        console.error('[CompressUpload] Stream error:', err);
+
         clearTimeout(timeout);
         reject(new Error(`Stream error: ${err.message}`));
       });
@@ -263,7 +253,6 @@ async function extractRemoteArchive(sftpId, archivePath, targetDir, archiveSize)
         if (resolved) return;
         resolved = true;
 
-        console.error(`[CompressUpload] Remote extraction timed out after ${extractionTimeout / 1000} seconds`);
         reject(new Error(`Remote extraction timed out after ${extractionTimeout / 1000} seconds`));
       }, extractionTimeout);
     });
@@ -298,19 +287,16 @@ async function startCompressedUpload(event, payload) {
   };
 
   const sendComplete = () => {
-    console.log(`[CompressUpload] Sending completion for compressionId: ${compressionId}`);
     // Send final 100% progress before completion
     if (!compression.cancelled) {
-      console.log(`[CompressUpload] Sending final 100% progress for compressionId: ${compressionId}`);
-      sender.send("netcatty:compress:progress", { 
-        compressionId, 
-        phase: 'extracting', 
-        transferred: 100, 
-        total: 100 
+      sender.send("netcatty:compress:progress", {
+        compressionId,
+        phase: 'extracting',
+        transferred: 100,
+        total: 100
       });
     }
     activeCompressions.delete(compressionId);
-    console.log(`[CompressUpload] Sending complete event for compressionId: ${compressionId}`);
     sender.send("netcatty:compress:complete", { compressionId });
   };
 
@@ -348,12 +334,10 @@ async function startCompressedUpload(event, payload) {
     });
 
     if (compression.cancelled) {
-      console.log(`[CompressUpload] Compression cancelled, cleaning up temp file: ${tempArchivePath}`);
       try {
         await fs.promises.unlink(tempArchivePath);
-        console.log(`[CompressUpload] Successfully deleted temp file after compression cancellation: ${tempArchivePath}`);
-      } catch (error) {
-        console.warn(`[CompressUpload] Failed to delete temp file after compression cancellation: ${tempArchivePath}`, error);
+      } catch {
+        // Ignore cleanup errors
       }
       throw new Error('Upload cancelled');
     }
@@ -373,7 +357,7 @@ async function startCompressedUpload(event, payload) {
     const transferId = `compress-${compressionId}`;
 
     // Progress callback to map upload progress to 30-90%
-    const onUploadProgress = (transferred, total, speed) => {
+    const onUploadProgress = (transferred, total, _speed) => {
       if (compression.cancelled) return;
       const uploadProgress = Math.min(60, (transferred / total) * 60);
       sendProgress('uploading', 30 + uploadProgress, 100);
@@ -400,106 +384,97 @@ async function startCompressedUpload(event, payload) {
 
     // Phase 3: Extraction (90-100%)
     sendProgress('extracting', 90, 100);
-    console.log('[CompressUpload] Starting remote extraction phase');
 
     try {
       await extractRemoteArchive(sftpId, remoteArchivePath, targetPath, compressedSize);
-      console.log('[CompressUpload] Remote extraction completed successfully');
-      
+
       // Update progress to 95% after extraction
       sendProgress('extracting', 95, 100);
       
       // Perform cleanup operations asynchronously without blocking completion
+      // Note: These cleanup operations are best-effort; if the SFTP session closes before
+      // cleanup completes, errors will be silently ignored
       setImmediate(async () => {
         // Additional cleanup: remove any ._* files that might have been extracted
         try {
           const client = sftpClients.get(sftpId);
-          if (client && client.client) {
+          // Check both that client exists and connection is still open
+          if (client && client.client && client.client.writable !== false) {
             const cleanupCommand = `find ${escapeShellArg(targetPath)} -name "._*" -type f -delete 2>/dev/null || true`;
             client.client.exec(cleanupCommand, (err, stream) => {
               if (err) {
-                console.warn('[CompressUpload] ._* files cleanup command failed to execute:', err);
+                // Silently ignore - session may have closed
                 return;
               }
-              
+
               stream.on('close', () => {
-                console.log('[CompressUpload] ._* files cleanup completed');
+                // Cleanup completed
               });
-              
-              stream.on('error', (error) => {
-                console.warn('[CompressUpload] ._* files cleanup stream error:', error);
+
+              stream.on('error', () => {
+                // Silently ignore cleanup errors
               });
             });
           }
-        } catch (cleanupError) {
-          console.warn('[CompressUpload] ._* files cleanup failed:', cleanupError);
+        } catch {
+          // Silently ignore cleanup errors
         }
-        
+
         // Additional cleanup attempt - ensure remote archive is removed
         try {
           const client = sftpClients.get(sftpId);
-          if (client && client.client) {
+          if (client && client.client && client.client.writable !== false) {
             client.client.exec(`rm -f ${escapeShellArg(remoteArchivePath)}`, (err, stream) => {
               if (err) {
-                console.warn('[CompressUpload] Additional cleanup command failed to execute:', err);
+                // Silently ignore - session may have closed
                 return;
               }
-              
+
               stream.on('close', () => {
-                console.log('[CompressUpload] Additional cleanup completed');
+                // Cleanup completed
               });
-              
-              stream.on('error', (error) => {
-                console.warn('[CompressUpload] Additional cleanup stream error:', error);
+
+              stream.on('error', () => {
+                // Silently ignore cleanup errors
               });
             });
           }
-        } catch (cleanupError) {
-          console.warn('[CompressUpload] Additional cleanup failed:', cleanupError);
+        } catch {
+          // Silently ignore cleanup errors
         }
       });
-      
+
       // Extraction completed successfully - don't wait for cleanup
-      console.log('[CompressUpload] Extraction completed successfully, cleanup running in background');
     } catch (error) {
-      console.error('[CompressUpload] Remote extraction failed:', error);
       throw error;
     }
-    
+
     // Clean up local temp file
-    console.log(`[CompressUpload] Cleaning up local temp file: ${tempArchivePath}`);
     try {
       await fs.promises.unlink(tempArchivePath);
-      console.log(`[CompressUpload] Successfully deleted local temp file: ${tempArchivePath}`);
-    } catch (error) {
-      console.warn(`[CompressUpload] Failed to delete local temp file: ${tempArchivePath}`, error);
+    } catch {
+      // Ignore cleanup errors
     }
 
     // Check if cancelled during extraction before reporting completion
     if (compression.cancelled) {
-      console.log('[CompressUpload] Upload was cancelled during extraction phase');
       sender.send("netcatty:compress:cancelled", { compressionId });
       return { compressionId, cancelled: true };
     }
 
     sendComplete();
-    console.log('[CompressUpload] Compression upload completed successfully');
-    
+
     return { compressionId, success: true };
   } catch (err) {
-    console.error('[CompressUpload] Compression upload failed:', err);
-    
     // Clean up local temp file if it exists
     if (tempArchivePath) {
-      console.log(`[CompressUpload] Cleaning up local temp file after error: ${tempArchivePath}`);
       try {
         await fs.promises.unlink(tempArchivePath);
-        console.log(`[CompressUpload] Successfully deleted local temp file after error: ${tempArchivePath}`);
-      } catch (error) {
-        console.warn(`[CompressUpload] Failed to delete local temp file after error: ${tempArchivePath}`, error);
+      } catch {
+        // Ignore cleanup errors
       }
     }
-    
+
     if (err.message === 'Upload cancelled' || err.message === 'Compression cancelled' || err.message === 'Transfer cancelled') {
       activeCompressions.delete(compressionId);
       sender.send("netcatty:compress:cancelled", { compressionId });
@@ -519,31 +494,30 @@ async function startCompressedUpload(event, payload) {
 async function cancelCompression(event, payload) {
   const { compressionId } = payload;
   const compression = activeCompressions.get(compressionId);
-  
+
   if (compression) {
     compression.cancelled = true;
-    
+
     // Kill the tar process if running
     if (compression.process) {
       try {
         compression.process.kill('SIGTERM');
-      } catch (e) {
-        console.log('[compressUploadBridge] Error killing process:', e);
+      } catch {
+        // Ignore errors when killing process
       }
     }
-    
+
     // Cancel the associated transfer if it's running
     const transferId = `compress-${compressionId}`;
     if (transferBridge && transferBridge.cancelTransfer) {
       try {
-        console.log('[compressUploadBridge] Cancelling transfer:', transferId);
         await transferBridge.cancelTransfer(event, { transferId });
-      } catch (e) {
-        console.log('[compressUploadBridge] Error cancelling transfer:', e);
+      } catch {
+        // Ignore errors when cancelling transfer
       }
     }
   }
-  
+
   return { success: true };
 }
 

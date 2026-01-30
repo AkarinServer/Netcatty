@@ -22,9 +22,6 @@ interface SftpModalUploadTasksProps {
 }
 
 export const SftpModalUploadTasks: React.FC<SftpModalUploadTasksProps> = ({ tasks, t, onCancel, onDismiss }) => {
-  // Debug: Log tasks whenever component renders
-  console.log('[SftpModalUploadTasks] Rendering with tasks:', tasks.map(t => ({ id: t.id, status: t.status, fileName: t.fileName, progress: t.progress })));
-  
   if (tasks.length === 0) return null;
 
   // Helper function to get localized display name for compressed uploads

@@ -232,14 +232,12 @@ export const useSftpModalTransfers = ({
         setUploadTasks(prev => [...prev, uploadTask]);
       },
       onTaskProgress: (taskId: string, progress: UploadProgress) => {
-        console.log(`[useSftpModalTransfers] onTaskProgress called for taskId: ${taskId}, progress: ${progress.percent}%`);
         setUploadTasks(prev =>
           prev.map(task => {
             if (task.id !== taskId) return task;
-            
+
             // Don't update progress if task is already completed, failed, or cancelled
             if (task.status === "completed" || task.status === "failed" || task.status === "cancelled") {
-              console.log(`[useSftpModalTransfers] Ignoring progress update for ${taskId} - task already ${task.status}`);
               return task;
             }
             
@@ -254,10 +252,8 @@ export const useSftpModalTransfers = ({
         );
       },
       onTaskCompleted: (taskId: string, totalBytes: number) => {
-        console.log(`[useSftpModalTransfers] onTaskCompleted called for taskId: ${taskId}`);
-        setUploadTasks(prev => {
-          console.log(`[useSftpModalTransfers] Current tasks before update:`, prev.map(t => ({ id: t.id, status: t.status, fileName: t.fileName })));
-          const updated = prev.map(task =>
+        setUploadTasks(prev =>
+          prev.map(task =>
             task.id === taskId
               ? {
                 ...task,
@@ -267,13 +263,10 @@ export const useSftpModalTransfers = ({
                 speed: 0,
               }
               : task
-          );
-          console.log(`[useSftpModalTransfers] Updated tasks:`, updated.map(t => ({ id: t.id, status: t.status, fileName: t.fileName })));
-          return updated;
-        });
+          )
+        );
       },
       onTaskFailed: (taskId: string, error: string) => {
-        console.error(`Upload task ${taskId} failed:`, error);
         setUploadTasks(prev =>
           prev.map(task =>
             task.id === taskId
@@ -327,15 +320,9 @@ export const useSftpModalTransfers = ({
 
   // Helper function to perform upload with compression setting from user preference
   const performUpload = useCallback(async (
-    files: FileList | File[], 
+    files: FileList | File[],
     useCompressed: boolean
   ): Promise<void> => {
-    console.log('[useSftpModalTransfers] performUpload called', {
-      length: files.length,
-      currentPath,
-      isLocalSession,
-      useCompressed
-    });
     if (files.length === 0) return;
 
     setUploading(true);
@@ -415,17 +402,12 @@ export const useSftpModalTransfers = ({
 
   const handleUploadMultiple = useCallback(
     async (fileList: FileList) => {
-      console.log('[useSftpModalTransfers] handleUploadMultiple called', {
-        length: fileList.length,
-        currentPath,
-        isLocalSession
-      });
       if (fileList.length === 0) return;
 
       // Use compressed upload if enabled in settings (auto-fallback is handled in uploadService)
       await performUpload(fileList, useCompressedUpload);
     },
-    [currentPath, isLocalSession, performUpload, useCompressedUpload],
+    [performUpload, useCompressedUpload],
   );
 
   const handleUploadFromDrop = useCallback(
@@ -479,27 +461,17 @@ export const useSftpModalTransfers = ({
   // Handle upload from File array (used by file input after copying files)
   const handleUploadFromFiles = useCallback(
     async (files: File[]) => {
-      console.log('[useSftpModalTransfers] handleUploadFromFiles called', {
-        length: files.length,
-        currentPath,
-        isLocalSession
-      });
       if (files.length === 0) return;
 
       // Use compressed upload if enabled in settings (auto-fallback is handled in uploadService)
       await performUpload(files, useCompressedUpload);
     },
-    [currentPath, isLocalSession, performUpload, useCompressedUpload],
+    [performUpload, useCompressedUpload],
   );
 
   const handleFileSelect = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
-      console.log('[useSftpModalTransfers] handleFileSelect called', {
-        files: e.target.files,
-        length: e.target.files?.length
-      });
       if (e.target.files && e.target.files.length > 0) {
-        console.log('[useSftpModalTransfers] Starting file upload for', e.target.files.length, 'files');
         // Copy the files before clearing the input, because clearing the input
         // will also clear the FileList reference
         const files = Array.from(e.target.files);
@@ -516,12 +488,7 @@ export const useSftpModalTransfers = ({
 
   const handleFolderSelect = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
-      console.log('[useSftpModalTransfers] handleFolderSelect called', {
-        files: e.target.files,
-        length: e.target.files?.length
-      });
       if (e.target.files && e.target.files.length > 0) {
-        console.log('[useSftpModalTransfers] Starting folder upload for', e.target.files.length, 'files');
         // Copy the files before clearing the input, because clearing the input
         // will also clear the FileList reference
         const files = Array.from(e.target.files);
@@ -559,30 +526,23 @@ export const useSftpModalTransfers = ({
   );
 
   const cancelUpload = useCallback(async () => {
-    console.log('[useSftpModalTransfers] cancelUpload called');
     const controller = uploadControllerRef.current;
     if (controller) {
       // Mark all active transfer IDs as cancelled before calling cancel
       const activeIds = controller.getActiveTransferIds();
-      console.log('[useSftpModalTransfers] Active transfer IDs:', activeIds);
       for (const id of activeIds) {
         cancelledTransferIdsRef.current.add(id);
       }
       await controller.cancel();
-      console.log('[useSftpModalTransfers] controller.cancel() completed');
-    } else {
-      console.log('[useSftpModalTransfers] No controller found - tasks may have already completed');
     }
 
     // Always clear all uploading/pending tasks immediately, even without controller
     setUploadTasks(prev => {
       const hasActiveTasks = prev.some(t => t.status === "uploading" || t.status === "pending");
       if (!hasActiveTasks) {
-        console.log('[useSftpModalTransfers] No active tasks to cancel');
         return prev;
       }
 
-      console.log('[useSftpModalTransfers] Cancelling active tasks');
       return prev.map(task =>
         task.status === "uploading" || task.status === "pending"
           ? { ...task, status: "cancelled" as const, speed: 0 }
