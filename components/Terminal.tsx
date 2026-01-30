@@ -455,8 +455,7 @@ const TerminalComponent: React.FC<TerminalProps> = ({
     if (status !== "connecting" || auth.needsAuth) return;
 
     // Local terminal and serial connections don't need timeout/progress UI
-    const isLocalOrSerial = host.protocol === "local" || host.protocol === "serial" || host.hostname === "localhost";
-    if (isLocalOrSerial) return;
+    if (isLocalConnection || isSerialConnection) return;
 
     // Only show SSH-specific scripted logs for SSH connections
     const isSSH = host.protocol !== "telnet";

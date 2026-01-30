@@ -35,20 +35,20 @@ export interface TerminalConnectionDialogProps {
 }
 
 // Helper to get protocol display info
-const getProtocolInfo = (host: Host): { label: string; showPort: boolean } => {
+const getProtocolInfo = (host: Host): { i18nKey: string; showPort: boolean; defaultPort: number } => {
     const protocol = host.protocol || 'ssh';
     switch (protocol) {
         case 'local':
-            return { label: 'Local Shell', showPort: false };
+            return { i18nKey: 'terminal.connection.protocol.local', showPort: false, defaultPort: 0 };
         case 'telnet':
-            return { label: 'Telnet', showPort: true };
+            return { i18nKey: 'terminal.connection.protocol.telnet', showPort: true, defaultPort: 23 };
         case 'mosh':
-            return { label: 'Mosh', showPort: true };
+            return { i18nKey: 'terminal.connection.protocol.mosh', showPort: true, defaultPort: 22 };
         case 'serial':
-            return { label: 'Serial', showPort: false };
+            return { i18nKey: 'terminal.connection.protocol.serial', showPort: false, defaultPort: 0 };
         case 'ssh':
         default:
-            return { label: 'SSH', showPort: true };
+            return { i18nKey: 'terminal.connection.protocol.ssh', showPort: true, defaultPort: 22 };
     }
 };
 
@@ -94,14 +94,14 @@ export const TerminalConnectionDialog: React.FC<TerminalConnectionDialogProps> =
                                         <span>{chainProgress.currentHostLabel}</span>
                                     </div>
                                     <div className="text-[11px] text-muted-foreground font-mono">
-                                        {protocolInfo.label} {protocolInfo.showPort ? `${host.hostname}:${host.port || 22}` : host.hostname}
+                                        {t(protocolInfo.i18nKey)} {protocolInfo.showPort ? `${host.hostname}:${host.port || protocolInfo.defaultPort}` : host.hostname}
                                     </div>
                                 </>
                             ) : (
                                 <>
                                     <div className="text-sm font-semibold">{host.label}</div>
                                     <div className="text-[11px] text-muted-foreground font-mono">
-                                        {protocolInfo.label} {protocolInfo.showPort ? `${host.hostname}:${host.port || 22}` : host.hostname}
+                                        {t(protocolInfo.i18nKey)} {protocolInfo.showPort ? `${host.hostname}:${host.port || protocolInfo.defaultPort}` : host.hostname}
                                     </div>
                                 </>
                             )}
