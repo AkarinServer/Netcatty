@@ -87,9 +87,9 @@ function loadWindowState() {
 }
 
 /**
- * Save window state to disk
+ * Save window state to disk (synchronous)
  */
-function saveWindowState(state) {
+function saveWindowStateSync(state) {
   try {
     const statePath = getWindowStatePath();
     if (!statePath) return false;
@@ -99,6 +99,47 @@ function saveWindowState(state) {
     debugLog("Failed to save window state:", err?.message || err);
     return false;
   }
+}
+
+/**
+ * Save window state to disk (asynchronous)
+ */
+async function saveWindowState(state) {
+  try {
+    const statePath = getWindowStatePath();
+    if (!statePath) return false;
+    await fs.promises.writeFile(statePath, JSON.stringify(state, null, 2), { mode: 0o600 });
+    return true;
+  } catch (err) {
+    debugLog("Failed to save window state:", err?.message || err);
+    return false;
+  }
+}
+
+let pendingWindowStateWrite = null;
+let queuedWindowState = null;
+let windowStateCloseRequested = false;
+
+async function queueWindowStateSave(state) {
+  if (!state) return false;
+  if (windowStateCloseRequested) {
+    return pendingWindowStateWrite || false;
+  }
+  queuedWindowState = state;
+  if (pendingWindowStateWrite) {
+    return pendingWindowStateWrite;
+  }
+  pendingWindowStateWrite = (async () => {
+    let lastResult = true;
+    while (queuedWindowState) {
+      const nextState = queuedWindowState;
+      queuedWindowState = null;
+      lastResult = await saveWindowState(nextState);
+    }
+    pendingWindowStateWrite = null;
+    return lastResult;
+  })();
+  return pendingWindowStateWrite;
 }
 
 /**
@@ -589,7 +630,7 @@ async function createWindow(electronModule, options) {
     if (saveStateTimer) clearTimeout(saveStateTimer);
     saveStateTimer = setTimeout(() => {
       const state = getWindowBoundsState(win, lastNormalBounds);
-      if (state) saveWindowState(state);
+      if (state) queueWindowStateSave(state);
     }, 500);
   };
 
@@ -611,11 +652,33 @@ async function createWindow(electronModule, options) {
   });
 
   // Save state when window is about to close
-  win.on("close", () => {
+  win.on("close", (event) => {
+    if (windowStateCloseRequested) {
+      return;
+    }
+    windowStateCloseRequested = true;
     if (saveStateTimer) clearTimeout(saveStateTimer);
     const state = getWindowBoundsState(win, lastNormalBounds);
-    if (state) saveWindowState(state);
-    // Close settings window when main window closes
+    if (pendingWindowStateWrite) {
+      event.preventDefault();
+      if (state) queuedWindowState = state;
+      pendingWindowStateWrite
+        .catch(() => {
+          // ignore async write errors before closing
+        })
+        .finally(() => {
+          const finalState = getWindowBoundsState(win, lastNormalBounds);
+          if (finalState) saveWindowStateSync(finalState);
+          closeSettingsWindow();
+          try {
+            win.close();
+          } catch {
+            // ignore
+          }
+        });
+      return;
+    }
+    if (state) saveWindowStateSync(state);
     closeSettingsWindow();
   });
 
