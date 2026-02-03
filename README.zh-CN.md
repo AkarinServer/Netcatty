@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="public/icon.png" alt="Netcatty" width="128" height="128">
+</p>
+
 <h1 align="center">Netcatty</h1>
 
 <p align="center">
