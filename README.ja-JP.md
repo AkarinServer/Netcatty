@@ -15,11 +15,23 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/binaricat/Netcatty/releases/latest"><strong>最新版をダウンロード</strong></a>
-  &nbsp;·&nbsp;
-  <a href="LICENSE"><strong>GPL-3.0 ライセンス</strong></a>
-  &nbsp;·&nbsp;
-  <a href="https://ko-fi.com/binaricat"><strong>Ko-fi でサポート</strong></a>
+  <a href="https://github.com/binaricat/Netcatty/releases/latest"><img alt="GitHub Release" src="https://img.shields.io/github/v/release/binaricat/Netcatty?style=for-the-badge&logo=github&label=Release"></a>
+  &nbsp;
+  <a href="#"><img alt="Platform" src="https://img.shields.io/badge/Platform-macOS%20%7C%20Windows%20%7C%20Linux-blue?style=for-the-badge&logo=electron"></a>
+  &nbsp;
+  <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/License-GPL--3.0-green?style=for-the-badge"></a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/binaricat/Netcatty/releases/latest">
+    <img src="https://img.shields.io/github/v/release/binaricat/Netcatty?style=for-the-badge&logo=github&label=最新版をダウンロード&color=success" alt="最新版をダウンロード">
+  </a>
+</p>
+
+<p align="center">
+  <a href="https://ko-fi.com/binaricat">
+    <img src="https://cdn.ko-fi.com/cdn/kofi3.png?v=2" width="150" alt="Ko-fi でサポート">
+  </a>
 </p>
 
 <p align="center">

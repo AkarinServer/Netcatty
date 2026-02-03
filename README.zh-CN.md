@@ -15,13 +15,23 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/binaricat/Netcatty/releases/latest"><img alt="GitHub Release" src="https://img.shields.io/github/v/release/binaricat/Netcatty?style=for-the-badge&logo=github&label=Release"></a>
+  &nbsp;
+  <a href="#"><img alt="Platform" src="https://img.shields.io/badge/Platform-macOS%20%7C%20Windows%20%7C%20Linux-blue?style=for-the-badge&logo=electron"></a>
+  &nbsp;
+  <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/License-GPL--3.0-green?style=for-the-badge"></a>
+</p>
+
+<p align="center">
   <a href="https://github.com/binaricat/Netcatty/releases/latest">
-    <strong>下载最新版</strong>
+    <img src="https://img.shields.io/github/v/release/binaricat/Netcatty?style=for-the-badge&logo=github&label=下载最新版&color=success" alt="下载最新版">
   </a>
-  &nbsp;·&nbsp;
-  <a href="LICENSE"><strong>GPL-3.0 协议</strong></a>
-  &nbsp;·&nbsp;
-  <a href="https://ko-fi.com/binaricat"><strong>在 Ko-fi 上支持我</strong></a>
+</p>
+
+<p align="center">
+  <a href="https://ko-fi.com/binaricat">
+    <img src="https://cdn.ko-fi.com/cdn/kofi3.png?v=2" width="150" alt="在 Ko-fi 上支持我">
+  </a>
 </p>
 
 <p align="center">
