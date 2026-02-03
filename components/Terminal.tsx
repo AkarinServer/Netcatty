@@ -467,6 +467,20 @@ const TerminalComponent: React.FC<TerminalProps> = ({
         serializeAddonRef.current = runtime.serializeAddon;
         searchAddonRef.current = runtime.searchAddon;
 
+        // Apply merged keyword highlight rules immediately after runtime creation
+        // This fixes a timing issue where the useEffect for keyword highlighting
+        // runs before the runtime is created, causing host-level rules to be missed
+        const globalRules = terminalSettingsRef.current?.keywordHighlightRules ?? [];
+        const hostRules = host?.keywordHighlightRules ?? [];
+        const globalEnabled = terminalSettingsRef.current?.keywordHighlightEnabled ?? false;
+        const hostEnabled = host?.keywordHighlightEnabled ?? false;
+        const mergedRules = [
+          ...(globalEnabled ? globalRules : []),
+          ...(hostEnabled ? hostRules : [])
+        ];
+        const isEnabled = globalEnabled || hostEnabled;
+        runtime.keywordHighlighter.setRules(mergedRules, isEnabled);
+
         const term = runtime.term;
 
         if (host.protocol === "serial") {
@@ -1016,7 +1030,7 @@ const TerminalComponent: React.FC<TerminalProps> = ({
 
     try {
       const dropEntries = await extractDropEntries(e.dataTransfer);
-      
+
       if (dropEntries.length === 0) {
         return;
       }
@@ -1107,7 +1121,7 @@ const TerminalComponent: React.FC<TerminalProps> = ({
       onSplitVertical={onSplitVertical}
       onClose={inWorkspace ? () => onCloseSession?.(sessionId) : undefined}
     >
-      <div 
+      <div
         className="relative h-full w-full flex overflow-hidden bg-gradient-to-br from-[#050910] via-[#06101a] to-[#0b1220]"
         onDragEnter={handleDragEnter}
         onDragOver={handleDragOver}
@@ -1120,13 +1134,13 @@ const TerminalComponent: React.FC<TerminalProps> = ({
             <div className="bg-background/90 backdrop-blur-md rounded-lg shadow-lg p-6 border border-border">
               <div className="text-center">
                 <div className="text-lg font-semibold mb-2">
-                  {isLocalConnection 
+                  {isLocalConnection
                     ? t("terminal.dragDrop.localTitle")
                     : t("terminal.dragDrop.remoteTitle")
                   }
                 </div>
                 <div className="text-sm text-muted-foreground">
-                  {isLocalConnection 
+                  {isLocalConnection
                     ? t("terminal.dragDrop.localMessage")
                     : t("terminal.dragDrop.remoteMessage")
                   }
@@ -1503,46 +1517,46 @@ const TerminalComponent: React.FC<TerminalProps> = ({
           {status !== "connected" && !needsHostKeyVerification && !(
             (isLocalConnection || isSerialConnection) && status === "connecting"
           ) && (
-            <TerminalConnectionDialog
-              host={host}
-              status={status}
-              error={error}
-              progressValue={progressValue}
-              chainProgress={chainProgress}
-              needsAuth={auth.needsAuth}
-              showLogs={showLogs}
-              _setShowLogs={setShowLogs}
-              keys={keys}
-              authProps={{
-                authMethod: auth.authMethod,
-                setAuthMethod: auth.setAuthMethod,
-                authUsername: auth.authUsername,
-                setAuthUsername: auth.setAuthUsername,
-                authPassword: auth.authPassword,
-                setAuthPassword: auth.setAuthPassword,
-                authKeyId: auth.authKeyId,
-                setAuthKeyId: auth.setAuthKeyId,
-                authPassphrase: auth.authPassphrase,
-                setAuthPassphrase: auth.setAuthPassphrase,
-                showAuthPassphrase: auth.showAuthPassphrase,
-                setShowAuthPassphrase: auth.setShowAuthPassphrase,
-                showAuthPassword: auth.showAuthPassword,
-                setShowAuthPassword: auth.setShowAuthPassword,
-                authRetryMessage: auth.authRetryMessage,
-                onSubmit: () => auth.submit(),
-                onSubmitWithoutSave: () => auth.submit({ saveToHost: false }),
-                onCancel: handleCancelConnect,
-                isValid: auth.isValid,
-              }}
-              progressProps={{
-                timeLeft,
-                isCancelling,
-                progressLogs,
-                onCancel: handleCancelConnect,
-                onRetry: handleRetry,
-              }}
-            />
-          )}
+              <TerminalConnectionDialog
+                host={host}
+                status={status}
+                error={error}
+                progressValue={progressValue}
+                chainProgress={chainProgress}
+                needsAuth={auth.needsAuth}
+                showLogs={showLogs}
+                _setShowLogs={setShowLogs}
+                keys={keys}
+                authProps={{
+                  authMethod: auth.authMethod,
+                  setAuthMethod: auth.setAuthMethod,
+                  authUsername: auth.authUsername,
+                  setAuthUsername: auth.setAuthUsername,
+                  authPassword: auth.authPassword,
+                  setAuthPassword: auth.setAuthPassword,
+                  authKeyId: auth.authKeyId,
+                  setAuthKeyId: auth.setAuthKeyId,
+                  authPassphrase: auth.authPassphrase,
+                  setAuthPassphrase: auth.setAuthPassphrase,
+                  showAuthPassphrase: auth.showAuthPassphrase,
+                  setShowAuthPassphrase: auth.setShowAuthPassphrase,
+                  showAuthPassword: auth.showAuthPassword,
+                  setShowAuthPassword: auth.setShowAuthPassword,
+                  authRetryMessage: auth.authRetryMessage,
+                  onSubmit: () => auth.submit(),
+                  onSubmitWithoutSave: () => auth.submit({ saveToHost: false }),
+                  onCancel: handleCancelConnect,
+                  isValid: auth.isValid,
+                }}
+                progressProps={{
+                  timeLeft,
+                  isCancelling,
+                  progressLogs,
+                  onCancel: handleCancelConnect,
+                  onRetry: handleRetry,
+                }}
+              />
+            )}
         </div>
 
         <SFTPModal
