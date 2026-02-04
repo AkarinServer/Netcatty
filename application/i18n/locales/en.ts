@@ -123,6 +123,10 @@ const en: Messages = {
   'tray.empty.title': 'Nothing here yet',
   'tray.empty.subtitle': 'Go connect to a server, they miss you 🚀',
 
+  // Vault Sidebar
+  'vault.sidebar.collapse': 'Collapse sidebar',
+  'vault.sidebar.expand': 'Expand sidebar',
+
   // Settings > Application
   'settings.application.checkUpdates': 'Check for updates',
   'settings.application.reportProblem': 'Report a problem',

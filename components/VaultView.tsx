@@ -30,11 +30,12 @@ import {
 import React, { Suspense, lazy, memo, useCallback, useEffect, useMemo, useState } from "react";
 import { useI18n } from "../application/i18n/I18nProvider";
 import { useStoredViewMode } from "../application/state/useStoredViewMode";
+import { useStoredBoolean } from "../application/state/useStoredBoolean";
 import { useTreeExpandedState } from "../application/state/useTreeExpandedState";
 import { sanitizeHost } from "../domain/host";
 import { importVaultHostsFromText, exportHostsToCsvWithStats } from "../domain/vaultImport";
 import type { VaultImportFormat } from "../domain/vaultImport";
-import { STORAGE_KEY_VAULT_HOSTS_VIEW_MODE, STORAGE_KEY_VAULT_HOSTS_TREE_EXPANDED } from "../infrastructure/config/storageKeys";
+import { STORAGE_KEY_VAULT_HOSTS_VIEW_MODE, STORAGE_KEY_VAULT_HOSTS_TREE_EXPANDED, STORAGE_KEY_VAULT_SIDEBAR_COLLAPSED } from "../infrastructure/config/storageKeys";
 import { cn } from "../lib/utils";
 import {
   ConnectionLog,
@@ -84,6 +85,7 @@ import { Label } from "./ui/label";
 import { SortDropdown, SortMode } from "./ui/sort-dropdown";
 import { TagFilterDropdown } from "./ui/tag-filter-dropdown";
 import { toast } from "./ui/toast";
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "./ui/tooltip";
 import { Badge } from "./ui/badge";
 import { HotkeyScheme, KeyBinding } from "../domain/models";
 
@@ -193,6 +195,12 @@ const VaultViewInner: React.FC<VaultViewProps> = ({
   const [isDeleteGroupOpen, setIsDeleteGroupOpen] = useState(false);
   const [deleteTargetPath, setDeleteTargetPath] = useState<string | null>(null);
   const [deleteGroupWithHosts, setDeleteGroupWithHosts] = useState(false);
+
+  // Sidebar collapsed state with localStorage persistence
+  const [sidebarCollapsed, setSidebarCollapsed] = useStoredBoolean(
+    STORAGE_KEY_VAULT_SIDEBAR_COLLAPSED,
+    false,
+  );
 
   // Handle external navigation requests
   useEffect(() => {
@@ -824,7 +832,7 @@ const VaultViewInner: React.FC<VaultViewProps> = ({
     if (sortMode !== "group") return null;
     const groups: { name: string; hosts: Host[] }[] = [];
     const groupMap = new Map<string, Host[]>();
-    
+
     for (const host of displayedHosts) {
       const groupName = host.group || "";
       if (!groupMap.has(groupName)) {
@@ -832,7 +840,7 @@ const VaultViewInner: React.FC<VaultViewProps> = ({
       }
       groupMap.get(groupName)!.push(host);
     }
-    
+
     const sortedKeys = [...groupMap.keys()].sort((a, b) => a.localeCompare(b));
     for (const key of sortedKeys) {
       groups.push({ name: key, hosts: groupMap.get(key)! });
@@ -1230,100 +1238,171 @@ const VaultViewInner: React.FC<VaultViewProps> = ({
   return (
     <div className="absolute inset-0 min-h-0 flex">
       {/* Sidebar */}
-      <div className="w-52 bg-secondary/80 border-r border-border/60 flex flex-col">
-        <div className="px-4 py-4 flex items-center gap-3">
-          <AppLogo className="h-10 w-10 rounded-xl" />
-          <div>
-            <p className="text-sm font-bold text-foreground">Netcatty</p>
+      <TooltipProvider delayDuration={100}>
+        <div className={cn(
+          "bg-secondary/80 border-r border-border/60 flex flex-col transition-all duration-200",
+          sidebarCollapsed ? "w-14" : "w-52"
+        )}>
+          <div className={cn(
+            "py-4 flex items-center",
+            sidebarCollapsed ? "px-2 justify-center" : "px-4"
+          )}>
+            <Tooltip delayDuration={500}>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+                  className="flex items-center gap-3 hover:opacity-80 transition-opacity"
+                >
+                  <AppLogo className="h-10 w-10 rounded-xl flex-shrink-0" />
+                  {!sidebarCollapsed && (
+                    <p className="text-sm font-bold text-foreground">Netcatty</p>
+                  )}
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="right">
+                {sidebarCollapsed ? t("vault.sidebar.expand") : t("vault.sidebar.collapse")}
+              </TooltipContent>
+            </Tooltip>
+          </div>
+
+          <div className={cn("space-y-1", sidebarCollapsed ? "px-1.5" : "px-3")}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant={currentSection === "hosts" ? "secondary" : "ghost"}
+                  className={cn(
+                    "w-full h-10",
+                    sidebarCollapsed ? "justify-center p-0" : "justify-start gap-3",
+                    currentSection === "hosts" &&
+                    "bg-foreground/10 text-foreground hover:bg-foreground/15 border-border/40",
+                  )}
+                  onClick={() => {
+                    setCurrentSection("hosts");
+                    setSelectedGroupPath(null);
+                  }}
+                >
+                  <LayoutGrid size={16} className="flex-shrink-0" />
+                  {!sidebarCollapsed && t("vault.nav.hosts")}
+                </Button>
+              </TooltipTrigger>
+              {sidebarCollapsed && <TooltipContent side="right">{t("vault.nav.hosts")}</TooltipContent>}
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant={currentSection === "keys" ? "secondary" : "ghost"}
+                  className={cn(
+                    "w-full h-10",
+                    sidebarCollapsed ? "justify-center p-0" : "justify-start gap-3",
+                    currentSection === "keys" &&
+                    "bg-foreground/10 text-foreground hover:bg-foreground/15 border-border/40",
+                  )}
+                  onClick={() => {
+                    setCurrentSection("keys");
+                  }}
+                >
+                  <Key size={16} className="flex-shrink-0" />
+                  {!sidebarCollapsed && t("vault.nav.keychain")}
+                </Button>
+              </TooltipTrigger>
+              {sidebarCollapsed && <TooltipContent side="right">{t("vault.nav.keychain")}</TooltipContent>}
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant={currentSection === "port" ? "secondary" : "ghost"}
+                  className={cn(
+                    "w-full h-10",
+                    sidebarCollapsed ? "justify-center p-0" : "justify-start gap-3",
+                    currentSection === "port" &&
+                    "bg-foreground/10 text-foreground hover:bg-foreground/15 border-border/40",
+                  )}
+                  onClick={() => setCurrentSection("port")}
+                >
+                  <Plug size={16} className="flex-shrink-0" />
+                  {!sidebarCollapsed && t("vault.nav.portForwarding")}
+                </Button>
+              </TooltipTrigger>
+              {sidebarCollapsed && <TooltipContent side="right">{t("vault.nav.portForwarding")}</TooltipContent>}
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant={currentSection === "snippets" ? "secondary" : "ghost"}
+                  className={cn(
+                    "w-full h-10",
+                    sidebarCollapsed ? "justify-center p-0" : "justify-start gap-3",
+                    currentSection === "snippets" &&
+                    "bg-foreground/10 text-foreground hover:bg-foreground/15 border-border/40",
+                  )}
+                  onClick={() => {
+                    setCurrentSection("snippets");
+                  }}
+                >
+                  <FileCode size={16} className="flex-shrink-0" />
+                  {!sidebarCollapsed && t("vault.nav.snippets")}
+                </Button>
+              </TooltipTrigger>
+              {sidebarCollapsed && <TooltipContent side="right">{t("vault.nav.snippets")}</TooltipContent>}
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant={currentSection === "knownhosts" ? "secondary" : "ghost"}
+                  className={cn(
+                    "w-full h-10",
+                    sidebarCollapsed ? "justify-center p-0" : "justify-start gap-3",
+                    currentSection === "knownhosts" &&
+                    "bg-foreground/10 text-foreground hover:bg-foreground/15 border-border/40",
+                  )}
+                  onClick={() => setCurrentSection("knownhosts")}
+                >
+                  <BookMarked size={16} className="flex-shrink-0" />
+                  {!sidebarCollapsed && t("vault.nav.knownHosts")}
+                </Button>
+              </TooltipTrigger>
+              {sidebarCollapsed && <TooltipContent side="right">{t("vault.nav.knownHosts")}</TooltipContent>}
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant={currentSection === "logs" ? "secondary" : "ghost"}
+                  className={cn(
+                    "w-full h-10",
+                    sidebarCollapsed ? "justify-center p-0" : "justify-start gap-3",
+                    currentSection === "logs" &&
+                    "bg-foreground/10 text-foreground hover:bg-foreground/15 border-border/40",
+                  )}
+                  onClick={() => setCurrentSection("logs")}
+                >
+                  <Activity size={16} className="flex-shrink-0" />
+                  {!sidebarCollapsed && t("vault.nav.logs")}
+                </Button>
+              </TooltipTrigger>
+              {sidebarCollapsed && <TooltipContent side="right">{t("vault.nav.logs")}</TooltipContent>}
+            </Tooltip>
+          </div>
+
+          <div className={cn("mt-auto pb-4 space-y-2", sidebarCollapsed ? "px-1.5" : "px-3")}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  className={cn(
+                    "w-full",
+                    sidebarCollapsed ? "justify-center p-0" : "justify-start gap-3"
+                  )}
+                  onClick={onOpenSettings}
+                >
+                  <Settings size={16} className="flex-shrink-0" />
+                  {!sidebarCollapsed && t("common.settings")}
+                </Button>
+              </TooltipTrigger>
+              {sidebarCollapsed && <TooltipContent side="right">{t("common.settings")}</TooltipContent>}
+            </Tooltip>
           </div>
         </div>
-
-        <div className="px-3 space-y-1">
-          <Button
-            variant={currentSection === "hosts" ? "secondary" : "ghost"}
-            className={cn(
-              "w-full justify-start gap-3 h-10",
-              currentSection === "hosts" &&
-              "bg-foreground/10 text-foreground hover:bg-foreground/15 border-border/40",
-            )}
-            onClick={() => {
-              setCurrentSection("hosts");
-              setSelectedGroupPath(null);
-            }}
-          >
-            <LayoutGrid size={16} /> {t("vault.nav.hosts")}
-          </Button>
-          <Button
-            variant={currentSection === "keys" ? "secondary" : "ghost"}
-            className={cn(
-              "w-full justify-start gap-3 h-10",
-              currentSection === "keys" &&
-              "bg-foreground/10 text-foreground hover:bg-foreground/15 border-border/40",
-            )}
-            onClick={() => {
-              setCurrentSection("keys");
-            }}
-          >
-            <Key size={16} /> {t("vault.nav.keychain")}
-          </Button>
-          <Button
-            variant={currentSection === "port" ? "secondary" : "ghost"}
-            className={cn(
-              "w-full justify-start gap-3 h-10",
-              currentSection === "port" &&
-              "bg-foreground/10 text-foreground hover:bg-foreground/15 border-border/40",
-            )}
-            onClick={() => setCurrentSection("port")}
-          >
-            <Plug size={16} /> {t("vault.nav.portForwarding")}
-          </Button>
-          <Button
-            variant={currentSection === "snippets" ? "secondary" : "ghost"}
-            className={cn(
-              "w-full justify-start gap-3 h-10",
-              currentSection === "snippets" &&
-              "bg-foreground/10 text-foreground hover:bg-foreground/15 border-border/40",
-            )}
-            onClick={() => {
-              setCurrentSection("snippets");
-            }}
-          >
-            <FileCode size={16} /> {t("vault.nav.snippets")}
-          </Button>
-          <Button
-            variant={currentSection === "knownhosts" ? "secondary" : "ghost"}
-            className={cn(
-              "w-full justify-start gap-3 h-10",
-              currentSection === "knownhosts" &&
-              "bg-foreground/10 text-foreground hover:bg-foreground/15 border-border/40",
-            )}
-            onClick={() => setCurrentSection("knownhosts")}
-          >
-            <BookMarked size={16} /> {t("vault.nav.knownHosts")}
-          </Button>
-          <Button
-            variant={currentSection === "logs" ? "secondary" : "ghost"}
-            className={cn(
-              "w-full justify-start gap-3 h-10",
-              currentSection === "logs" &&
-              "bg-foreground/10 text-foreground hover:bg-foreground/15 border-border/40",
-            )}
-            onClick={() => setCurrentSection("logs")}
-          >
-            <Activity size={16} /> {t("vault.nav.logs")}
-          </Button>
-        </div>
-
-        <div className="mt-auto px-3 pb-4 space-y-2">
-          <Button
-            variant="ghost"
-            className="w-full justify-start gap-3"
-            onClick={onOpenSettings}
-          >
-            <Settings size={16} /> {t("common.settings")}
-          </Button>
-        </div>
-      </div>
+      </TooltipProvider>
 
       {/* Main Area */}
       <div className="flex-1 flex flex-col min-h-0 relative">
@@ -1591,93 +1670,93 @@ const VaultViewInner: React.FC<VaultViewProps> = ({
                             moveGroup(groupPath, selectedGroupPath);
                         }}
                       >
-                      {displayedGroups.map((node) => (
-                        <ContextMenu key={node.path}>
-                          <ContextMenuTrigger asChild>
-                            <div
-                              className={cn(
-                                "group cursor-pointer",
-                                viewMode === "grid"
-                                  ? "soft-card elevate rounded-xl h-[68px] px-3 py-2"
-                                  : "h-14 px-3 py-2 hover:bg-secondary/60 rounded-lg transition-colors",
-                              )}
-                              draggable
-                              onDragStart={(e) =>
-                                e.dataTransfer.setData("group-path", node.path)
-                              }
-                              onDoubleClick={() =>
-                                setSelectedGroupPath(node.path)
-                              }
-                              onClick={() => setSelectedGroupPath(node.path)}
-                              onDragOver={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                              }}
-                              onDrop={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                const hostId =
-                                  e.dataTransfer.getData("host-id");
-                                const groupPath =
-                                  e.dataTransfer.getData("group-path");
-                                if (hostId) moveHostToGroup(hostId, node.path);
-                                if (groupPath) moveGroup(groupPath, node.path);
-                              }}
-                            >
-                              <div className="flex items-center gap-3 h-full">
-                                <div className="h-11 w-11 rounded-xl bg-primary/15 text-primary flex items-center justify-center">
-                                  <FolderTree size={20} />
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <div className="text-sm font-semibold truncate flex items-center gap-2">
-                                    {node.name}
-                                    {managedGroupPaths.has(node.path) && (
-                                      <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded bg-primary/15 text-primary shrink-0">
-                                        <FileSymlink size={10} />
-                                        Managed
-                                      </span>
-                                    )}
+                        {displayedGroups.map((node) => (
+                          <ContextMenu key={node.path}>
+                            <ContextMenuTrigger asChild>
+                              <div
+                                className={cn(
+                                  "group cursor-pointer",
+                                  viewMode === "grid"
+                                    ? "soft-card elevate rounded-xl h-[68px] px-3 py-2"
+                                    : "h-14 px-3 py-2 hover:bg-secondary/60 rounded-lg transition-colors",
+                                )}
+                                draggable
+                                onDragStart={(e) =>
+                                  e.dataTransfer.setData("group-path", node.path)
+                                }
+                                onDoubleClick={() =>
+                                  setSelectedGroupPath(node.path)
+                                }
+                                onClick={() => setSelectedGroupPath(node.path)}
+                                onDragOver={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                }}
+                                onDrop={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  const hostId =
+                                    e.dataTransfer.getData("host-id");
+                                  const groupPath =
+                                    e.dataTransfer.getData("group-path");
+                                  if (hostId) moveHostToGroup(hostId, node.path);
+                                  if (groupPath) moveGroup(groupPath, node.path);
+                                }}
+                              >
+                                <div className="flex items-center gap-3 h-full">
+                                  <div className="h-11 w-11 rounded-xl bg-primary/15 text-primary flex items-center justify-center">
+                                    <FolderTree size={20} />
                                   </div>
-                                  <div className="text-[11px] text-muted-foreground">
-                                    {t("vault.groups.hostsCount", { count: node.hosts.length })}
+                                  <div className="flex-1 min-w-0">
+                                    <div className="text-sm font-semibold truncate flex items-center gap-2">
+                                      {node.name}
+                                      {managedGroupPaths.has(node.path) && (
+                                        <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded bg-primary/15 text-primary shrink-0">
+                                          <FileSymlink size={10} />
+                                          Managed
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div className="text-[11px] text-muted-foreground">
+                                      {t("vault.groups.hostsCount", { count: node.hosts.length })}
+                                    </div>
                                   </div>
                                 </div>
                               </div>
-                            </div>
-                          </ContextMenuTrigger>
-                          <ContextMenuContent>
-                            <ContextMenuItem
-                              onClick={() => {
-                                setTargetParentPath(node.path);
-                                setNewFolderName("");
-                                setIsNewFolderOpen(true);
-                              }}
-                            >
-                              <FolderPlus className="mr-2 h-4 w-4" /> {t("vault.groups.newSubgroup")}
-                            </ContextMenuItem>
-                            <ContextMenuItem
-                              onClick={() => {
-                                setRenameTargetPath(node.path);
-                                setRenameGroupName(node.name);
-                                setRenameGroupError(null);
-                                setIsRenameGroupOpen(true);
-                              }}
-                            >
-                              <Edit2 className="mr-2 h-4 w-4" /> {t("vault.groups.rename")}
-                            </ContextMenuItem>
-                            <ContextMenuItem
-                              className="text-destructive"
-                              onClick={() => {
-                                setDeleteTargetPath(node.path);
-                                setIsDeleteGroupOpen(true);
-                              }}
-                            >
-                              <Trash2 className="mr-2 h-4 w-4" /> {t("vault.groups.delete")}
-                            </ContextMenuItem>
-                          </ContextMenuContent>
-                        </ContextMenu>
-                      ))}
-                    </div>
+                            </ContextMenuTrigger>
+                            <ContextMenuContent>
+                              <ContextMenuItem
+                                onClick={() => {
+                                  setTargetParentPath(node.path);
+                                  setNewFolderName("");
+                                  setIsNewFolderOpen(true);
+                                }}
+                              >
+                                <FolderPlus className="mr-2 h-4 w-4" /> {t("vault.groups.newSubgroup")}
+                              </ContextMenuItem>
+                              <ContextMenuItem
+                                onClick={() => {
+                                  setRenameTargetPath(node.path);
+                                  setRenameGroupName(node.name);
+                                  setRenameGroupError(null);
+                                  setIsRenameGroupOpen(true);
+                                }}
+                              >
+                                <Edit2 className="mr-2 h-4 w-4" /> {t("vault.groups.rename")}
+                              </ContextMenuItem>
+                              <ContextMenuItem
+                                className="text-destructive"
+                                onClick={() => {
+                                  setDeleteTargetPath(node.path);
+                                  setIsDeleteGroupOpen(true);
+                                }}
+                              >
+                                <Trash2 className="mr-2 h-4 w-4" /> {t("vault.groups.delete")}
+                              </ContextMenuItem>
+                            </ContextMenuContent>
+                          </ContextMenu>
+                        ))}
+                      </div>
                     )}
                   </section>
 
@@ -1695,7 +1774,7 @@ const VaultViewInner: React.FC<VaultViewProps> = ({
                         </div>
                       </div>
                     </div>
-                    
+
                     {isMultiSelectMode && (
                       <div className="flex items-center gap-2 p-2 bg-secondary/60 rounded-lg border border-border/40">
                         <span className="text-sm text-muted-foreground">
@@ -1738,7 +1817,7 @@ const VaultViewInner: React.FC<VaultViewProps> = ({
                         </Button>
                       </div>
                     )}
-                    
+
                     {viewMode === "tree" ? (
                       <HostTreeView
                         groupTree={treeViewGroupTree}
@@ -1830,7 +1909,7 @@ const VaultViewInner: React.FC<VaultViewProps> = ({
                                       >
                                         <div className="flex items-center gap-3 h-full">
                                           {isMultiSelectMode && (
-                                            <div 
+                                            <div
                                               className="shrink-0"
                                               onClick={(e) => {
                                                 e.stopPropagation();
@@ -1969,7 +2048,7 @@ const VaultViewInner: React.FC<VaultViewProps> = ({
                                 >
                                   <div className="flex items-center gap-3 h-full">
                                     {isMultiSelectMode && (
-                                      <div 
+                                      <div
                                         className="shrink-0"
                                         onClick={(e) => {
                                           e.stopPropagation();
@@ -2386,8 +2465,8 @@ const VaultViewInner: React.FC<VaultViewProps> = ({
             <Button variant="ghost" onClick={() => setIsDeleteGroupOpen(false)}>
               {t("common.cancel")}
             </Button>
-            <Button 
-              variant="destructive" 
+            <Button
+              variant="destructive"
               onClick={() => {
                 if (deleteTargetPath) {
                   const isManaged = managedGroupPaths.has(deleteTargetPath);

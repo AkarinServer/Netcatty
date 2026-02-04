@@ -108,6 +108,10 @@ const zhCN: Messages = {
   'tray.empty.title': '一切都很安静',
   'tray.empty.subtitle': '去连接个服务器吧，它们想念你了 🚀',
 
+  // Vault Sidebar
+  'vault.sidebar.collapse': '收起侧边栏',
+  'vault.sidebar.expand': '展开侧边栏',
+
   // Settings > Application
   'settings.application.checkUpdates': '检查更新',
   'settings.application.reportProblem': '反馈问题',

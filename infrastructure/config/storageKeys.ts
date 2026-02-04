@@ -29,6 +29,7 @@ export const STORAGE_KEY_CONNECTION_LOGS = 'netcatty_connection_logs_v1';
 export const STORAGE_KEY_IDENTITIES = 'netcatty_identities_v1';
 export const STORAGE_KEY_VAULT_HOSTS_VIEW_MODE = 'netcatty_vault_hosts_view_mode_v1';
 export const STORAGE_KEY_VAULT_HOSTS_TREE_EXPANDED = 'netcatty_vault_hosts_tree_expanded_v1';
+export const STORAGE_KEY_VAULT_SIDEBAR_COLLAPSED = 'netcatty_vault_sidebar_collapsed_v1';
 export const STORAGE_KEY_VAULT_KEYS_VIEW_MODE = 'netcatty_vault_keys_view_mode_v1';
 export const STORAGE_KEY_VAULT_SNIPPETS_VIEW_MODE = 'netcatty_vault_snippets_view_mode_v1';
 export const STORAGE_KEY_VAULT_KNOWN_HOSTS_VIEW_MODE = 'netcatty_vault_known_hosts_view_mode_v1';
