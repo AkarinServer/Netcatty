@@ -94,18 +94,6 @@ const zhCN: Messages = {
   'settings.globalHotkey.closeToTrayDesc': '启用后，关闭窗口将最小化到系统托盘而不是退出程序。',
   'settings.globalHotkey.hint': '全局快捷键在系统范围内工作，可快速显示或隐藏窗口（下拉式终端风格）。',
 
-  // Tray
-  'tray.openMainWindow': '打开主窗口',
-  'tray.sessions': '会话',
-  'tray.portForwarding': '端口转发',
-  'tray.quit': '退出',
-  'tray.status.connected': '已连接',
-  'tray.status.disconnected': '已断开',
-  'tray.status.connecting': '连接中',
-  'tray.status.active': '已启用',
-  'tray.status.inactive': '未启用',
-  'tray.status.error': '错误',
-
   // Settings > Application
   'settings.application.checkUpdates': '检查更新',
   'settings.application.reportProblem': '反馈问题',

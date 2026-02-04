@@ -109,18 +109,6 @@ const en: Messages = {
   'settings.globalHotkey.closeToTrayDesc': 'When enabled, closing the window will minimize to the system tray instead of quitting.',
   'settings.globalHotkey.hint': 'Global hotkey works system-wide to quickly show or hide the window (Quake-style terminal).',
 
-  // Tray
-  'tray.openMainWindow': 'Open Main Window',
-  'tray.sessions': 'Sessions',
-  'tray.portForwarding': 'Port Forwarding',
-  'tray.quit': 'Quit',
-  'tray.status.connected': 'Connected',
-  'tray.status.disconnected': 'Disconnected',
-  'tray.status.connecting': 'Connecting',
-  'tray.status.active': 'Active',
-  'tray.status.inactive': 'Inactive',
-  'tray.status.error': 'Error',
-
   // Settings > Application
   'settings.application.checkUpdates': 'Check for updates',
   'settings.application.reportProblem': 'Report a problem',

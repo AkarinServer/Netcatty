@@ -25,7 +25,6 @@ const STATUS_TEXT = {
     error: "Error",
   },
 };
-
 // Dynamic tray menu data (synced from renderer)
 let trayMenuData = {
   sessions: [],        // { id, label, hostLabel, status }
