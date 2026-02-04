@@ -95,10 +95,10 @@ export class CloudSyncManager {
     const masterKeyConfig = this.loadFromStorage<MasterKeyConfig>(
       SYNC_STORAGE_KEYS.MASTER_KEY_CONFIG
     );
-    
-    const deviceId = this.loadFromStorage<string>(SYNC_STORAGE_KEYS.DEVICE_ID) 
+
+    const deviceId = this.loadFromStorage<string>(SYNC_STORAGE_KEYS.DEVICE_ID)
       || generateDeviceId();
-    
+
     const deviceName = this.loadFromStorage<string>(SYNC_STORAGE_KEYS.DEVICE_NAME)
       || getDefaultDeviceName();
 
@@ -153,13 +153,13 @@ export class CloudSyncManager {
   private loadProviderConnection(provider: CloudProvider): ProviderConnection {
     const key = SYNC_STORAGE_KEYS[`PROVIDER_${provider.toUpperCase()}` as keyof typeof SYNC_STORAGE_KEYS];
     const stored = this.loadFromStorage<Partial<ProviderConnection>>(key);
-    
+
     // Determine the correct status: if tokens or config exist, should be 'connected'
     // Never restore 'syncing' or 'error' status - those are transient
     const status: ProviderConnection['status'] = (stored?.tokens || stored?.config)
       ? 'connected'
       : 'disconnected';
-    
+
     return {
       provider,
       ...stored,
@@ -222,7 +222,7 @@ export class CloudSyncManager {
     // Handle master key config changes (e.g., when set up in settings window)
     if (key === SYNC_STORAGE_KEYS.MASTER_KEY_CONFIG) {
       const nextConfig = this.safeJsonParse<MasterKeyConfig>(event.newValue);
-      
+
       if (nextConfig && !this.state.masterKeyConfig) {
         // Master key was set up in another window - update our state
         this.state.masterKeyConfig = nextConfig;
@@ -451,10 +451,10 @@ export class CloudSyncManager {
     }
 
     const config = await EncryptionService.createMasterKeyConfig(password);
-    
+
     this.state.masterKeyConfig = config;
     this.state.securityState = 'LOCKED';
-    
+
     this.saveToStorage(SYNC_STORAGE_KEYS.MASTER_KEY_CONFIG, config);
     this.emit({ type: 'SECURITY_STATE_CHANGED', state: 'LOCKED' });
 
@@ -537,7 +537,7 @@ export class CloudSyncManager {
     this.state.masterKeyConfig = newConfig;
     this.state.securityState = 'UNLOCKED';
     this.masterPassword = newPassword;
-    
+
     // Re-derive key with new password
     this.state.unlockedKey = await EncryptionService.unlockMasterKey(
       newPassword,
@@ -589,7 +589,7 @@ export class CloudSyncManager {
         // GitHub uses Device Flow
         const ghAdapter = adapter as GitHubAdapter;
         const deviceFlow = await ghAdapter.startAuth();
-        
+
         return {
           type: 'device_code',
           data: deviceFlow,
@@ -597,7 +597,7 @@ export class CloudSyncManager {
       } else {
         // Google and OneDrive use PKCE with redirect
         const redirectUri = 'http://127.0.0.1:45678/oauth/callback';
-        
+
         if (provider === 'google') {
           const gdAdapter = adapter as GoogleDriveAdapter;
           const url = await gdAdapter.startAuth(redirectUri);
@@ -636,7 +636,7 @@ export class CloudSyncManager {
 
     try {
       const tokens = await ghAdapter.completeAuth(deviceCode, interval, expiresAt, onPending);
-      
+
       this.state.providers.github = {
         ...this.state.providers.github,
         status: 'connected',
@@ -1028,9 +1028,9 @@ export class CloudSyncManager {
         deviceName: this.state.deviceName,
         error: String(error),
       });
-      
+
       this.emit({ type: 'SYNC_ERROR', provider, error: String(error) });
-      
+
       return {
         success: false,
         provider,
@@ -1288,6 +1288,7 @@ export class CloudSyncManager {
       this.state.syncState = 'ERROR';
       // lastError is set by uploadToProvider
     }
+    this.notifyStateChange(); // Notify UI that sync is complete
 
     // Process errors from initial checks (if any)
     checkResults.forEach((r) => {
@@ -1371,7 +1372,7 @@ export class CloudSyncManager {
       ...entry,
       id: crypto.randomUUID(),
     };
-    
+
     // Keep only the last 50 entries
     this.state.syncHistory = [newEntry, ...this.state.syncHistory].slice(0, 50);
     this.saveToStorage(SYNC_HISTORY_STORAGE_KEY, this.state.syncHistory);
