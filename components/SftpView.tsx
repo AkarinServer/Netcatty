@@ -220,12 +220,22 @@ const SftpViewInner: React.FC<SftpViewProps> = ({ hosts, keys, identities }) => 
       >
         <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 min-h-0 border-t border-border/70">
           <div
-            className={cn(
-              "relative border-r border-border/70 flex flex-col",
-              focusedSide === "left" && "ring-1 ring-inset ring-primary/70"
-            )}
+            className="relative border-r border-border/70 flex flex-col"
             onClick={() => handlePaneFocus("left")}
           >
+            {/* Focus indicator triangle */}
+            {focusedSide === "left" && (
+              <div
+                className="absolute top-0 left-0 z-50 pointer-events-none"
+                style={{
+                  width: 0,
+                  height: 0,
+                  borderStyle: 'solid',
+                  borderWidth: '12px 12px 0 0',
+                  borderColor: 'hsl(var(--primary)) transparent transparent transparent',
+                }}
+              />
+            )}
             {/* Left side tab bar - only show when there are tabs */}
             {leftTabsInfo.length > 0 && (
               <SftpTabBar
@@ -266,12 +276,22 @@ const SftpViewInner: React.FC<SftpViewProps> = ({ hosts, keys, identities }) => 
             </div>
           </div>
           <div
-            className={cn(
-              "relative flex flex-col",
-              focusedSide === "right" && "ring-1 ring-inset ring-primary/70"
-            )}
+            className="relative flex flex-col"
             onClick={() => handlePaneFocus("right")}
           >
+            {/* Focus indicator triangle */}
+            {focusedSide === "right" && (
+              <div
+                className="absolute top-0 left-0 z-50 pointer-events-none"
+                style={{
+                  width: 0,
+                  height: 0,
+                  borderStyle: 'solid',
+                  borderWidth: '12px 12px 0 0',
+                  borderColor: 'hsl(var(--primary)) transparent transparent transparent',
+                }}
+              />
+            )}
             {/* Right side tab bar - only show when there are tabs */}
             {rightTabsInfo.length > 0 && (
               <SftpTabBar
