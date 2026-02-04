@@ -589,6 +589,20 @@ declare global {
     // System Tray / Close to Tray
     setCloseToTray?(enabled: boolean): Promise<{ success: boolean; enabled: boolean }>;
     isCloseToTray?(): Promise<{ enabled: boolean }>;
+    updateTrayMenuData?(data: {
+      sessions?: Array<{ id: string; label: string; hostLabel: string; status: "connecting" | "connected" | "disconnected" }>;
+      portForwardRules?: Array<{
+        id: string;
+        label: string;
+        type: "local" | "remote" | "dynamic";
+        localPort: number;
+        remoteHost?: string;
+        remotePort?: number;
+        status: "inactive" | "connecting" | "active" | "error";
+      }>;
+    }): Promise<{ success: boolean }>;
+    onTrayFocusSession?(callback: (sessionId: string) => void): () => void;
+    onTrayTogglePortForward?(callback: (ruleId: string, start: boolean) => void): () => void;
   }
 
   interface Window {

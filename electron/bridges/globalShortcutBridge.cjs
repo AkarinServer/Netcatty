@@ -12,6 +12,12 @@ let closeToTray = false;
 let currentHotkey = null;
 let hotkeyEnabled = false;
 
+// Dynamic tray menu data (synced from renderer)
+let trayMenuData = {
+  sessions: [],        // { id, label, hostLabel, status }
+  portForwardRules: [], // { id, label, type, localPort, remoteHost, remotePort, status, hostId }
+};
+
 function resolveTrayIconPath() {
   const { app } = electronModule;
   
@@ -249,41 +255,143 @@ function createTray() {
     tray = new Tray(trayIcon || nativeImage.createEmpty());
     tray.setToolTip("Netcatty");
 
-    // Create context menu
-    const contextMenu = Menu.buildFromTemplate([
-      {
-        label: "Show/Hide Window",
-        click: toggleWindowVisibility,
-      },
-      { type: "separator" },
-      {
-        label: "Quit",
-        click: () => {
-          // Force quit - bypass close-to-tray
-          closeToTray = false;
-          app.quit();
-        },
-      },
-    ]);
+    // Build and set initial context menu
+    updateTrayMenu();
 
-    tray.setContextMenu(contextMenu);
-
-    // Click on tray icon shows/hides window
-    tray.on("click", toggleWindowVisibility);
-
-    // Double-click also shows window (Windows behavior)
-    tray.on("double-click", () => {
-      const win = getMainWindow();
-      if (win) {
-        win.show();
-        win.focus();
-      }
+    // Click on tray icon shows menu
+    tray.on("click", () => {
+      if (tray) tray.popUpContextMenu();
     });
 
     console.log("[GlobalShortcut] System tray created");
   } catch (err) {
     console.error("[GlobalShortcut] Error creating tray:", err);
   }
+}
+
+/**
+ * Build the tray context menu with dynamic content
+ */
+function buildTrayMenuTemplate() {
+  const { app } = electronModule;
+  const menuTemplate = [];
+
+  // Open Main Window
+  menuTemplate.push({
+    label: "Open Main Window",
+    click: () => {
+      const win = getMainWindow();
+      if (win) {
+        if (win.isMinimized()) win.restore();
+        win.show();
+        win.focus();
+        try {
+          app.focus({ steal: true });
+        } catch {
+          // ignore
+        }
+      }
+    },
+  });
+
+  menuTemplate.push({ type: "separator" });
+
+  // Active Sessions
+  if (trayMenuData.sessions && trayMenuData.sessions.length > 0) {
+    menuTemplate.push({
+      label: "Sessions",
+      enabled: false,
+    });
+    for (const session of trayMenuData.sessions) {
+      const statusIcon = session.status === "connected" ? "[on]" : session.status === "connecting" ? "[...]" : "[off]";
+      menuTemplate.push({
+        label: `  ${statusIcon} ${session.hostLabel || session.label}`,
+        click: () => {
+          // Focus window and switch to this session
+          const win = getMainWindow();
+          if (win) {
+            if (win.isMinimized()) win.restore();
+            win.show();
+            win.focus();
+            // Notify renderer to focus this session
+            win.webContents?.send("netcatty:tray:focusSession", session.id);
+          }
+        },
+      });
+    }
+    menuTemplate.push({ type: "separator" });
+  }
+
+  // Port Forwarding Rules
+  if (trayMenuData.portForwardRules && trayMenuData.portForwardRules.length > 0) {
+    menuTemplate.push({
+      label: "Port Forwarding",
+      enabled: false,
+    });
+    for (const rule of trayMenuData.portForwardRules) {
+      const isActive = rule.status === "active";
+      const isConnecting = rule.status === "connecting";
+      const statusIcon = isActive ? "[on]" : isConnecting ? "[...]" : "[off]";
+      const typeLabel = rule.type === "local" ? "L" : rule.type === "remote" ? "R" : "D";
+      const portInfo = rule.type === "dynamic" 
+        ? `${rule.localPort}` 
+        : `${rule.localPort} → ${rule.remoteHost}:${rule.remotePort}`;
+      
+      menuTemplate.push({
+        label: `  ${statusIcon} [${typeLabel}] ${rule.label || portInfo}`,
+        submenu: [
+          {
+            label: isActive ? "Stop" : "Start",
+            enabled: !isConnecting,
+            click: () => {
+              const win = getMainWindow();
+              if (win) {
+                win.webContents?.send("netcatty:tray:togglePortForward", rule.id, !isActive);
+              }
+            },
+          },
+        ],
+      });
+    }
+    menuTemplate.push({ type: "separator" });
+  }
+
+  // Quit
+  menuTemplate.push({
+    label: "Quit",
+    click: () => {
+      closeToTray = false;
+      app.quit();
+    },
+  });
+
+  return menuTemplate;
+}
+
+/**
+ * Update the tray context menu
+ */
+function updateTrayMenu() {
+  if (!tray) return;
+  
+  const { Menu } = electronModule;
+  const menuTemplate = buildTrayMenuTemplate();
+  const contextMenu = Menu.buildFromTemplate(menuTemplate);
+  tray.setContextMenu(contextMenu);
+}
+
+/**
+ * Update tray menu data from renderer
+ */
+function setTrayMenuData(data) {
+  if (data.sessions !== undefined) {
+    trayMenuData.sessions = data.sessions;
+  }
+  if (data.portForwardRules !== undefined) {
+    trayMenuData.portForwardRules = data.portForwardRules;
+  }
+  // Rebuild menu with new data
+  updateTrayMenu();
 }
 
 /**
@@ -379,6 +487,12 @@ function registerHandlers(ipcMain) {
     return { enabled: closeToTray };
   });
 
+  // Update tray menu data
+  ipcMain.handle("netcatty:tray:updateMenuData", async (_event, data) => {
+    setTrayMenuData(data);
+    return { success: true };
+  });
+
   console.log("[GlobalShortcut] IPC handlers registered");
 }
 
@@ -400,5 +514,7 @@ module.exports = {
   handleWindowClose,
   toggleWindowVisibility,
   getHotkeyStatus,
+  setTrayMenuData,
+  updateTrayMenu,
   cleanup,
 };

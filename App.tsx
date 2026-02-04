@@ -261,7 +261,7 @@ function App({ settings }: { settings: SettingsState }) {
   const isMacClient = typeof navigator !== 'undefined' && /Mac|Macintosh/.test(navigator.userAgent);
 
   // Get port forwarding rules and import function
-  const { rules: portForwardingRules, importRules: importPortForwardingRules } = usePortForwardingState();
+  const { rules: portForwardingRules, importRules: importPortForwardingRules, startTunnel, stopTunnel } = usePortForwardingState();
 
   const portForwardingRulesForSync = useMemo(
     () =>
@@ -341,6 +341,67 @@ function App({ settings }: { settings: SettingsState }) {
     hosts,
     keys: portForwardingKeys,
   });
+
+  // Sync tray menu data + handle tray actions
+  useEffect(() => {
+    const bridge = netcattyBridge.get();
+    if (!bridge?.updateTrayMenuData) return;
+
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      if (cancelled) return;
+
+      const sessionsForTray = sessions.map((s) => ({
+        id: s.id,
+        label: s.hostname,
+        hostLabel: s.hostLabel,
+        status: s.status,
+      }));
+
+      void bridge.updateTrayMenuData({
+        sessions: sessionsForTray,
+        portForwardRules: portForwardingRules,
+      });
+    }, 250);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [sessions, portForwardingRules]);
+
+  useEffect(() => {
+    const bridge = netcattyBridge.get();
+    if (!bridge?.onTrayFocusSession || !bridge?.onTrayTogglePortForward) return;
+
+    const unsubscribeFocus = bridge.onTrayFocusSession((sessionId) => {
+      setActiveTabId(sessionId);
+    });
+
+    const unsubscribeToggle = bridge.onTrayTogglePortForward((ruleId, start) => {
+      const rule = portForwardingRules.find((r) => r.id === ruleId);
+      if (!rule) return;
+      const host = rule.hostId ? hosts.find((h) => h.id === rule.hostId) : undefined;
+      if (!host) {
+        toast.error("Port forwarding host not found");
+        return;
+      }
+
+      const keysForPf = keys.map((k) => ({ id: k.id, privateKey: k.privateKey }));
+      if (start) {
+        void startTunnel(rule, host, keysForPf, (status, error) => {
+          if (status === "error" && error) toast.error(error);
+        }, rule.autoStart);
+      } else {
+        void stopTunnel(ruleId);
+      }
+    });
+
+    return () => {
+      unsubscribeFocus?.();
+      unsubscribeToggle?.();
+    };
+  }, [hosts, keys, portForwardingRules, setActiveTabId, startTunnel, stopTunnel, t]);
 
   // Keyboard-interactive authentication (2FA/MFA) event listener
   useEffect(() => {

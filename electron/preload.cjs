@@ -765,6 +765,19 @@ const api = {
     ipcRenderer.invoke("netcatty:tray:setCloseToTray", { enabled }),
   isCloseToTray: () =>
     ipcRenderer.invoke("netcatty:tray:isCloseToTray"),
+  updateTrayMenuData: (data) =>
+    ipcRenderer.invoke("netcatty:tray:updateMenuData", data),
+  // Listen for tray menu actions
+  onTrayFocusSession: (callback) => {
+    const handler = (_event, sessionId) => callback(sessionId);
+    ipcRenderer.on("netcatty:tray:focusSession", handler);
+    return () => ipcRenderer.removeListener("netcatty:tray:focusSession", handler);
+  },
+  onTrayTogglePortForward: (callback) => {
+    const handler = (_event, ruleId, start) => callback(ruleId, start);
+    ipcRenderer.on("netcatty:tray:togglePortForward", handler);
+    return () => ipcRenderer.removeListener("netcatty:tray:togglePortForward", handler);
+  },
 
   // Get file path from File object (for drag-and-drop)
   getPathForFile: (file) => {
