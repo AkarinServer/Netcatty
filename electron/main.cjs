@@ -37,8 +37,6 @@ try {
 }
 
 const { app, BrowserWindow, Menu, protocol, shell } = electronModule || {};
-const { DEFAULT_UI_LOCALE, resolveSupportedLocale } = require("../infrastructure/config/i18n");
-const { MESSAGES_BY_LOCALE } = require("../application/i18n/messages");
 if (!app || !BrowserWindow) {
   throw new Error("Failed to load Electron runtime. Ensure the app is launched with the Electron binary.");
 }
@@ -360,7 +358,6 @@ const registerBridges = (win) => {
     sessions,
     sftpClients,
     electronModule,
-    t: (key) => MESSAGES_BY_LOCALE?.[DEFAULT_UI_LOCALE]?.[key] || key,
   };
 
   sshBridge.init(deps);

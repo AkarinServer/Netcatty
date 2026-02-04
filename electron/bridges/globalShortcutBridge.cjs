@@ -12,7 +12,19 @@ let closeToTray = false;
 let currentHotkey = null;
 let hotkeyEnabled = false;
 
-let t = (key) => key;
+const STATUS_TEXT = {
+  session: {
+    connected: "Connected",
+    connecting: "Connecting",
+    disconnected: "Disconnected",
+  },
+  portForward: {
+    active: "Active",
+    connecting: "Connecting",
+    inactive: "Inactive",
+    error: "Error",
+  },
+};
 
 // Dynamic tray menu data (synced from renderer)
 let trayMenuData = {
@@ -51,9 +63,6 @@ function resolveTrayIconPath() {
  */
 function init(deps) {
   electronModule = deps.electronModule;
-  if (typeof deps.t === "function") {
-    t = deps.t;
-  }
 }
 
 /**
@@ -283,7 +292,7 @@ function buildTrayMenuTemplate() {
 
   // Open Main Window
   menuTemplate.push({
-    label: t("tray.openMainWindow"),
+    label: "Open Main Window",
     click: () => {
       const win = getMainWindow();
       if (win) {
@@ -304,16 +313,16 @@ function buildTrayMenuTemplate() {
   // Active Sessions
   if (trayMenuData.sessions && trayMenuData.sessions.length > 0) {
     menuTemplate.push({
-      label: t("tray.sessions"),
+      label: "Sessions",
       enabled: false,
     });
     for (const session of trayMenuData.sessions) {
       const statusText =
         session.status === "connected"
-          ? t("tray.status.connected")
+          ? STATUS_TEXT.session.connected
           : session.status === "connecting"
-            ? t("tray.status.connecting")
-            : t("tray.status.disconnected");
+            ? STATUS_TEXT.session.connecting
+            : STATUS_TEXT.session.disconnected;
       menuTemplate.push({
         label: `  ${session.hostLabel || session.label}  (${statusText})`,
         click: () => {
@@ -335,7 +344,7 @@ function buildTrayMenuTemplate() {
   // Port Forwarding Rules
   if (trayMenuData.portForwardRules && trayMenuData.portForwardRules.length > 0) {
     menuTemplate.push({
-      label: t("tray.portForwarding"),
+      label: "Port Forwarding",
       enabled: false,
     });
     for (const rule of trayMenuData.portForwardRules) {
@@ -343,12 +352,12 @@ function buildTrayMenuTemplate() {
       const isConnecting = rule.status === "connecting";
       const statusText =
         rule.status === "active"
-          ? t("tray.status.active")
+          ? STATUS_TEXT.portForward.active
           : rule.status === "connecting"
-            ? t("tray.status.connecting")
+            ? STATUS_TEXT.portForward.connecting
             : rule.status === "error"
-              ? t("tray.status.error")
-              : t("tray.status.inactive");
+              ? STATUS_TEXT.portForward.error
+              : STATUS_TEXT.portForward.inactive;
       const typeLabel = rule.type === "local" ? "L" : rule.type === "remote" ? "R" : "D";
       const portInfo = rule.type === "dynamic" 
         ? `${rule.localPort}` 
@@ -370,7 +379,7 @@ function buildTrayMenuTemplate() {
 
   // Quit
   menuTemplate.push({
-    label: t("tray.quit"),
+    label: "Quit",
     click: () => {
       closeToTray = false;
       app.quit();
