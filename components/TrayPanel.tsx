@@ -368,6 +368,15 @@ const TrayPanelContent: React.FC = () => {
             </div>
           </div>
         )}
+
+        {/* Empty state - show when nothing is active */}
+        {jumpableSessions.length === 0 && portForwardingRules.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-8 text-center">
+            <span className="text-2xl mb-2">😴</span>
+            <span className="text-sm text-muted-foreground">{t("tray.empty.title")}</span>
+            <span className="text-xs text-muted-foreground/60 mt-1">{t("tray.empty.subtitle")}</span>
+          </div>
+        )}
       </div>
     </div>
   );

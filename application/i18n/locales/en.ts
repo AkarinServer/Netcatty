@@ -120,6 +120,8 @@ const en: Messages = {
   'tray.status.inactive': 'Inactive',
   'tray.status.error': 'Error',
   'tray.recentHosts': 'Recent Hosts',
+  'tray.empty.title': 'Nothing here yet',
+  'tray.empty.subtitle': 'Go connect to a server, they miss you 🚀',
 
   // Settings > Application
   'settings.application.checkUpdates': 'Check for updates',
