@@ -303,7 +303,7 @@ function buildTrayMenuTemplate() {
       enabled: false,
     });
     for (const session of trayMenuData.sessions) {
-      const statusIcon = session.status === "connected" ? "[on]" : session.status === "connecting" ? "[...]" : "[off]";
+      const statusIcon = session.status === "connected" ? "🟢" : session.status === "connecting" ? "🟡" : "🔴";
       menuTemplate.push({
         label: `  ${statusIcon} ${session.hostLabel || session.label}`,
         click: () => {
@@ -331,7 +331,7 @@ function buildTrayMenuTemplate() {
     for (const rule of trayMenuData.portForwardRules) {
       const isActive = rule.status === "active";
       const isConnecting = rule.status === "connecting";
-      const statusIcon = isActive ? "[on]" : isConnecting ? "[...]" : "[off]";
+      const statusIcon = rule.status === "active" ? "🟢" : rule.status === "connecting" ? "🟡" : rule.status === "error" ? "🔴" : "⚫";
       const typeLabel = rule.type === "local" ? "L" : rule.type === "remote" ? "R" : "D";
       const portInfo = rule.type === "dynamic" 
         ? `${rule.localPort}` 
@@ -339,18 +339,13 @@ function buildTrayMenuTemplate() {
       
       menuTemplate.push({
         label: `  ${statusIcon} [${typeLabel}] ${rule.label || portInfo}`,
-        submenu: [
-          {
-            label: isActive ? "Stop" : "Start",
-            enabled: !isConnecting,
-            click: () => {
-              const win = getMainWindow();
-              if (win) {
-                win.webContents?.send("netcatty:tray:togglePortForward", rule.id, !isActive);
-              }
-            },
-          },
-        ],
+        enabled: !isConnecting,
+        click: () => {
+          const win = getMainWindow();
+          if (win) {
+            win.webContents?.send("netcatty:tray:togglePortForward", rule.id, !isActive);
+          }
+        },
       });
     }
     menuTemplate.push({ type: "separator" });
