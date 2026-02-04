@@ -37,7 +37,7 @@ const StatusDot: React.FC<{ status: "success" | "warning" | "error" | "neutral";
 
 const TrayPanelContent: React.FC = () => {
   // debug
-  console.log("[TrayPanel] render", { hash: window.location.hash });
+  console.log("[TrayPanel] render", JSON.stringify({ hash: window.location.hash }));
   const { t } = useI18n();
   const { hideTrayPanel, openMainWindow, onTrayPanelCloseRequest, onTrayPanelRefresh } = useTrayPanelBackend();
 
@@ -67,6 +67,18 @@ const TrayPanelContent: React.FC = () => {
     }
     return result;
   }, [hosts, sessions]);
+
+  // debug
+  console.log(
+    "[TrayPanel] data",
+    JSON.stringify({
+      sessions: sessions.map((s) => ({ id: s.id, status: s.status, hostId: s.hostId, hostLabel: s.hostLabel })),
+      jumpableCount: jumpableSessions.length,
+      recentHosts,
+      hostsCount: hosts.length,
+      pfrCount: portForwardingRules.length,
+    }),
+  );
 
   useEffect(() => {
     const unsubscribe = onTrayPanelRefresh?.(() => {
