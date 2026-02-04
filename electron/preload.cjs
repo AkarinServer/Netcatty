@@ -779,6 +779,18 @@ const api = {
     return () => ipcRenderer.removeListener("netcatty:tray:togglePortForward", handler);
   },
 
+  // Tray panel actions forwarded to main window
+  onTrayPanelJumpToSession: (callback) => {
+    const handler = (_event, sessionId) => callback(sessionId);
+    ipcRenderer.on("netcatty:trayPanel:jumpToSession", handler);
+    return () => ipcRenderer.removeListener("netcatty:trayPanel:jumpToSession", handler);
+  },
+  onTrayPanelConnectToHost: (callback) => {
+    const handler = (_event, hostId) => callback(hostId);
+    ipcRenderer.on("netcatty:trayPanel:connectToHost", handler);
+    return () => ipcRenderer.removeListener("netcatty:trayPanel:connectToHost", handler);
+  },
+
   // Tray panel window
   hideTrayPanel: () => ipcRenderer.invoke("netcatty:trayPanel:hide"),
   openMainWindow: () => ipcRenderer.invoke("netcatty:trayPanel:openMainWindow"),

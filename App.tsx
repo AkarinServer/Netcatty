@@ -428,17 +428,14 @@ function App({ settings }: { settings: SettingsState }) {
       connectToHost(host);
     };
 
-    window.electron?.ipcRenderer?.on?.("netcatty:trayPanel:jumpToSession", handlerJump);
-    window.electron?.ipcRenderer?.on?.("netcatty:trayPanel:connectToHost", handlerConnect);
+    const bridge = netcattyBridge.get();
+    if (!bridge?.onTrayPanelJumpToSession || !bridge?.onTrayPanelConnectToHost) return;
+
+    const unsubscribeJump = bridge.onTrayPanelJumpToSession(handlerJump);
+    const unsubscribeConnect = bridge.onTrayPanelConnectToHost(handlerConnect);
     return () => {
-      window.electron?.ipcRenderer?.removeListener?.(
-        "netcatty:trayPanel:jumpToSession",
-        handlerJump,
-      );
-      window.electron?.ipcRenderer?.removeListener?.(
-        "netcatty:trayPanel:connectToHost",
-        handlerConnect,
-      );
+      unsubscribeJump?.();
+      unsubscribeConnect?.();
     };
   }, [addConnectionLog, connectToHost, hosts, setActiveTabId, t]);
 

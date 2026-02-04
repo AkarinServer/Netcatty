@@ -604,6 +604,9 @@ declare global {
     onTrayFocusSession?(callback: (sessionId: string) => void): () => void;
     onTrayTogglePortForward?(callback: (ruleId: string, start: boolean) => void): () => void;
 
+    onTrayPanelJumpToSession?(callback: (sessionId: string) => void): () => void;
+    onTrayPanelConnectToHost?(callback: (hostId: string) => void): () => void;
+
     hideTrayPanel?(): Promise<{ success: boolean }>;
     openMainWindow?(): Promise<{ success: boolean }>;
     jumpToSessionFromTrayPanel?(sessionId: string): Promise<{ success: boolean }>;

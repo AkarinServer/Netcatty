@@ -41,13 +41,12 @@ const TrayPanelContent: React.FC = () => {
     hideTrayPanel,
     openMainWindow,
     jumpToSession,
-    connectToHostFromTrayPanel,
     onTrayPanelCloseRequest,
     onTrayPanelRefresh,
     onTrayPanelMenuData,
   } = useTrayPanelBackend();
 
-  const { hosts, keys } = useVaultState();
+  const { hosts: _hosts, keys } = useVaultState();
   useSessionState();
   const { rules: portForwardingRules, startTunnel, stopTunnel } = usePortForwardingState();
   const activeTabId = useActiveTabId();
@@ -59,21 +58,10 @@ const TrayPanelContent: React.FC = () => {
     [traySessions],
   );
 
-  const recentHosts = useMemo(() => {
-    const seen = new Set<string>();
-    const result: Array<{ hostId: string; label: string }> = [];
-    for (let i = traySessions.length - 1; i >= 0; i -= 1) {
-      const s = traySessions[i];
-      // tray sessions only include hostLabel/label; map by hostLabel -> host
-      const host = hosts.find((h) => (h.label || h.hostname) === s.hostLabel);
-      if (!host) continue;
-      if (seen.has(host.id)) continue;
-      seen.add(host.id);
-      result.push({ hostId: host.id, label: host.label || host.hostname });
-      if (result.length >= 5) break;
-    }
-    return result;
-  }, [hosts, traySessions]);
+  const activeSession = useMemo(() => {
+    if (!activeTabId) return null;
+    return traySessions.find((s) => s.id === activeTabId) || null;
+  }, [activeTabId, traySessions]);
 
   useEffect(() => {
     const unsubscribe = onTrayPanelMenuData?.((data) => {
@@ -190,24 +178,19 @@ const TrayPanelContent: React.FC = () => {
           </div>
         )}
 
-        {recentHosts.length > 0 && (
+        {activeSession && (
           <div>
-            <div className="px-2 py-1 text-xs text-muted-foreground">{t("tray.recentHosts")}</div>
-            <div className="space-y-1">
-              {recentHosts.map((rh) => (
-                <Button
-                  key={rh.hostId}
-                  variant="ghost"
-                  className="w-full justify-start px-2 h-8"
-                  title={rh.label}
-                  onClick={() => {
-                    void connectToHostFromTrayPanel(rh.hostId);
-                  }}
-                >
-                  <span className="truncate">{rh.label}</span>
-                </Button>
-              ))}
-            </div>
+            <div className="px-2 py-1 text-xs text-muted-foreground">Current</div>
+            <Button
+              variant="ghost"
+              className="w-full justify-start px-2 h-8"
+              title={activeSession.hostLabel || activeSession.label}
+              onClick={() => {
+                void jumpToSession(activeSession.id);
+              }}
+            >
+              <span className="truncate">{activeSession.hostLabel || activeSession.label}</span>
+            </Button>
           </div>
         )}
 
