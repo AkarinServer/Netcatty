@@ -83,6 +83,11 @@ function ensureTrayPanelWindow() {
     },
   });
 
+  trayPanelWindow.webContents.on("console-message", (_event, level, message) => {
+    // Forward renderer logs to main process output for easy debugging.
+    console.log(`[TrayPanel:renderer:${level}] ${message}`);
+  });
+
   trayPanelWindow.on("blur", () => {
     try {
       trayPanelWindow?.hide();
