@@ -46,6 +46,10 @@ const tag = (process.env.GITHUB_REF_NAME && /^v\d+\.\d+\.\d+/.test(process.env.G
 const baseUrl = `https://github.com/${repo}/releases/download/${tag}`;
 
 // Filename patterns based on electron-builder.config.cjs artifactName: '${productName}-${version}-${os}-${arch}.${ext}'
+// Note: electron-builder uses different arch names for Linux packages:
+// - AppImage: x64 -> x86_64, arm64 -> arm64
+// - deb: x64 -> amd64, arm64 -> arm64
+// - rpm: x64 -> x86_64, arm64 -> aarch64
 const files = {
   mac: {
     arm64: `Netcatty-${version}-mac-arm64.dmg`,
@@ -57,16 +61,16 @@ const files = {
   },
   linux: {
     appimage: {
-      x64: `Netcatty-${version}-linux-x64.AppImage`,
+      x64: `Netcatty-${version}-linux-x86_64.AppImage`,
       arm64: `Netcatty-${version}-linux-arm64.AppImage`
     },
     deb: {
-      x64: `Netcatty-${version}-linux-x64.deb`,
+      x64: `Netcatty-${version}-linux-amd64.deb`,
       arm64: `Netcatty-${version}-linux-arm64.deb`
     },
     rpm: {
-      x64: `Netcatty-${version}-linux-x64.rpm`,
-      arm64: `Netcatty-${version}-linux-arm64.rpm`
+      x64: `Netcatty-${version}-linux-x86_64.rpm`,
+      arm64: `Netcatty-${version}-linux-aarch64.rpm`
     }
   }
 };

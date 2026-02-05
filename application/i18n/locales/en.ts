@@ -1355,6 +1355,9 @@ const en: Messages = {
   'passphrase.unlock': 'Unlock',
   'passphrase.unlocking': 'Unlocking...',
   'passphrase.skip': 'Skip',
+
+  // Text Editor
+  'sftp.editor.wordWrap': 'Word Wrap',
 };
 
 export default en;

@@ -5,6 +5,7 @@ import {
   CloudUpload,
   Loader2,
   Search,
+  WrapText,
   X,
 } from 'lucide-react';
 import Editor, { type OnMount, loader, useMonaco } from '@monaco-editor/react';
@@ -18,6 +19,7 @@ const monacoBasePath = import.meta.env.DEV
 loader.config({ paths: { vs: monacoBasePath } });
 
 import { useI18n } from '../application/i18n/I18nProvider';
+import { useSettingsState } from '../application/state/useSettingsState';
 import { getLanguageId, getLanguageName, getSupportedLanguages } from '../lib/sftpFileUtils';
 import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
@@ -134,6 +136,7 @@ export const TextEditorModal: React.FC<TextEditorModalProps> = ({
   onSave,
 }) => {
   const { t } = useI18n();
+  const { editorWordWrap, setEditorWordWrap } = useSettingsState();
   const monaco = useMonaco();
   const [content, setContent] = useState(initialContent);
   const [saving, setSaving] = useState(false);
@@ -299,6 +302,17 @@ export const TextEditorModal: React.FC<TextEditorModalProps> = ({
                 <Search size={14} />
               </Button>
 
+              {/* Word wrap toggle */}
+              <Button
+                variant={editorWordWrap ? 'secondary' : 'ghost'}
+                size="icon"
+                className="h-7 w-7"
+                onClick={() => setEditorWordWrap(!editorWordWrap)}
+                title={t('sftp.editor.wordWrap')}
+              >
+                <WrapText size={14} />
+              </Button>
+
               {/* Language selector */}
               <Combobox
                 options={languageOptions}
@@ -360,7 +374,7 @@ export const TextEditorModal: React.FC<TextEditorModalProps> = ({
               automaticLayout: true,
               tabSize: 2,
               insertSpaces: true,
-              wordWrap: 'off',
+              wordWrap: editorWordWrap ? 'on' : 'off',
               folding: true,
               renderWhitespace: 'selection',
               bracketPairColorization: { enabled: true },

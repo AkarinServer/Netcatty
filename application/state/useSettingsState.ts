@@ -1,31 +1,32 @@
-import { useCallback,useEffect,useLayoutEffect,useMemo,useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import { SyncConfig, TerminalSettings, DEFAULT_TERMINAL_SETTINGS, HotkeyScheme, CustomKeyBindings, DEFAULT_KEY_BINDINGS, KeyBinding, UILanguage, SessionLogFormat } from '../../domain/models';
 import {
-STORAGE_KEY_COLOR,
-STORAGE_KEY_SYNC,
-STORAGE_KEY_TERM_THEME,
-STORAGE_KEY_THEME,
-STORAGE_KEY_TERM_FONT_FAMILY,
-STORAGE_KEY_TERM_FONT_SIZE,
-STORAGE_KEY_TERM_SETTINGS,
-STORAGE_KEY_HOTKEY_SCHEME,
-STORAGE_KEY_CUSTOM_KEY_BINDINGS,
-STORAGE_KEY_HOTKEY_RECORDING,
-STORAGE_KEY_CUSTOM_CSS,
-STORAGE_KEY_UI_LANGUAGE,
-STORAGE_KEY_ACCENT_MODE,
-STORAGE_KEY_UI_THEME_LIGHT,
-STORAGE_KEY_UI_THEME_DARK,
-STORAGE_KEY_UI_FONT_FAMILY,
-STORAGE_KEY_SFTP_DOUBLE_CLICK_BEHAVIOR,
-STORAGE_KEY_SFTP_AUTO_SYNC,
-STORAGE_KEY_SFTP_SHOW_HIDDEN_FILES,
-STORAGE_KEY_SFTP_USE_COMPRESSED_UPLOAD,
-STORAGE_KEY_SESSION_LOGS_ENABLED,
-STORAGE_KEY_SESSION_LOGS_DIR,
-STORAGE_KEY_SESSION_LOGS_FORMAT,
-STORAGE_KEY_TOGGLE_WINDOW_HOTKEY,
-STORAGE_KEY_CLOSE_TO_TRAY,
+  STORAGE_KEY_COLOR,
+  STORAGE_KEY_SYNC,
+  STORAGE_KEY_TERM_THEME,
+  STORAGE_KEY_THEME,
+  STORAGE_KEY_TERM_FONT_FAMILY,
+  STORAGE_KEY_TERM_FONT_SIZE,
+  STORAGE_KEY_TERM_SETTINGS,
+  STORAGE_KEY_HOTKEY_SCHEME,
+  STORAGE_KEY_CUSTOM_KEY_BINDINGS,
+  STORAGE_KEY_HOTKEY_RECORDING,
+  STORAGE_KEY_CUSTOM_CSS,
+  STORAGE_KEY_UI_LANGUAGE,
+  STORAGE_KEY_ACCENT_MODE,
+  STORAGE_KEY_UI_THEME_LIGHT,
+  STORAGE_KEY_UI_THEME_DARK,
+  STORAGE_KEY_UI_FONT_FAMILY,
+  STORAGE_KEY_SFTP_DOUBLE_CLICK_BEHAVIOR,
+  STORAGE_KEY_SFTP_AUTO_SYNC,
+  STORAGE_KEY_SFTP_SHOW_HIDDEN_FILES,
+  STORAGE_KEY_SFTP_USE_COMPRESSED_UPLOAD,
+  STORAGE_KEY_EDITOR_WORD_WRAP,
+  STORAGE_KEY_SESSION_LOGS_ENABLED,
+  STORAGE_KEY_SESSION_LOGS_DIR,
+  STORAGE_KEY_SESSION_LOGS_FORMAT,
+  STORAGE_KEY_TOGGLE_WINDOW_HOTKEY,
+  STORAGE_KEY_CLOSE_TO_TRAY,
 } from '../../infrastructure/config/storageKeys';
 import { DEFAULT_UI_LOCALE, resolveSupportedLocale } from '../../infrastructure/config/i18n';
 import { TERMINAL_THEMES } from '../../infrastructure/config/terminalThemes';
@@ -53,6 +54,9 @@ const DEFAULT_SFTP_DOUBLE_CLICK_BEHAVIOR: 'open' | 'transfer' = 'open';
 const DEFAULT_SFTP_AUTO_SYNC = false;
 const DEFAULT_SFTP_SHOW_HIDDEN_FILES = false;
 const DEFAULT_SFTP_USE_COMPRESSED_UPLOAD = true;
+
+// Editor defaults
+const DEFAULT_EDITOR_WORD_WRAP = false;
 
 // Session Logs defaults
 const DEFAULT_SESSION_LOGS_ENABLED = false;
@@ -89,7 +93,7 @@ const isValidUiFontId = (value: string): boolean => {
   if (value.startsWith('local-')) return true;
   // Check bundled fonts first, then check dynamically loaded fonts
   return UI_FONTS.some((font) => font.id === value) ||
-         uiFontStore.getAvailableFonts().some((font) => font.id === value);
+    uiFontStore.getAvailableFonts().some((font) => font.id === value);
 };
 
 const applyThemeTokens = (
@@ -208,6 +212,12 @@ export const useSettingsState = () => {
     return DEFAULT_SFTP_USE_COMPRESSED_UPLOAD;
   });
 
+  // Editor Settings
+  const [editorWordWrap, setEditorWordWrapState] = useState<boolean>(() => {
+    const stored = readStoredString(STORAGE_KEY_EDITOR_WORD_WRAP);
+    return stored === 'true' ? true : DEFAULT_EDITOR_WORD_WRAP;
+  });
+
   // Session Logs Settings
   const [sessionLogsEnabled, setSessionLogsEnabled] = useState<boolean>(() => {
     const stored = readStoredString(STORAGE_KEY_SESSION_LOGS_ENABLED);
@@ -307,11 +317,11 @@ export const useSettingsState = () => {
   }, [uiFontFamilyId, uiFontsLoaded, notifySettingsChanged]);
 
   // Listen for settings changes from other windows via IPC
-	  useEffect(() => {
-	    const bridge = netcattyBridge.get();
-	    if (!bridge?.onSettingsChanged) return;
-	    const unsubscribe = bridge.onSettingsChanged((payload) => {
-	      const { key, value } = payload;
+  useEffect(() => {
+    const bridge = netcattyBridge.get();
+    if (!bridge?.onSettingsChanged) return;
+    const unsubscribe = bridge.onSettingsChanged((payload) => {
+      const { key, value } = payload;
       if (
         key === STORAGE_KEY_THEME ||
         key === STORAGE_KEY_UI_THEME_LIGHT ||
@@ -325,8 +335,8 @@ export const useSettingsState = () => {
       if (key === STORAGE_KEY_UI_LANGUAGE && typeof value === 'string') {
         const next = resolveSupportedLocale(value);
         setUiLanguage((prev) => (prev === next ? prev : next));
-	        document.documentElement.lang = next;
-	      }
+        document.documentElement.lang = next;
+      }
       if (key === STORAGE_KEY_CUSTOM_CSS && typeof value === 'string') {
         syncCustomCssFromStorage();
       }
@@ -447,14 +457,14 @@ export const useSettingsState = () => {
         }
       }
       // Sync terminal settings from other windows
-	      if (e.key === STORAGE_KEY_TERM_SETTINGS && e.newValue) {
-	        try {
-	          const newSettings = JSON.parse(e.newValue) as TerminalSettings;
-	          setTerminalSettings(_prev => ({ ...DEFAULT_TERMINAL_SETTINGS, ...newSettings }));
-	        } catch {
-	          // ignore parse errors
-	        }
-	      }
+      if (e.key === STORAGE_KEY_TERM_SETTINGS && e.newValue) {
+        try {
+          const newSettings = JSON.parse(e.newValue) as TerminalSettings;
+          setTerminalSettings(_prev => ({ ...DEFAULT_TERMINAL_SETTINGS, ...newSettings }));
+        } catch {
+          // ignore parse errors
+        }
+      }
       // Sync terminal theme from other windows
       if (e.key === STORAGE_KEY_TERM_THEME && e.newValue) {
         if (e.newValue !== terminalThemeId) {
@@ -755,6 +765,13 @@ export const useSettingsState = () => {
     setSftpShowHiddenFiles,
     sftpUseCompressedUpload,
     setSftpUseCompressedUpload,
+    // Editor Settings
+    editorWordWrap,
+    setEditorWordWrap: useCallback((enabled: boolean) => {
+      setEditorWordWrapState(enabled);
+      localStorageAdapter.writeString(STORAGE_KEY_EDITOR_WORD_WRAP, String(enabled));
+      notifySettingsChanged(STORAGE_KEY_EDITOR_WORD_WRAP, enabled);
+    }, [notifySettingsChanged]),
     availableFonts,
     // Session Logs
     sessionLogsEnabled,

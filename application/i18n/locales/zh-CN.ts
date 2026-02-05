@@ -1341,6 +1341,9 @@ const zhCN: Messages = {
   'passphrase.unlock': '解锁',
   'passphrase.unlocking': '解锁中...',
   'passphrase.skip': '跳过',
+
+  // Text Editor
+  'sftp.editor.wordWrap': '自动换行',
 };
 
 export default zhCN;
